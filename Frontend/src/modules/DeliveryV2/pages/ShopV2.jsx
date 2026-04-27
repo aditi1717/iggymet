@@ -127,7 +127,7 @@ function ProductCard({ product, onOrder, onQuickAddToCart }) {
 
   return (
     <div className="flex flex-col overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm transition-all hover:shadow-md active:scale-[0.98]">
-      <div className="relative h-24 shrink-0 overflow-hidden" style={{ backgroundColor: BRAND_SOFT }}>
+      <div className="relative h-32 shrink-0 overflow-hidden" style={{ backgroundColor: BRAND_SOFT }}>
         {product?.image ? (
           <img
             src={product.image}
@@ -139,7 +139,7 @@ function ProductCard({ product, onOrder, onQuickAddToCart }) {
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center opacity-40">
-            <Package className="h-5 w-5" style={{ color: BRAND_PRIMARY }} />
+            <Package className="h-6 w-6" style={{ color: BRAND_PRIMARY }} />
           </div>
         )}
 
@@ -162,12 +162,12 @@ function ProductCard({ product, onOrder, onQuickAddToCart }) {
       </div>
 
       <div className="flex flex-1 flex-col p-2.5">
-        <div className="flex flex-col gap-2">
-          <div className="min-w-0">
-            <h3 className="line-clamp-1 text-[13px] font-semibold leading-tight text-slate-950">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start justify-between gap-1.5">
+            <h3 className="line-clamp-2 min-w-0 flex-1 text-[12px] font-bold leading-tight text-slate-950">
               {product?.name || 'Store Item'}
             </h3>
-            <p className="mt-1 text-[14px] font-medium" style={{ color: BRAND_PRIMARY }}>
+            <p className="shrink-0 text-[13px] font-bold" style={{ color: BRAND_PRIMARY }}>
               {selectedVariant ? formatCurrency(selectedVariant?.price) : formatCurrency(getProductPrice(product))}
             </p>
           </div>
