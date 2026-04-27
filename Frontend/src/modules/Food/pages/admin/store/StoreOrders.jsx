@@ -153,6 +153,7 @@ export default function StoreOrders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
   const [selectedGroup, setSelectedGroup] = useState(null);
 
@@ -209,7 +210,14 @@ export default function StoreOrders() {
       });
     });
 
-    const groupList = Array.from(groups.values());
+    let groupList = Array.from(groups.values());
+
+    // Status filtering
+    if (statusFilter !== "all") {
+      groupList = groupList.filter(group => 
+        String(group.orderStatus || "pending").toLowerCase() === statusFilter.toLowerCase()
+      );
+    }
 
     // Search filtering
     const query = searchQuery.trim().toLowerCase();
@@ -225,7 +233,7 @@ export default function StoreOrders() {
 
       return partnerName.includes(query) || phone.includes(query) || productsMatch;
     }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [orders, searchQuery]);
+  }, [orders, searchQuery, statusFilter]);
 
   const handleStatusChange = async (orderGroup, newStatus) => {
     try {
@@ -261,24 +269,39 @@ export default function StoreOrders() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Store Orders</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Manage delivery partner store purchases in one place.
+            <h1 className="text-xl font-black text-slate-900 tracking-tight">Store Orders</h1>
+            <p className="mt-0.5 text-[13px] font-medium text-slate-500">
+              Manage delivery partner purchases.
             </p>
           </div>
 
-          <div className="relative w-full md:w-80">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search by partner or product..."
-              className="w-full rounded-2xl border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm text-slate-700 outline-none transition focus:border-blue-400"
-            />
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white"
+            >
+              <option value="all">All Status</option>
+              {STATUS_OPTIONS.map(status => (
+                <option key={status} value={status}>
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </option>
+              ))}
+            </select>
+
+            <div className="relative w-full md:w-64">
+              <Search className="absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search..."
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-xs font-medium text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white"
+              />
+            </div>
           </div>
         </div>
       </div>
