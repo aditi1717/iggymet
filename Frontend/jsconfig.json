@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@food/*": ["./src/modules/Food/*"],
+      "@shared/*": ["./src/shared/*"],
+      "@core/*": ["./src/core/*"],
+      "@quickCommerce/*": ["./src/modules/quickCommerce/*"],
+      "@delivery/*": ["./src/modules/DeliveryV2/*"]
+    }
+  },
+  "include": ["src"]
+}

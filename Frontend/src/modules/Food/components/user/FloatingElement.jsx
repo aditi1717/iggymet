@@ -1,0 +1,58 @@
+// CSS-only FloatingElement - no framer-motion
+import { useEffect, useRef, useState } from "react"
+import BRAND_THEME from "@/config/brandTheme"
+
+export default function FloatingElement({ children, delay = 0, className = "" }) {
+  const ref = useRef(null)
+  const [isVisible, setIsVisible] = useState(false)
+  const motion = BRAND_THEME.tokens.motion
+
+  useEffect(() => {
+    const element = ref.current
+    if (!element) return
+
+    const checkVisibility = () => {
+      const rect = element.getBoundingClientRect()
+      const windowHeight = window.innerHeight || document.documentElement.clientHeight
+      const isInView = rect.top < windowHeight && rect.bottom > 0
+
+      if (isInView && !isVisible) {
+        setIsVisible(true)
+      }
+    }
+
+    checkVisibility()
+    
+    let ticking = false
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          checkVisibility()
+          ticking = false
+        })
+        ticking = true
+      }
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+    }
+  }, [isVisible])
+
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        opacity: isVisible ? 1 : 0,
+        transform: isVisible ? "translateY(0)" : `translateY(${motion.distance.floatY})`,
+        transition: `opacity ${motion.duration.slow} ${motion.easing.standard} ${delay}s, transform ${motion.duration.slow} ${motion.easing.standard} ${delay}s`,
+        willChange: "opacity, transform",
+      }}
+    >
+      {children}
+    </div>
+  )
+}
