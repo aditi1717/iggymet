@@ -172,6 +172,12 @@ export default function TransactionReport() {
   const getStatusBadgeClasses = (status) => {
     const normalized = String(status || '').toLowerCase()
 
+    if (['user_unavailable_recovered'].includes(normalized)) {
+      return 'bg-blue-100 text-blue-700'
+    }
+    if (['user_unavailable_due_pending', 'cancelled_by_user_unavailable'].includes(normalized)) {
+      return 'bg-orange-100 text-orange-700'
+    }
     if (['captured', 'settled', 'completed', 'paid', 'delivered'].includes(normalized)) {
       return 'bg-green-100 text-green-700'
     }
@@ -194,13 +200,35 @@ export default function TransactionReport() {
     return 'bg-slate-100 text-slate-700'
   }
 
-  const getDisplayStatus = (transaction) => {
+  const getRawDisplayStatus = (transaction) => {
     return (
       transaction?.displayStatus ||
       transaction?.status ||
       transaction?.orderStatus ||
       'N/A'
     )
+  }
+
+  const formatStatusLabel = (status) => {
+    const normalized = String(status || '').toLowerCase()
+    if (normalized === 'user_unavailable_due_pending') return 'User Unavailable'
+    if (normalized === 'user_unavailable_recovered') return 'Recovered'
+    if (normalized === 'cancelled_by_user_unavailable') return 'User Unavailable'
+    return status || 'N/A'
+  }
+
+  const getDisplayStatus = (transaction) => {
+    return formatStatusLabel(getRawDisplayStatus(transaction))
+  }
+
+  const getPenaltyAmount = (transaction) => {
+    const directAmount = Number(
+      transaction?.penaltyAmount ??
+      transaction?.dueAmount ??
+      transaction?.noResponseMeta?.dueAmount ??
+      0
+    )
+    return Number.isFinite(directAmount) && directAmount > 0 ? directAmount : 0
   }
 
   if (loading) {
@@ -457,13 +485,14 @@ export default function TransactionReport() {
                   <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '7%' }}>Order Id</th>
                   <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '9%' }}>Restaurant</th>
                   <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '9%' }}>Customer Name</th>
-                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Total Item Amount</th>
-                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Coupon By Admin</th>
-                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Coupon By Restaurant</th>
-                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Offer By Restaurant</th>
-                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Vat/Tax</th>
-                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Delivery Charge</th>
-                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Platform Fee</th>
+                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '7%' }}>Total Item Amount</th>
+                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '7%' }}>Coupon By Admin</th>
+                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '7%' }}>Coupon By Restaurant</th>
+                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '7%' }}>Offer By Restaurant</th>
+                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '7%' }}>Penalty</th>
+                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '7%' }}>Vat/Tax</th>
+                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '7%' }}>Delivery Charge</th>
+                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '7%' }}>Platform Fee</th>
                   <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Order Amount</th>
                   <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Status</th>
                 </tr>
@@ -471,7 +500,7 @@ export default function TransactionReport() {
               <tbody className="bg-white divide-y divide-slate-100">
                 {filteredTransactions.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="px-6 py-20 text-center">
+                    <td colSpan={14} className="px-6 py-20 text-center">
                       <div className="flex flex-col items-center justify-center">
                         <p className="text-lg font-semibold text-slate-700 mb-1">No Data Found</p>
                         <p className="text-sm text-slate-500">No transactions match your search</p>
@@ -515,6 +544,11 @@ export default function TransactionReport() {
                         <span className="text-[10px] text-slate-700">{formatFullCurrency(transaction.offerByRestaurant || 0)}</span>
                       </td>
                       <td className="px-1.5 py-1">
+                        <span className={`text-[10px] ${getPenaltyAmount(transaction) > 0 ? 'font-semibold text-orange-700' : 'text-slate-500'}`}>
+                          {formatFullCurrency(getPenaltyAmount(transaction))}
+                        </span>
+                      </td>
+                      <td className="px-1.5 py-1">
                         <span className="text-[10px] text-slate-700">{formatFullCurrency(transaction.vatTax)}</span>
                       </td>
                       <td className="px-1.5 py-1">
@@ -527,7 +561,7 @@ export default function TransactionReport() {
                         <span className="text-[10px] font-medium text-slate-900">{formatFullCurrency(transaction.orderAmount)}</span>
                       </td>
                       <td className="px-1.5 py-1">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${getStatusBadgeClasses(getDisplayStatus(transaction))}`}>
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${getStatusBadgeClasses(getRawDisplayStatus(transaction))}`}>
                           {getDisplayStatus(transaction)}
                         </span>
                       </td>

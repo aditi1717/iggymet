@@ -139,6 +139,68 @@ const startOfTodayLocal = () => {
     return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
 };
 
+const RESTAURANT_EFFECTIVE_DELIVERED_AT_EXPR = {
+    $ifNull: [
+        '$deliveryState.deliveredAt',
+        { $ifNull: ['$deliveredAt', { $ifNull: ['$completedAt', { $ifNull: ['$updatedAt', '$createdAt'] }] }] }
+    ]
+};
+
+const toValidDate = (value) => {
+    const date = value ? new Date(value) : null;
+    return date && !Number.isNaN(date.getTime()) ? date : null;
+};
+
+const PAYABLE_SETTLEMENT_ORDER_STATUSES = ['delivered', 'cancelled_by_user_unavailable'];
+const isPayableSettlementOrderStatus = (value) =>
+    PAYABLE_SETTLEMENT_ORDER_STATUSES.includes(String(value || '').toLowerCase());
+
+const getOrderEffectiveDeliveredAt = (order = {}) =>
+    toValidDate(
+        order?.deliveryState?.deliveredAt ||
+        order?.deliveredAt ||
+        order?.completedAt ||
+        order?.updatedAt ||
+        order?.createdAt
+    );
+
+const isOrderDeliveredForSettlement = (order = {}) =>
+    isPayableSettlementOrderStatus(order?.orderStatus);
+
+const isDateWithinRange = (date, start, end) => {
+    if (!date) return false;
+    const time = date.getTime();
+    if (start && time < start.getTime()) return false;
+    if (end && time > end.getTime()) return false;
+    return true;
+};
+
+const loadPendingRestaurantSettlementTransactions = async ({
+    start,
+    end,
+    scopedRestaurantIds = null,
+}) => {
+    const txFilter = {
+        status: 'captured',
+        'settlement.isRestaurantSettled': { $ne: true }
+    };
+    if (Array.isArray(scopedRestaurantIds)) {
+        txFilter.restaurantId = { $in: scopedRestaurantIds };
+    }
+
+    const pendingTransactions = await FoodTransaction.find(txFilter)
+        .select('_id restaurantId amounts.restaurantShare orderId')
+        .populate('orderId', 'orderStatus createdAt updatedAt completedAt deliveredAt deliveryState.deliveredAt')
+        .lean();
+
+    return pendingTransactions.filter((tx) => {
+        const order = tx?.orderId || {};
+        if (!isOrderDeliveredForSettlement(order)) return false;
+        const effectiveDeliveredAt = getOrderEffectiveDeliveredAt(order);
+        return isDateWithinRange(effectiveDeliveredAt, start, end);
+    });
+};
+
 const resolveAutoDateRange = async (beneficiaryType = 'restaurant') => {
     const now = new Date();
     const latest = await FoodPayoutSettlement.findOne({ beneficiaryType, status: 'paid' })
@@ -147,7 +209,49 @@ const resolveAutoDateRange = async (beneficiaryType = 'restaurant') => {
         .lean();
 
     const boundary = latest?.toAt || latest?.paidAt || null;
-    const start = boundary ? new Date(new Date(boundary).getTime() + 1000) : startOfTodayLocal();
+    let start = boundary ? new Date(new Date(boundary).getTime() + 1000) : startOfTodayLocal();
+    if (beneficiaryType === 'restaurant') {
+        const boundaryPlusOneSecond = boundary ? new Date(new Date(boundary).getTime() + 1000) : null;
+        const earliestUnsettledOrder = await FoodOrder.aggregate([
+            {
+                $match: {
+                    orderStatus: { $in: PAYABLE_SETTLEMENT_ORDER_STATUSES },
+                    restaurantId: { $exists: true, $ne: null }
+                }
+            },
+            {
+                $lookup: {
+                    from: FoodTransaction.collection.name,
+                    localField: '_id',
+                    foreignField: 'orderId',
+                    as: 'pendingTransactions'
+                }
+            },
+            {
+                $match: {
+                    pendingTransactions: {
+                        $elemMatch: {
+                            status: 'captured',
+                            'settlement.isRestaurantSettled': { $ne: true }
+                        }
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    effectiveDeliveredAt: RESTAURANT_EFFECTIVE_DELIVERED_AT_EXPR
+                }
+            },
+            ...(boundaryPlusOneSecond ? [{ $match: { effectiveDeliveredAt: { $gt: boundaryPlusOneSecond } } }] : []),
+            { $sort: { effectiveDeliveredAt: 1 } },
+            { $limit: 1 },
+            { $project: { effectiveDeliveredAt: 1 } }
+        ]);
+
+        if (earliestUnsettledOrder?.[0]?.effectiveDeliveredAt) {
+            start = new Date(earliestUnsettledOrder[0].effectiveDeliveredAt);
+        }
+    }
     const safeStart = start > now ? new Date(now.getTime() - 1000) : start;
     const end = now;
     return {
@@ -171,7 +275,7 @@ const resolveDeliveryAutoDateRange = async () => {
     const boundary = latest?.toAt || latest?.paidAt || null;
     const boundaryPlusOneSecond = boundary ? new Date(new Date(boundary).getTime() + 1000) : null;
     const deliveryOrderBaseMatch = {
-        orderStatus: 'delivered',
+        orderStatus: { $in: PAYABLE_SETTLEMENT_ORDER_STATUSES },
         'dispatch.deliveryPartnerId': { $exists: true, $ne: null }
     };
 
@@ -919,10 +1023,28 @@ export async function getTransactionReport(query = {}) {
         .filter((id) => mongoose.Types.ObjectId.isValid(id))
         .map((id) => new mongoose.Types.ObjectId(id));
 
-    const noResponseDebts = [];
+    const noResponseDebts = orderIds.length
+        ? await FoodUserDebt.find({
+            reasonType: 'user_unavailable',
+            $or: [
+                { failedOrderId: { $in: orderIds } },
+                { settledOrderId: { $in: orderIds } },
+            ],
+        })
+            .select('failedOrderId amount status settledOrderId settledAt')
+            .lean()
+        : [];
 
     const noResponseMap = new Map(
         noResponseDebts.map((row) => [String(row?.failedOrderId), row]),
+    );
+    const recoveredPenaltyMap = new Map(
+        noResponseDebts
+            .filter((row) =>
+                row?.settledOrderId &&
+                String(row?.status || '').toLowerCase() === 'paid',
+            )
+            .map((row) => [String(row?.settledOrderId), row]),
     );
 
     const transactions = transactionRows.map((tx) => {
@@ -949,7 +1071,16 @@ export async function getTransactionReport(query = {}) {
 
         const orderIdForMeta = order?._id ? String(order._id) : '';
         const debt = orderIdForMeta ? noResponseMap.get(orderIdForMeta) : null;
-        const displayStatus = tx.status || order?.orderStatus || 'N/A';
+        const recoveredDebt = orderIdForMeta
+            ? recoveredPenaltyMap.get(orderIdForMeta)
+            : null;
+        let displayStatus = tx.status || order?.orderStatus || 'N/A';
+        if (String(order?.orderStatus || '').toLowerCase() === 'cancelled_by_user_unavailable') {
+            displayStatus =
+                String(debt?.status || '').toLowerCase() === 'paid'
+                    ? 'user_unavailable_recovered'
+                    : 'user_unavailable_due_pending';
+        }
 
         return {
             id: tx._id,
@@ -968,10 +1099,24 @@ export async function getTransactionReport(query = {}) {
             deliveryCharge: pricing.deliveryFee || 0,
             platformFee,
             orderAmount: tx.amounts?.totalCustomerPaid || pricing.total || 0,
+            penaltyAmount:
+                recoveredDebt
+                    ? Number(recoveredDebt?.amount || 0)
+                    : String(debt?.status || '').toLowerCase() === 'unpaid'
+                        ? Number(debt?.amount || 0)
+                        : 0,
             status: tx.status,
             orderStatus: order?.orderStatus || '',
             displayStatus,
-            noResponseMeta: null,
+            noResponseMeta: debt
+                ? {
+                    isUserUnavailable: true,
+                    dueAmount: Number(debt?.amount || 0),
+                    dueStatus: debt?.status || 'unpaid',
+                    settledOrderId: debt?.settledOrderId || null,
+                    settledAt: debt?.settledAt || null,
+                }
+                : null,
         };
     });
 
@@ -5944,57 +6089,57 @@ export async function getRestaurantPayoutSettlementPreview(query = {}, adminScop
         };
     }
 
-    const txMatch = {
-        createdAt: { $lte: end },
-        status: 'captured',
-        'settlement.isRestaurantSettled': { $ne: true }
-    };
-    if (Array.isArray(scopedRestaurantIds)) {
-        txMatch.restaurantId = { $in: scopedRestaurantIds };
+    const pendingTransactions = await loadPendingRestaurantSettlementTransactions({
+        start,
+        end,
+        scopedRestaurantIds: Array.isArray(scopedRestaurantIds) ? scopedRestaurantIds : null,
+    });
+    const restaurantIds = [...new Set(
+        pendingTransactions
+            .map((tx) => String(tx?.restaurantId || '').trim())
+            .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    )].map((id) => new mongoose.Types.ObjectId(id));
+    const restaurants = restaurantIds.length
+        ? await FoodRestaurant.find({ _id: { $in: restaurantIds } })
+            .select('_id restaurantName')
+            .lean()
+        : [];
+    const restaurantNameMap = new Map(
+        restaurants.map((restaurant) => [
+            String(restaurant._id),
+            String(restaurant.restaurantName || 'Unknown Restaurant')
+        ])
+    );
+
+    const groupedRows = new Map();
+    for (const tx of pendingTransactions) {
+        const restaurantId = String(tx?.restaurantId || '').trim();
+        if (!restaurantId) continue;
+        if (!groupedRows.has(restaurantId)) {
+            groupedRows.set(restaurantId, {
+                beneficiaryId: restaurantId,
+                beneficiaryName: restaurantNameMap.get(restaurantId) || 'Unknown Restaurant',
+                ordersCount: 0,
+                totalEarning: 0,
+                alreadyPaid: 0,
+                payableNow: 0,
+                lastSettledToDate: null,
+                status: 'pending'
+            });
+        }
+        const bucket = groupedRows.get(restaurantId);
+        const earning = Number(tx?.amounts?.restaurantShare || 0);
+        bucket.ordersCount += 1;
+        bucket.totalEarning += earning;
+        bucket.payableNow += earning;
     }
 
-    const rowsRaw = await FoodTransaction.aggregate([
-        { $match: txMatch },
-        {
-            $group: {
-                _id: '$restaurantId',
-                ordersCount: { $sum: 1 },
-                totalEarning: { $sum: { $ifNull: ['$amounts.restaurantShare', 0] } },
-                alreadyPaid: { $sum: 0 },
-                payableNow: { $sum: { $ifNull: ['$amounts.restaurantShare', 0] } }
-            }
-        },
-        {
-            $lookup: {
-                from: 'food_restaurants',
-                localField: '_id',
-                foreignField: '_id',
-                as: 'restaurant'
-            }
-        },
-        {
-            $unwind: {
-                path: '$restaurant',
-                preserveNullAndEmptyArrays: true
-            }
-        },
-        {
-            $project: {
-                _id: 0,
-                beneficiaryId: '$_id',
-                beneficiaryName: { $ifNull: ['$restaurant.restaurantName', 'Unknown Restaurant'] },
-                ordersCount: 1,
-                totalEarning: 1,
-                alreadyPaid: 1,
-                payableNow: 1,
-                lastSettledToDate: { $literal: null },
-                status: {
-                    $cond: [{ $lte: ['$payableNow', 0] }, 'paid', 'pending']
-                }
-            }
-        },
-        { $sort: { payableNow: -1, beneficiaryName: 1 } }
-    ]);
+    const rowsRaw = Array.from(groupedRows.values()).sort((a, b) => {
+        if (Number(b.payableNow || 0) !== Number(a.payableNow || 0)) {
+            return Number(b.payableNow || 0) - Number(a.payableNow || 0);
+        }
+        return String(a.beneficiaryName || '').localeCompare(String(b.beneficiaryName || ''));
+    });
 
     const rowsFiltered = search
         ? rowsRaw.filter((row) => {
@@ -6383,18 +6528,11 @@ export async function markAllRestaurantPayoutSettled(payload = {}, adminScope = 
         return { updatedTransactions: 0, settlementsCreated: 0, totalPaidAmount: 0 };
     }
 
-    const txFilter = {
-        createdAt: { $lte: end },
-        status: 'captured',
-        'settlement.isRestaurantSettled': { $ne: true }
-    };
-    if (Array.isArray(candidateRestaurantIds)) {
-        txFilter.restaurantId = { $in: candidateRestaurantIds };
-    }
-
-    const pendingTransactions = await FoodTransaction.find(txFilter)
-        .select('_id restaurantId amounts.restaurantShare')
-        .lean();
+    const pendingTransactions = await loadPendingRestaurantSettlementTransactions({
+        start,
+        end,
+        scopedRestaurantIds: Array.isArray(candidateRestaurantIds) ? candidateRestaurantIds : null,
+    });
 
     if (!pendingTransactions.length) {
         return { updatedTransactions: 0, settlementsCreated: 0, totalPaidAmount: 0 };
@@ -6568,7 +6706,7 @@ export async function getDeliveryPayoutSettlementPreview(query = {}, adminScope 
 
     const match = {
         effectiveDeliveredAt: { $lte: end },
-        orderStatus: 'delivered',
+        orderStatus: { $in: PAYABLE_SETTLEMENT_ORDER_STATUSES },
         'dispatch.deliveryPartnerId': { $exists: true, $ne: null }
     };
     if (Array.isArray(scopedPartnerIds)) {
@@ -6592,6 +6730,7 @@ export async function getDeliveryPayoutSettlementPreview(query = {}, adminScope 
                 codPending: {
                     $and: [
                         { $in: ['$paymentMethodLower', COD_PAYMENT_METHODS] },
+                        { $eq: ['$orderStatus', 'delivered'] },
                         { $not: [{ $in: ['$_id', codSettledOrderIds] }] }
                     ]
                 }
@@ -7095,7 +7234,7 @@ export async function markAllDeliveryPayoutSettled(payload = {}, adminScope = {}
 
     const orderMatch = {
         effectiveDeliveredAt: { $lte: end },
-        orderStatus: 'delivered',
+        orderStatus: { $in: PAYABLE_SETTLEMENT_ORDER_STATUSES },
         'dispatch.deliveryPartnerId': { $exists: true, $ne: null }
     };
     if (Array.isArray(candidatePartnerIds)) {
@@ -7125,6 +7264,7 @@ export async function markAllDeliveryPayoutSettled(payload = {}, adminScope = {}
                 codPending: {
                     $and: [
                         { $in: ['$paymentMethodLower', COD_PAYMENT_METHODS] },
+                        { $eq: ['$orderStatus', 'delivered'] },
                         { $not: [{ $in: ['$_id', codSettledOrderIds] }] }
                     ]
                 }

@@ -150,19 +150,40 @@ const validateScheduleSlots = (schedule) => {
   if (slots.length === 0) return "At least one slot is required."
   if (slots.length > MAX_TIMING_SLOTS) return `Maximum ${MAX_TIMING_SLOTS} slots allowed.`
 
-  const normalized = slots.map((slot) => ({
-    openingMinutes: timeToMinutes(slot?.openingTime),
-    closingMinutes: timeToMinutes(slot?.closingTime),
-  }))
+  const normalized = slots.map((slot) => {
+    const openingMinutes = timeToMinutes(slot?.openingTime)
+    const closingMinutes = timeToMinutes(slot?.closingTime)
+    const isOvernight =
+      openingMinutes !== null &&
+      closingMinutes !== null &&
+      closingMinutes < openingMinutes
+    return {
+      openingMinutes,
+      closingMinutes,
+      isOvernight,
+    }
+  })
   if (normalized.some((slot) => slot.openingMinutes === null || slot.closingMinutes === null)) {
     return "Please provide valid opening and closing time."
   }
-  if (normalized.some((slot) => slot.closingMinutes <= slot.openingMinutes)) {
-    return "Each slot closing time must be greater than opening time."
+  if (normalized.some((slot) => slot.closingMinutes === slot.openingMinutes)) {
+    return "Opening and closing time cannot be same."
   }
-  const sorted = [...normalized].sort((a, b) => a.openingMinutes - b.openingMinutes)
-  for (let i = 1; i < sorted.length; i += 1) {
-    if (sorted[i].openingMinutes < sorted[i - 1].closingMinutes) {
+  const expandedIntervals = normalized
+    .flatMap((slot, index) => {
+      const endMinutes = slot.isOvernight
+        ? slot.closingMinutes + (24 * 60)
+        : slot.closingMinutes
+      return [
+        { index, start: slot.openingMinutes, end: endMinutes },
+        { index, start: slot.openingMinutes + (24 * 60), end: endMinutes + (24 * 60) },
+      ]
+    })
+    .sort((a, b) => a.start - b.start)
+  for (let i = 1; i < expandedIntervals.length; i += 1) {
+    const current = expandedIntervals[i]
+    const previous = expandedIntervals[i - 1]
+    if (current.index !== previous.index && current.start < previous.end) {
       return "Time slots cannot overlap."
     }
   }

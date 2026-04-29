@@ -193,6 +193,26 @@ const deliveryVerificationSchema = new mongoose.Schema(
     { _id: false }
 );
 
+const userUnavailableRequestSchema = new mongoose.Schema(
+    {
+        status: {
+            type: String,
+            enum: ['none', 'pending', 'approved', 'rejected'],
+            default: 'none'
+        },
+        requestedAt: { type: Date, default: null },
+        requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'FoodDeliveryPartner', default: null },
+        proofImageUrl: { type: String, default: '', trim: true },
+        reason: { type: String, default: '', trim: true },
+        callAttempted: { type: Boolean, default: false },
+        waitTimerCompletedAt: { type: Date, default: null },
+        reviewedAt: { type: Date, default: null },
+        reviewedBy: { type: mongoose.Schema.Types.ObjectId, default: null },
+        reviewNote: { type: String, default: '', trim: true }
+    },
+    { _id: false }
+);
+
 const orderSchema = new mongoose.Schema(
     {
         orderType: {
@@ -268,7 +288,9 @@ const orderSchema = new mongoose.Schema(
                 'preparing',
                 'ready_for_pickup',
                 'picked_up',
+                'user_unavailable_review',
                 'delivered',
+                'cancelled_by_user_unavailable',
                 'cancelled_by_user',
                 'cancelled_by_restaurant',
                 'cancelled_by_admin'
@@ -306,6 +328,10 @@ const orderSchema = new mongoose.Schema(
         deliveryOtp: { type: String, default: '', select: false },
         deliveryVerification: {
             type: deliveryVerificationSchema,
+            default: () => ({})
+        },
+        userUnavailableRequest: {
+            type: userUnavailableRequestSchema,
             default: () => ({})
         },
         /** Latest rider location for this specific order (GeoJSON Point) */

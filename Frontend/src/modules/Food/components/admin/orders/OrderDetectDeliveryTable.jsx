@@ -11,6 +11,8 @@ const getStatusColor = (status) => {
     "Delivery Request Timed Out": "bg-amber-100 text-amber-700",
     "Delivery Boy Assigned": "bg-purple-100 text-purple-700",
     "Assignment Accepted": "bg-emerald-100 text-emerald-700",
+    "User Unavailable Review": "bg-amber-100 text-amber-700",
+    "User Unavailable": "bg-rose-100 text-rose-700",
     "Reached Pickup": "bg-orange-100 text-orange-700",
     "Reached Drop": "bg-amber-100 text-amber-700",
     "Ordered Delivered": "bg-emerald-100 text-emerald-700",
@@ -51,7 +53,8 @@ export default function OrderDetectDeliveryTable({
       rawStatus === "cancelled_by_restaurant" ||
       rawStatus === "cancelled_by_admin"
 
-    if (dispatchStatus !== "accepted" || isCancelled) return ""
+    if (dispatchStatus === "accepted") return ""
+    if (isCancelled) return ""
     if (rawStatus === "delivered" || rawStatus === "completed") return ""
     if (
       rawStatus === "picked_up" ||

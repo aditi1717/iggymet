@@ -6,6 +6,8 @@ const getStatusColor = (status) => {
     "Restaurant Accepted": "bg-green-100 text-green-700 border-green-200",
     "Accepted": "bg-green-100 text-green-700 border-green-200", // Keep for backward compatibility
     "Rejected": "bg-red-100 text-red-700 border-red-200",
+    "User Unavailable Review": "bg-amber-100 text-amber-700 border-amber-200",
+    "User Unavailable": "bg-rose-100 text-rose-700 border-rose-200",
     "Delivery Boy Assigned": "bg-purple-100 text-purple-700 border-purple-200",
     "Delivery Boy Reached Pickup": "bg-orange-100 text-orange-700 border-orange-200",
     "Reached Pickup": "bg-orange-100 text-orange-700 border-orange-200", // Keep for backward compatibility
@@ -18,6 +20,7 @@ const getStatusColor = (status) => {
 
 const getStatusIcon = (status) => {
   if (status === "Rejected") return XCircle
+  if (status === "User Unavailable") return XCircle
   if (status === "Ordered Delivered") return CheckCircle
   return Clock
 }

@@ -165,10 +165,14 @@ export function validateOrderStatusDto(body) {
             'preparing',
             'ready_for_pickup',
             'picked_up',
+            'user_unavailable_review',
             'delivered',
+            'cancelled_by_user_unavailable',
             'cancelled_by_restaurant',
             'cancelled_by_admin'
-        ])
+        ]),
+        reason: z.string().optional(),
+        reasonType: z.string().optional()
     });
     const result = schema.safeParse(body);
     if (!result.success) {

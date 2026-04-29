@@ -14,7 +14,6 @@ import {
   Moon,
   Sun,
   Check,
-  Percent,
   Info,
   PenSquare,
   AlertTriangle,
@@ -22,7 +21,6 @@ import {
   Power,
   ShoppingCart,
   MapPin,
-  Share2,
 } from "lucide-react";
 
 import AnimatedPage from "@food/components/user/AnimatedPage";
@@ -82,7 +80,6 @@ export default function Profile() {
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [referralReward, setReferralReward] = useState(0);
   const [walletBalance, setWalletBalance] = useState(0);
 
   // Trigger web push registration when profile mounts to ensure FCM token is saved
@@ -276,20 +273,6 @@ export default function Profile() {
   useEffect(() => {
     let mounted = true;
     userAPI
-      .getReferralStats()
-      .then((res) => {
-        const reward = res?.data?.data?.stats?.rewardAmount;
-        if (mounted) setReferralReward(Number(reward) || 0);
-      })
-      .catch(() => { });
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-    userAPI
       .getWallet()
       .then((res) => {
         const w = res?.data?.data?.wallet || res?.data?.wallet;
@@ -302,12 +285,6 @@ export default function Profile() {
     };
   }, []);
 
-  const refId =
-    userProfile?._id || userProfile?.id || userProfile?.referralCode || "";
-  const referralLink = refId
-    ? `${window.location.origin}/food/user/auth/login?ref=${encodeURIComponent(String(refId))}`
-    : "";
-
   const sectionHeadingClass =
     "text-[13px] font-normal text-slate-500 dark:text-slate-400";
   const optionCardClass =
@@ -317,26 +294,6 @@ export default function Profile() {
   const rowLabelClass =
     "text-[15px] font-normal text-slate-900 dark:text-white";
   const chevronClass = "h-5 w-5 text-slate-400 dark:text-slate-500";
-
-  const handleShareReferral = async () => {
-    if (!referralLink) return;
-    const rewardText = referralReward > 0 ? `\u20B9${referralReward}` : "rewards";
-    const shareText = `Join ${companyName} and earn ${rewardText}.`;
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: `${companyName} referral`,
-          text: shareText,
-          url: referralLink,
-        });
-      } else {
-        const fallbackUrl = `https://wa.me/?text=${encodeURIComponent(`${shareText} ${referralLink}`)}`;
-        window.open(fallbackUrl, "_blank", "noopener,noreferrer");
-      }
-    } catch (error) {
-      debugError("Failed to share referral:", error);
-    }
-  };
 
   // Handle logout
   const handleLogout = async () => {
@@ -600,54 +557,6 @@ export default function Profile() {
                   </motion.div>
                 </CardContent>
               </Card>
-            </motion.div>
-          </Link>
-
-          <Link to="/food/user/profile/refer-earn" className="block">
-            <motion.div
-              whileHover={{ x: 2 }}
-              transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
-            <Card className={optionCardClass}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <motion.div
-                      className={iconWrapClass}
-                      whileHover={{ scale: 1.03 }}
-                      transition={{ duration: 0.3 }}>
-                      <Tag className="h-5 w-5 text-gray-700 dark:text-gray-300" />
-                    </motion.div>
-                    <span className={rowLabelClass}>
-                      Refer & Earn
-                    </span>
-                  </div>
-                  {referralReward > 0 && (
-                    <span className="text-xs font-semibold px-2 py-1 rounded bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300">
-                      Earn {"\u20B9"}{referralReward}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Invite a friend. Reward is added to your wallet when they
-                    sign up.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleShareReferral();
-                    }}
-                    className="inline-flex items-center gap-1 text-xs font-normal ml-2 px-2 py-1 rounded-md"
-                    style={{ color: BRAND_THEME.tokens.profile.linkText }}
-                    disabled={!referralLink}>
-                    <Share2 className="h-3.5 w-3.5" />
-                    Refer
-                  </button>
-                </div>
-              </CardContent>
-            </Card>
             </motion.div>
           </Link>
 

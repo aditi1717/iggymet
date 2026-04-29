@@ -92,21 +92,37 @@ const validateSlots = (slots = []) => {
   const normalized = slots.map((slot) => {
     const openingMinutes = timeToMinutes(slot?.openingTime)
     const closingMinutes = timeToMinutes(slot?.closingTime)
+    const isOvernight =
+      openingMinutes !== null &&
+      closingMinutes !== null &&
+      closingMinutes < openingMinutes
     return {
       openingMinutes,
       closingMinutes,
+      isOvernight,
     }
   })
 
   const hasInvalid = normalized.some((slot) => slot.openingMinutes === null || slot.closingMinutes === null)
   if (hasInvalid) return "Please select valid opening and closing times."
 
-  const hasReverse = normalized.some((slot) => slot.closingMinutes <= slot.openingMinutes)
-  if (hasReverse) return "Each slot's closing time must be greater than opening time."
+  const hasSameTime = normalized.some((slot) => slot.closingMinutes === slot.openingMinutes)
+  if (hasSameTime) return "Opening and closing time cannot be same."
 
-  const sorted = [...normalized].sort((a, b) => a.openingMinutes - b.openingMinutes)
-  for (let i = 1; i < sorted.length; i += 1) {
-    if (sorted[i].openingMinutes < sorted[i - 1].closingMinutes) {
+  const expandedIntervals = normalized.flatMap((slot, index) => {
+    const endMinutes = slot.isOvernight
+      ? slot.closingMinutes + (24 * 60)
+      : slot.closingMinutes
+    return [
+      { index, start: slot.openingMinutes, end: endMinutes },
+      { index, start: slot.openingMinutes + (24 * 60), end: endMinutes + (24 * 60) },
+    ]
+  }).sort((a, b) => a.start - b.start)
+
+  for (let i = 1; i < expandedIntervals.length; i += 1) {
+    const current = expandedIntervals[i]
+    const previous = expandedIntervals[i - 1]
+    if (current.index !== previous.index && current.start < previous.end) {
       return "Time slots cannot overlap."
     }
   }

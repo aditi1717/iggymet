@@ -35,6 +35,7 @@ const getStatusColor = (orderStatus) => {
     "Ready": "bg-violet-100 text-violet-700",
     "Food On The Way": "bg-yellow-100 text-yellow-700",
     "Picked Up": "bg-yellow-100 text-yellow-700",
+    "User Unavailable Review": "bg-orange-100 text-orange-700",
     "Canceled": "bg-rose-100 text-rose-700",
     "Cancelled by Admin": "bg-rose-100 text-rose-700",
     "Cancelled by Restaurant": "bg-red-100 text-red-700",
@@ -57,7 +58,14 @@ const getPaymentStatusColor = (paymentStatus) => {
   return "text-slate-600"
 }
 
-export default function ViewOrderDialog({ isOpen, onOpenChange, order }) {
+export default function ViewOrderDialog({
+  isOpen,
+  onOpenChange,
+  order,
+  onApproveUserUnavailable,
+  onRejectUserUnavailable,
+  actionLoading,
+}) {
   if (!order) return null
 
   // Debug: Log order data to check billImageUrl
@@ -147,6 +155,14 @@ export default function ViewOrderDialog({ isOpen, onOpenChange, order }) {
     recipientSourceAddress.mobile,
     recipientSourceAddress.contactNumber,
   )
+  const reviewProofUrl =
+    order?.userUnavailableRequest?.proofImageUrl ||
+    order?.noResponseMeta?.proofImageUrl ||
+    ""
+  const isUserUnavailableReview = String(order?.orderStatus || "").toLowerCase() === "user unavailable review"
+  const loadingOrderId = actionLoading?.orderId || null
+  const loadingActionType = actionLoading?.type || null
+  const isActionLoading = loadingOrderId === (order.id || order._id || order.orderId)
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -242,6 +258,23 @@ export default function ViewOrderDialog({ isOpen, onOpenChange, order }) {
                         minute: '2-digit'
                       }).toUpperCase()}
                     </p>
+                  )}
+                </div>
+              )}
+              {isUserUnavailableReview && (
+                <div className="space-y-2 rounded-xl border border-orange-200 bg-orange-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-orange-700">
+                    User Unavailable Proof
+                  </p>
+                  {order?.userUnavailableRequest?.reason ? (
+                    <p className="text-sm text-slate-700">{order.userUnavailableRequest.reason}</p>
+                  ) : null}
+                  {reviewProofUrl ? (
+                    <a href={reviewProofUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-orange-200 bg-white">
+                      <img src={reviewProofUrl} alt="User unavailable proof" className="h-40 w-full object-cover" />
+                    </a>
+                  ) : (
+                    <p className="text-sm text-slate-500">Proof image not uploaded</p>
                   )}
                 </div>
               )}
@@ -542,6 +575,12 @@ export default function ViewOrderDialog({ isOpen, onOpenChange, order }) {
                   <span className="font-medium text-emerald-600">-₹{order.couponDiscount.toFixed(2)}</span>
                 </div>
               )}
+              {order.dueAmount !== undefined && Number(order.dueAmount) > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">{order.dueLabel || "Previous Due"}</span>
+                  <span className="font-medium text-slate-900">â‚¹{Number(order.dueAmount).toFixed(2)}</span>
+                </div>
+              )}
               {order.deliveryCharge !== undefined && (
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-600">Delivery Charge</span>
@@ -575,6 +614,28 @@ export default function ViewOrderDialog({ isOpen, onOpenChange, order }) {
             </div>
           </div>
         </div>
+        {isUserUnavailableReview && (
+          <div className="border-t border-slate-200 px-6 py-4">
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => onRejectUserUnavailable?.(order)}
+                disabled={!onRejectUserUnavailable || isActionLoading}
+                className="inline-flex items-center rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isActionLoading && loadingActionType === "reject" ? "Rejecting..." : "Reject"}
+              </button>
+              <button
+                type="button"
+                onClick={() => onApproveUserUnavailable?.(order)}
+                disabled={!onApproveUserUnavailable || isActionLoading}
+                className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isActionLoading && loadingActionType === "accept" ? "Approving..." : "Approve User Unavailable"}
+              </button>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )

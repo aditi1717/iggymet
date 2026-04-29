@@ -302,9 +302,11 @@ export const STATUS_PRIORITY = {
   reached_pickup: 50,
   picked_up: 60,
   reached_drop: 70,
+  user_unavailable_review: 75,
   delivered: 80,
   cancelled_by_user: 100,
   cancelled_by_restaurant: 100,
+  cancelled_by_user_unavailable: 100,
   cancelled_by_admin: 100,
 };
 

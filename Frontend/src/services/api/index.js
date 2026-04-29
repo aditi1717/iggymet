@@ -559,6 +559,16 @@ export const adminAPI = {
       orderStatus: "cancelled_by_admin",
       reason: String(reason || "").trim(),
     }),
+  approveUserUnavailableOrder: (orderId, reason = "") =>
+    adminAPI.updateOrderStatus(orderId, {
+      orderStatus: "cancelled_by_user_unavailable",
+      reason: String(reason || "").trim(),
+    }),
+  rejectUserUnavailableOrder: (orderId, reason = "") =>
+    adminAPI.updateOrderStatus(orderId, {
+      orderStatus: "cancelled_by_admin",
+      reason: String(reason || "").trim(),
+    }),
   /** Dispatch settings – auto vs manual assign (global) */
   /** Create restaurant (admin). Single API: POST /food/admin/restaurants. Body: JSON with image URLs. */
   createRestaurant: (body) =>
@@ -1989,6 +1999,18 @@ export const deliveryAPI = {
     apiClient.patch(
       `/food/delivery/orders/${String(orderId)}/status`,
       body ?? {},
+      {
+        contextModule: "delivery",
+      },
+    ),
+  reportUserUnavailable: (orderId, body = {}) =>
+    apiClient.patch(
+      `/food/delivery/orders/${String(orderId)}/status`,
+      {
+        ...(body ?? {}),
+        orderStatus: "cancelled_by_user_unavailable",
+        reasonType: "user_unavailable",
+      },
       {
         contextModule: "delivery",
       },

@@ -285,7 +285,10 @@ export async function updateOrderStatusDeliveryController(req, res, next) {
         const deliveryPartnerId = req.user?.userId;
         const orderId = req.params.orderId;
         const dto = validateOrderStatusDto(req.body);
-        const order = await orderService.updateOrderStatusDelivery(orderId, deliveryPartnerId, dto);
+        const order = await orderService.updateOrderStatusDelivery(orderId, deliveryPartnerId, {
+            ...(req.body || {}),
+            orderStatus: dto.orderStatus,
+        });
         return sendResponse(res, 200, 'Order status updated', { order });
     } catch (err) {
         next(err);

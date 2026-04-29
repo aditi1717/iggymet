@@ -1,16 +1,21 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { deliveryAPI } from '@food/api';
+import { deliveryAPI, uploadAPI } from '@food/api';
 import { toast } from 'sonner';
 import { useDeliveryStore } from '@/modules/DeliveryV2/store/useDeliveryStore';
 import {
+  AlertTriangle,
   ArrowLeft,
+  Camera,
   Clock3,
   MessageSquareText,
   Phone,
   RefreshCcw,
+  Square,
   Store,
+  Timer,
   User,
+  X,
 } from 'lucide-react';
 import { ActionSlider } from '@/modules/DeliveryV2/components/ui/ActionSlider';
 
@@ -423,6 +428,8 @@ const ActionButton = ({ disabled, busy, onClick, children, variant = 'primary' }
   </button>
 );
 
+const ATTEMPT_TIMER_SECONDS = 30; // 30 seconds (testing)
+
 const OrderDetailV2 = () => {
   const { orderId } = useParams();
   const navigate = useNavigate();
@@ -431,6 +438,95 @@ const OrderDetailV2 = () => {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState('');
+
+  // Delivery Attempt States
+  // 'normal' | 'timer' | 'proof'
+  const [attemptPhase, setAttemptPhase] = useState('normal');
+  const [timerSeconds, setTimerSeconds] = useState(ATTEMPT_TIMER_SECONDS);
+  const [proofPhoto, setProofPhoto] = useState(null);
+  const [proofPhotoPreview, setProofPhotoPreview] = useState(null);
+  const [attemptSubmitted, setAttemptSubmitted] = useState(false);
+  const timerIntervalRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  const startAttemptTimer = useCallback(() => {
+    setAttemptPhase('timer');
+    setTimerSeconds(ATTEMPT_TIMER_SECONDS);
+    timerIntervalRef.current = setInterval(() => {
+      setTimerSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerIntervalRef.current);
+          setAttemptPhase('proof');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  const stopAttemptTimer = useCallback(() => {
+    clearInterval(timerIntervalRef.current);
+    setAttemptPhase('normal');
+    setTimerSeconds(ATTEMPT_TIMER_SECONDS);
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => clearInterval(timerIntervalRef.current);
+  }, []);
+
+  const formatTimerDisplay = (seconds) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  const handleProofPhotoSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProofPhoto(file);
+    setProofPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const handleReportNonResponsive = useCallback(async () => {
+    if (!proofPhoto) {
+      toast.error('Please upload a proof photo first');
+      return;
+    }
+    setBusyAction('user-unavailable');
+    try {
+      const uploadResponse = await uploadAPI.uploadMedia(proofPhoto, {
+        folder: 'food/delivery/user-unavailable-proof',
+      });
+      const proofImageUrl =
+        uploadResponse?.data?.data?.url ||
+        uploadResponse?.data?.url ||
+        '';
+
+      const response = await deliveryAPI.reportUserUnavailable(orderId, {
+        noResponseProofImage: proofImageUrl,
+        proofImageUrl,
+        callAttempted: true,
+        waitTimerCompletedAt: new Date().toISOString(),
+        reason: 'User unavailable at delivery location',
+      });
+      const nextOrder = response?.data?.data?.order || null;
+      if (nextOrder) {
+        const hydratedOrder = hydrateDeliveryOrder(nextOrder, String(orderId || '').trim());
+        setOrder(hydratedOrder);
+      }
+      toast.success('Proof submitted. Order marked as User Unavailable.');
+      setAttemptSubmitted(true);
+      setAttemptPhase('normal');
+      setProofPhoto(null);
+      setProofPhotoPreview(null);
+      clearActiveOrder();
+    } catch (error) {
+      toast.error(error?.response?.data?.message || 'Failed to submit proof');
+    } finally {
+      setBusyAction('');
+    }
+  }, [clearActiveOrder, orderId, proofPhoto]);
 
   const syncStoreWithOrder = useCallback((nextOrder) => {
     if (!nextOrder) return;
@@ -506,7 +602,9 @@ const OrderDetailV2 = () => {
     const phase = String(order?.deliveryState?.currentPhase || '').toLowerCase();
     const dispatchStatus = getDispatchStatus(order);
 
-    if (rawStatus === 'cancelled') return { label: 'Cancelled', tone: 'rose' };
+    if (rawStatus === 'user_unavailable_review') return { label: 'Awaiting Admin Review', tone: 'amber' };
+    if (rawStatus === 'cancelled_by_user_unavailable') return { label: 'User Unavailable', tone: 'rose' };
+    if (rawStatus === 'cancelled' || rawStatus.startsWith('cancelled_by_')) return { label: 'Cancelled', tone: 'rose' };
     if (['delivered', 'completed'].includes(rawStatus)) return { label: 'Delivered', tone: 'emerald' };
     if (phase === 'at_drop' || rawStatus === 'reached_drop') return { label: 'Reached customer', tone: 'blue' };
     if (['picked_up', 'delivering'].includes(rawStatus)) return { label: 'Picked', tone: 'blue' };
@@ -600,7 +698,7 @@ const OrderDetailV2 = () => {
   const dispatchStatus = getDispatchStatus(order);
   const rawStatus = String(order?.status || order?.orderStatus || '').toLowerCase();
   const phase = String(order?.deliveryState?.currentPhase || '').toLowerCase();
-  const isClosedOrder = ['cancelled', 'delivered', 'completed'].includes(rawStatus);
+  const isClosedOrder = ['cancelled', 'delivered', 'completed', 'cancelled_by_user_unavailable', 'user_unavailable_review'].includes(rawStatus) || rawStatus.startsWith('cancelled_by_');
   const hasReachedPickup =
     phase === 'at_pickup' ||
     ['reached_pickup', 'picked_up', 'delivering', 'reached_drop', 'delivered', 'completed'].includes(rawStatus);
@@ -835,7 +933,7 @@ const OrderDetailV2 = () => {
             </>
           )}
 
-          {isAcceptedFlow && !isPassedTaskFlow && (
+          {isAcceptedFlow && !isPassedTaskFlow && attemptPhase === 'normal' && !attemptSubmitted && (
             <div className="rounded-2xl border border-slate-200 bg-white p-3">
               <ActionSlider
                 key={sliderStepConfig?.key || 'status-slider'}
@@ -855,6 +953,137 @@ const OrderDetailV2 = () => {
           {isPassedTaskFlow && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-800">
               This task has been passed to admin. Order details are hidden for this rider.
+            </div>
+          )}
+
+          {/* Delivery Attempt Section — only shown after pickup */}
+          {isAcceptedFlow && hasPickedOrder && !isClosedOrder && (
+            <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+
+              {/* Submitted State */}
+              {attemptSubmitted && (
+                <div className="p-4 flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-bold text-slate-800">Proof Submitted</p>
+                    <p className="text-[11px] font-medium text-slate-400">Order marked as User Unavailable.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Phase: Normal — show Delivery Attempt button */}
+              {!attemptSubmitted && attemptPhase === 'normal' && (
+                <button
+                  type="button"
+                  onClick={startAttemptTimer}
+                  className="w-full flex items-center justify-between px-4 py-3.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-50 text-orange-500">
+                      <Timer className="h-4 w-4" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-[13px] font-bold text-slate-800">Delivery Attempt</p>
+                      <p className="text-[11px] font-medium text-slate-400">Customer not answering? Start wait timer</p>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-bold text-orange-500 bg-orange-50 rounded-lg px-2 py-1">30 sec</span>
+                </button>
+              )}
+
+              {/* Phase: Timer Running */}
+              {attemptPhase === 'timer' && (
+                <div className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 text-orange-500">
+                      <Timer className="h-3.5 w-3.5" />
+                    </div>
+                    <p className="text-[12px] font-bold uppercase tracking-widest text-slate-500">Delivery Attempt</p>
+                  </div>
+                  <p className="text-[12px] text-slate-500 mb-4">Waiting for customer to respond. Timer will auto-proceed to proof upload.</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1 rounded-2xl bg-orange-50 border border-orange-100 px-5 py-4 text-center">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-orange-400 mb-1">Time Remaining</p>
+                      <p className="text-4xl font-black text-orange-500 tabular-nums tracking-tight">
+                        {formatTimerDisplay(timerSeconds)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={stopAttemptTimer}
+                      className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-slate-600 hover:bg-slate-50 transition-colors"
+                    >
+                      <Square className="h-5 w-5 text-slate-400" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Stop</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Phase: Proof Upload */}
+              {attemptPhase === 'proof' && (
+                <div className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-50 text-rose-500">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                    </div>
+                    <p className="text-[12px] font-bold uppercase tracking-widest text-slate-500">Customer Not Responding</p>
+                  </div>
+                  <p className="text-[12px] text-slate-500 mb-4">Upload a photo of the door/gate as proof of your delivery attempt.</p>
+
+                  {/* Photo Upload */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handleProofPhotoSelect}
+                  />
+
+                  {proofPhotoPreview ? (
+                    <div className="relative mb-3 overflow-hidden rounded-2xl border border-slate-200">
+                      <img src={proofPhotoPreview} alt="Proof" className="h-40 w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => { setProofPhoto(null); setProofPhotoPreview(null); }}
+                        className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/50 text-white"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 py-6 text-slate-500 hover:bg-slate-100 transition-colors"
+                    >
+                      <Camera className="h-5 w-5" />
+                      <span className="text-[13px] font-semibold">Take / Upload Proof Photo</span>
+                    </button>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={stopAttemptTimer}
+                      className="rounded-xl border border-slate-200 bg-white py-2.5 text-[12px] font-bold text-slate-600"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleReportNonResponsive}
+                      disabled={!proofPhoto || busyAction === 'user-unavailable'}
+                      className="rounded-xl bg-red-600 py-2.5 text-[12px] font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    >
+                      {busyAction === 'user-unavailable' ? 'Submitting...' : 'Report & Submit'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

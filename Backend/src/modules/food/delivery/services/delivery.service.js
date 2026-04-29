@@ -10,7 +10,7 @@ import { uploadImageBuffer } from '../../../../services/cloudinary.service.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
 import { getDeliveryCashLimitSettings } from '../../admin/services/admin.service.js';
 
-const PAYABLE_DELIVERY_STATUSES = ['delivered'];
+const PAYABLE_DELIVERY_STATUSES = ['delivered', 'cancelled_by_user_unavailable'];
 
 export const registerDeliveryPartner = async (payload, files) => {
     const { 
@@ -538,7 +538,7 @@ export const getDeliveryPartnerEarnings = async (deliveryPartnerId, query = {}) 
         'dispatch.deliveryPartnerId': partnerId,
     };
     if (range) {
-        match.orderStatus = 'delivered';
+        match.orderStatus = { $in: PAYABLE_DELIVERY_STATUSES };
         match['deliveryState.deliveredAt'] = { $gte: range.start, $lte: range.end };
     } else {
         match.orderStatus = { $in: PAYABLE_DELIVERY_STATUSES };
@@ -653,9 +653,15 @@ const toTripDto = (order) => {
         String(order?.cancelReasonType || order?.cancellationReasonType || '').toLowerCase() === 'user_unavailable';
 
     const rawEarningAmount = Number(order?.riderEarning ?? order?.deliveryEarning ?? 0) || 0;
-    const earningAmount = isDelivered ? rawEarningAmount : 0;
-    const codAmount = paymentMethod === 'cash' ? Number(order?.payment?.amountDue) || 0 : 0;
-    const codCollectedAmount = paymentMethod === 'cash' && order?.payment?.status === 'paid' ? codAmount : 0;
+    const earningAmount = (isDelivered || isUserUnavailableCancelled) ? rawEarningAmount : 0;
+    const isCashOrder = paymentMethod === 'cash';
+    const codAmount = isUserUnavailableCancelled
+        ? 0
+        : (isCashOrder ? Number(order?.payment?.amountDue) || 0 : 0);
+    const codCollectedAmount =
+        isUserUnavailableCancelled
+            ? 0
+            : (isCashOrder && order?.payment?.status === 'paid' ? codAmount : 0);
     return {
         id: order?._id,
         _id: order?._id,
@@ -670,6 +676,7 @@ const toTripDto = (order) => {
         paymentMethod,
         totalAmount: pricingTotal,
         orderTotal: pricingTotal,
+        codExempt: isUserUnavailableCancelled,
         codAmount: codAmount,
         codCollectedAmount,
         deliveryEarning: earningAmount,
@@ -699,7 +706,7 @@ export const getDeliveryPartnerTripHistory = async (deliveryPartnerId, query = {
 
     const sf = String(statusFilter || '').toLowerCase();
     if (sf === 'completed') {
-        match.orderStatus = 'delivered';
+        match.orderStatus = { $in: PAYABLE_DELIVERY_STATUSES };
         match['deliveryState.deliveredAt'] = { $gte: start, $lte: end };
     } else if (sf === 'cancelled') {
         match.orderStatus = { $regex: '^cancelled', $options: 'i' };
@@ -723,7 +730,7 @@ export const getDeliveryPartnerTripHistory = async (deliveryPartnerId, query = {
         .lean();
 
     const deliveredOrderIds = (orders || [])
-        .filter((order) => String(order?.orderStatus || '').toLowerCase() === 'delivered')
+        .filter((order) => PAYABLE_DELIVERY_STATUSES.includes(String(order?.orderStatus || '').toLowerCase()))
         .map((order) => order?._id)
         .filter((id) => mongoose.Types.ObjectId.isValid(String(id)))
         .map((id) => new mongoose.Types.ObjectId(String(id)));
@@ -749,7 +756,7 @@ export const getDeliveryPartnerTripHistory = async (deliveryPartnerId, query = {
 
     const trips = (orders || []).map((order) => {
         const trip = toTripDto(order);
-        const isDelivered = String(order?.orderStatus || '').toLowerCase() === 'delivered';
+        const isDelivered = PAYABLE_DELIVERY_STATUSES.includes(String(order?.orderStatus || '').toLowerCase());
         const isPaid = isDelivered && settledOrderIdSet.has(String(order?._id));
 
         return {

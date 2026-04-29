@@ -11,6 +11,7 @@ const getStatusColor = (orderStatus) => {
     "Ready": "bg-violet-100 text-violet-700",
     "Food On The Way": "bg-yellow-100 text-yellow-700",
     "Picked Up": "bg-yellow-100 text-yellow-700",
+    "User Unavailable Review": "bg-orange-100 text-orange-700",
     "Canceled": "bg-rose-100 text-rose-700",
     "Cancelled by Admin": "bg-rose-100 text-rose-700",
     "Cancelled by Restaurant": "bg-red-100 text-red-700",
@@ -355,7 +356,7 @@ export default function OrdersTable({
                 {visibleColumns.actions && (
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     <div className="flex items-center justify-center gap-2">
-                      {order.orderStatus === "Pending" && onAcceptOrder && (
+                      {(order.orderStatus === "Pending" || order.orderStatus === "User Unavailable Review") && onAcceptOrder && (
                         <button
                           onClick={() => onAcceptOrder(order)}
                           disabled={loadingOrderId === (order.id || order.orderId)}
@@ -367,10 +368,10 @@ export default function OrdersTable({
                           ) : (
                             <Check className="w-3.5 h-3.5" />
                           )}
-                          <span>Accept</span>
+                          <span>{order.orderStatus === "User Unavailable Review" ? "Approve" : "Accept"}</span>
                         </button>
                       )}
-                      {order.orderStatus === "Pending" && onRejectOrder && (
+                      {(order.orderStatus === "Pending" || order.orderStatus === "User Unavailable Review") && onRejectOrder && (
                         <button
                           onClick={() => onRejectOrder(order)}
                           disabled={loadingOrderId === (order.id || order.orderId)}

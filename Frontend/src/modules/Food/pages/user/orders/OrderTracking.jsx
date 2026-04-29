@@ -216,6 +216,18 @@ const getDueAmountFromOrder = (apiOrder, previousOrder = null) => {
   return previousDue !== null && previousDue > 0 ? previousDue : 0
 }
 
+const getDueLabelFromOrder = (apiOrder, previousOrder = null, dueAmount = 0) => {
+  if (!(Number(dueAmount) > 0)) return "Previous Due"
+
+  const noResponseMeta = apiOrder?.noResponseMeta || previousOrder?.noResponseMeta || null
+  if (noResponseMeta?.isUserUnavailable) {
+    const dueStatus = String(noResponseMeta?.dueStatus || "").toLowerCase()
+    return dueStatus === "settled" ? "Recovered Penalty" : "User Unavailable Penalty"
+  }
+
+  return "Penalty / Previous Due"
+}
+
 const transformOrderForTracking = (apiOrder, previousOrder = null, explicitRestaurantCoords = null, explicitRestaurantAddress = null) => {
   const restaurantCoords = explicitRestaurantCoords || getRestaurantCoordsFromOrder(apiOrder, previousOrder?.restaurantLocation?.coordinates)
   const restaurantAddress = getRestaurantAddressFromOrder(apiOrder, previousOrder, explicitRestaurantAddress)
@@ -223,6 +235,7 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
   const addr = apiOrder?.address || apiOrder?.deliveryAddress || {}
   const customerCoordsResolved = getCustomerCoordsFromApiOrder(apiOrder, previousOrder)
   const dueAmount = getDueAmountFromOrder(apiOrder, previousOrder)
+  const dueLabel = getDueLabelFromOrder(apiOrder, previousOrder, dueAmount)
 
   return {
     id: apiOrder?.orderId || apiOrder?._id,
@@ -329,6 +342,8 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
         ? apiOrder.sendCutlery
         : previousOrder?.sendCutlery,
     dueAmount,
+    dueLabel,
+    noResponseMeta: apiOrder?.noResponseMeta || previousOrder?.noResponseMeta || null,
     paymentMethod: apiOrder?.paymentMethod || apiOrder?.payment?.method || previousOrder?.paymentMethod || null,
     payment: apiOrder?.payment || previousOrder?.payment || null,
     // Preserve delivery OTP code received via socket event.
@@ -1799,7 +1814,7 @@ export default function OrderTracking() {
 
               {Number(order?.dueAmount) > 0 && (
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">Previous Due</span>
+                  <span className="text-gray-600">{order?.dueLabel || "Previous Due"}</span>
                   <span className="text-gray-900 font-medium">{"\u20B9"}{Number(order.dueAmount).toFixed(2)}</span>
                 </div>
               )}

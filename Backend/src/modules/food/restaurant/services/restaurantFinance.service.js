@@ -72,6 +72,26 @@ function buildRestaurantFinanceTransactionEligibility() {
     };
 }
 
+function toValidDate(value) {
+    const date = value ? new Date(value) : null;
+    return date && !Number.isNaN(date.getTime()) ? date : null;
+}
+
+function getOrderEffectiveDeliveredAt(order = {}) {
+    return toValidDate(
+        order?.deliveryState?.deliveredAt ||
+        order?.deliveredAt ||
+        order?.completedAt ||
+        order?.updatedAt ||
+        order?.createdAt
+    );
+}
+
+function isDeliveredOrder(order = {}) {
+    const status = String(order?.orderStatus || '').toLowerCase();
+    return status === 'delivered' || status === 'cancelled_by_user_unavailable';
+}
+
 function mapTransactionToFinanceOrder(tx, effectiveDateOverride = null) {
     const order = tx?.orderId || {};
     const items = Array.isArray(order.items) ? order.items : [];
@@ -132,33 +152,28 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
     const nowWindow = getFixedCurrentCycleWindow(new Date());
 
     // Current cycle: sum ledger payouts in the fixed window.
-    const currentTransactions = await FoodTransaction.find({
+    const currentTransactionsRaw = await FoodTransaction.find({
         restaurantId: rid,
         ...buildRestaurantFinanceTransactionEligibility(),
-        $or: [
-            // Regular cycle: transaction was created in this cycle.
-            { createdAt: { $gte: nowWindow.start, $lte: nowWindow.end } },
-            // Recovery cycle: old cancelled transaction became captured in this cycle.
-            {
-                updatedAt: { $gte: nowWindow.start, $lte: nowWindow.end },
-                history: { $elemMatch: { kind: 'recovered_user_due' } }
-            }
-        ]
     })
-        .populate('orderId', 'orderId createdAt items pricing deliveryState orderStatus')
+        .populate('orderId', 'orderId createdAt updatedAt completedAt deliveredAt items pricing deliveryState orderStatus')
         .sort({ createdAt: -1 })
         .lean();
 
-    const currentCycleOrders = currentTransactions.map((tx) => {
-        const recoveredFromDue = Array.isArray(tx.history)
-            ? tx.history.some((h) => String(h?.kind || '').toLowerCase() === 'recovered_user_due')
-            : false;
-        const effectiveDate = recoveredFromDue ? (tx.updatedAt || tx.createdAt) : tx.createdAt;
-        return {
-            ...mapTransactionToFinanceOrder(tx, effectiveDate),
-            recoveredFromDue
-        };
-    });
+    const currentCycleOrders = currentTransactionsRaw
+        .filter((tx) => {
+            const order = tx?.orderId || {};
+            if (!isDeliveredOrder(order)) return false;
+            const effectiveDeliveredAt = getOrderEffectiveDeliveredAt(order);
+            return effectiveDeliveredAt && effectiveDeliveredAt >= nowWindow.start && effectiveDeliveredAt <= nowWindow.end;
+        })
+        .map((tx) => {
+            const effectiveDate = getOrderEffectiveDeliveredAt(tx?.orderId || {}) || tx.createdAt;
+            return {
+                ...mapTransactionToFinanceOrder(tx, effectiveDate),
+                recoveredFromDue: false
+            };
+        });
 
     const currentCycleEstimatedPayout = currentCycleOrders.reduce(
         (sum, o) => sum + (Number(o.payout) || 0),
@@ -166,11 +181,18 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
     );
 
     // Calculate global estimated payout (all unsettled transactions)
-    const allUnsettledTransactions = await FoodTransaction.find({
+    const allUnsettledTransactionsRaw = await FoodTransaction.find({
         restaurantId: rid,
         ...buildRestaurantFinanceTransactionEligibility(),
         'settlement.isRestaurantSettled': { $ne: true }
-    }).select('amounts.restaurantShare').lean();
+    })
+        .populate('orderId', 'orderStatus createdAt updatedAt completedAt deliveredAt deliveryState.deliveredAt')
+        .select('amounts.restaurantShare orderId')
+        .lean();
+
+    const allUnsettledTransactions = allUnsettledTransactionsRaw.filter((tx) =>
+        isDeliveredOrder(tx?.orderId || {})
+    );
 
     const globalEstimatedPayout = allUnsettledTransactions.reduce(
         (sum, tx) => sum + (Number(tx.amounts?.restaurantShare) || 0),
@@ -221,13 +243,22 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
         const pastTransactions = await FoodTransaction.find({
             restaurantId: rid,
             ...buildRestaurantFinanceTransactionEligibility(),
-            createdAt: { $gte: startDate, $lte: endDate }
         })
-            .populate('orderId', 'orderId createdAt items pricing deliveryState orderStatus')
+            .populate('orderId', 'orderId createdAt updatedAt completedAt deliveredAt items pricing deliveryState orderStatus')
             .sort({ createdAt: -1 })
             .lean();
 
-        const pastCycleOrders = pastTransactions.map((tx) => mapTransactionToFinanceOrder(tx));
+        const pastCycleOrders = pastTransactions
+            .filter((tx) => {
+                const order = tx?.orderId || {};
+                if (!isDeliveredOrder(order)) return false;
+                const effectiveDeliveredAt = getOrderEffectiveDeliveredAt(order);
+                return effectiveDeliveredAt && effectiveDeliveredAt >= startDate && effectiveDeliveredAt <= endDate;
+            })
+            .map((tx) => {
+                const effectiveDate = getOrderEffectiveDeliveredAt(tx?.orderId || {}) || tx.createdAt;
+                return mapTransactionToFinanceOrder(tx, effectiveDate);
+            });
 
         pastCyclesResult = {
             orders: pastCycleOrders,

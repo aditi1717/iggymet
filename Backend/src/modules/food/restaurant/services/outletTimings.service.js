@@ -52,20 +52,41 @@ const normalizeSlots = (rawSlots = [], openingFallback = '09:00', closingFallbac
         }
         const openingMinutes = timeToMinutes(openingTime);
         const closingMinutes = timeToMinutes(closingTime);
-        if (openingMinutes === null || closingMinutes === null || closingMinutes <= openingMinutes) {
-            throw new ValidationError('Slot closingTime must be greater than openingTime');
+        if (openingMinutes === null || closingMinutes === null) {
+            throw new ValidationError('Each slot must have valid openingTime and closingTime in HH:mm format');
         }
-        return { openingTime, closingTime, openingMinutes, closingMinutes };
+        if (closingMinutes === openingMinutes) {
+            throw new ValidationError('Opening time and closing time cannot be same');
+        }
+        return {
+            openingTime,
+            closingTime,
+            openingMinutes,
+            closingMinutes,
+            isOvernight: closingMinutes < openingMinutes,
+        };
     });
 
-    const sorted = [...normalized].sort((a, b) => a.openingMinutes - b.openingMinutes);
-    for (let i = 1; i < sorted.length; i += 1) {
-        if (sorted[i].openingMinutes < sorted[i - 1].closingMinutes) {
+    const expandedIntervals = normalized
+        .flatMap((slot, index) => {
+            const endMinutes = slot.isOvernight ? slot.closingMinutes + (24 * 60) : slot.closingMinutes;
+            return [
+                { index, start: slot.openingMinutes, end: endMinutes },
+                { index, start: slot.openingMinutes + (24 * 60), end: endMinutes + (24 * 60) },
+            ];
+        })
+        .sort((a, b) => a.start - b.start);
+    for (let i = 1; i < expandedIntervals.length; i += 1) {
+        const current = expandedIntervals[i];
+        const previous = expandedIntervals[i - 1];
+        if (current.index !== previous.index && current.start < previous.end) {
             throw new ValidationError('Time slots cannot overlap');
         }
     }
 
-    return sorted.map(({ openingTime, closingTime }) => ({ openingTime, closingTime }));
+    return [...normalized]
+        .sort((a, b) => a.openingMinutes - b.openingMinutes)
+        .map(({ openingTime, closingTime }) => ({ openingTime, closingTime }));
 };
 
 const defaultTimings = () =>

@@ -10,7 +10,7 @@ import { getDeliveryCashLimitSettings } from '../../admin/services/admin.service
 import { ValidationError } from '../../../../core/auth/errors.js';
 import { createRazorpayOrder, getRazorpayKeyId, isRazorpayConfigured, verifyPaymentSignature } from '../../orders/helpers/razorpay.helper.js';
 
-const PAYABLE_DELIVERY_STATUSES = ['delivered'];
+const PAYABLE_DELIVERY_STATUSES = ['delivered', 'cancelled_by_user_unavailable'];
 const COD_CASH_METHODS = ['cash', 'cod', 'cash_on_delivery'];
 
 /**

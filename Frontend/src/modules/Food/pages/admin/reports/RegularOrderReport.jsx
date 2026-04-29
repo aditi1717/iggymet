@@ -80,6 +80,7 @@ const mapOrderStatusForReport = (backendStatusRaw, deliveryPhaseRaw = "") => {
     return "Food On The Way"
   }
   if (backendStatus === "delivered" || backendStatus === "completed") return "Delivered"
+  if (backendStatus === "cancelled_by_user_unavailable") return "Cancelled - User Unavailable"
   if (
     backendStatus === "cancelled_by_restaurant" ||
     backendStatus === "cancelled_by_user" ||

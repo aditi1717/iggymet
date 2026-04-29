@@ -77,16 +77,46 @@ function sanitize(value) {
   return String(value || "").trim().replace(/^['"]|['"]$/g, "");
 }
 
+function stripOwnerPrefix(value = "") {
+  return String(value || "")
+    .replace(/^\s*(?:[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\s*)?\[(?:User|Shop|Rider|Admin)\]\s*/iu, "")
+    .trim();
+}
+
 function getNotificationKey(payload = {}) {
+  const data = payload?.data || {};
+  const orderKey = sanitize(
+    data.orderMongoId ||
+      data.order_mongo_id ||
+      data.orderId ||
+      data.order_id ||
+      data.order ||
+      ""
+  );
+  const statusKey = sanitize(data.orderStatus || data.status || data.event || data.type || "");
+  const title = stripOwnerPrefix(payload?.notification?.title || data.title || "");
+  const body = stripOwnerPrefix(payload?.notification?.body || data.body || "");
+  const text = `${title} ${body}`.toLowerCase();
+
+  if (orderKey && (statusKey || text.includes("order"))) {
+    const normalizedStatus =
+      statusKey ||
+      (text.includes("user unavailable")
+        ? "cancelled_by_user_unavailable"
+        : text.includes("cancel")
+          ? "cancelled"
+          : "order_update");
+    return `order:${orderKey}:${normalizedStatus}`;
+  }
+
   return (
-    payload?.data?.notificationId ||
-    payload?.data?.messageId ||
+    data?.notificationId ||
+    data?.messageId ||
     payload?.messageId ||
     [
-      payload?.notification?.title || "",
-      payload?.notification?.body || "",
-      payload?.data?.orderId || "",
-      payload?.data?.targetUrl || "",
+      title,
+      body,
+      data?.targetUrl || "",
     ].join("::")
   );
 }

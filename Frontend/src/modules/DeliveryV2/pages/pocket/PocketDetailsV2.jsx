@@ -55,6 +55,14 @@ const getAdminPaidStatus = (trip) => {
 };
 
 const getCodToAdminStatus = (trip, adminPaidStatus) => {
+  const rawOrderStatus = normalizeStatus(trip?.rawOrderStatus || trip?.orderStatus || trip?.status);
+  const isUserUnavailable = Boolean(
+    trip?.codExempt ||
+      trip?.isCompensatedCancellation ||
+      rawOrderStatus === 'cancelled_by_user_unavailable',
+  );
+  if (isUserUnavailable) return 'N/A (User Unavailable)';
+
   const method = String(
     trip?.paymentMethod ||
       trip?.payment?.method ||
@@ -116,6 +124,7 @@ const getCodStatusBadgeClasses = (status) => {
   if (status === 'Submitted') return 'bg-green-50 text-green-700 border-green-200';
   if (status === 'Pending') return 'bg-amber-50 text-amber-700 border-amber-200';
   if (status === 'N/A (Online)') return 'bg-slate-50 text-slate-600 border-slate-200';
+  if (status === 'N/A (User Unavailable)') return 'bg-slate-50 text-slate-600 border-slate-200';
   return 'bg-slate-50 text-slate-700 border-slate-200';
 };
 

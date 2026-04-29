@@ -2347,6 +2347,7 @@ export async function updateOrderStatusAdmin(
     "ready_for_pickup",
     "picked_up",
     "delivered",
+    "cancelled_by_user_unavailable",
     "cancelled_by_admin",
   ]);
   if (!allowedStatuses.has(normalizedStatus)) {
@@ -2371,6 +2372,7 @@ export async function updateOrderStatusAdmin(
     "cancelled_by_user",
     "cancelled_by_restaurant",
     "cancelled_by_admin",
+    "cancelled_by_user_unavailable",
   ]);
   if (terminalStatuses.has(from) && from !== normalizedStatus) {
     throw new ValidationError(`Cannot update order in ${from} status`);
@@ -2381,6 +2383,30 @@ export async function updateOrderStatusAdmin(
   if (from === normalizedStatus) return order.toObject();
 
   order.orderStatus = normalizedStatus;
+  if (normalizedStatus === "cancelled_by_user_unavailable") {
+    order.payment.status = "paid";
+    order.deliveryState = {
+      ...(order.deliveryState?.toObject?.() || order.deliveryState || {}),
+      status: "user_unavailable",
+      deliveredAt: order.deliveryState?.deliveredAt || new Date(),
+    };
+    order.userUnavailableRequest = {
+      ...(order.userUnavailableRequest?.toObject?.() || order.userUnavailableRequest || {}),
+      status: "approved",
+      reviewedAt: new Date(),
+      reviewedBy: adminId || null,
+      reviewNote: reason || order?.userUnavailableRequest?.reviewNote || "",
+    };
+  }
+  if (normalizedStatus === "cancelled_by_admin" && from === "user_unavailable_review") {
+    order.userUnavailableRequest = {
+      ...(order.userUnavailableRequest?.toObject?.() || order.userUnavailableRequest || {}),
+      status: "rejected",
+      reviewedAt: new Date(),
+      reviewedBy: adminId || null,
+      reviewNote: reason || order?.userUnavailableRequest?.reviewNote || "",
+    };
+  }
   if (normalizedStatus === "delivered") {
     order.payment.status = "paid";
     order.deliveryState = {
@@ -2405,6 +2431,67 @@ export async function updateOrderStatusAdmin(
       logger.warn(
         `updateOrderStatusAdmin debt settlement failed for order ${order._id}: ${debtErr?.message || debtErr}`,
       );
+    }
+  }
+  if (
+    normalizedStatus === "cancelled_by_user_unavailable" &&
+    order.payment?.status === "paid" &&
+    order.userId
+  ) {
+    const recoverableAmount = Number(order?.pricing?.total || 0);
+    if (recoverableAmount > 0) {
+      const requestMeta = order?.userUnavailableRequest || {};
+      const waitTimerCompletedAt = requestMeta?.waitTimerCompletedAt
+        ? new Date(requestMeta.waitTimerCompletedAt)
+        : null;
+
+      await FoodUserDebt.findOneAndUpdate(
+        { failedOrderId: order._id },
+        {
+          $set: {
+            userId: order.userId,
+            amount: recoverableAmount,
+            currency: String(order?.pricing?.currency || "INR"),
+            reasonType: "user_unavailable",
+            reason: String(requestMeta?.reason || "User not responding at drop location"),
+            proofImageUrl: String(requestMeta?.proofImageUrl || ""),
+            callAttempted: requestMeta?.callAttempted === true,
+            waitTimerCompletedAt:
+              waitTimerCompletedAt && !Number.isNaN(waitTimerCompletedAt.getTime())
+                ? waitTimerCompletedAt
+                : null,
+            meta: {
+              cancelledBy: "ADMIN_APPROVED_DELIVERY_PARTNER_REQUEST",
+              deliveryPartnerId: String(order?.dispatch?.deliveryPartnerId || ""),
+              approvedByAdminId: String(adminId || ""),
+            },
+          },
+          $setOnInsert: {
+            status: "unpaid",
+            failedOrderId: order._id,
+          },
+        },
+        { new: true, upsert: true },
+      );
+
+      enqueueOrderEvent("user_debt_recorded", {
+        orderMongoId: order._id?.toString?.(),
+        orderId: order.orderId,
+        userId: String(order.userId || ""),
+        amount: recoverableAmount,
+        reasonType: "user_unavailable",
+      });
+
+      try {
+        await foodTransactionService.updateTransactionStatus(order._id, "cancelled_by_delivery_no_response", {
+          status: "captured",
+          note: "Admin approved user unavailable proof. Restaurant and rider payout preserved.",
+          recordedByRole: "ADMIN",
+          recordedById: adminId,
+        });
+      } catch (err) {
+        logger.warn(`updateOrderStatusAdmin user-unavailable transaction sync failed: ${err?.message || err}`);
+      }
     }
   }
 
@@ -3154,6 +3241,9 @@ function emitOrderUpdate(order, deliveryPartnerId) {
     } else if (status === "reached_drop") {
       restaurantUserTitle = `Order #${order.orderId} reached drop`;
       restaurantUserBody = "Delivery partner has arrived at the drop location.";
+    } else if (status === "user_unavailable_review") {
+      restaurantUserTitle = `Order #${order.orderId} under review`;
+      restaurantUserBody = "Delivery partner submitted a user unavailable request for admin review.";
     } else if (status === "delivered") {
       restaurantUserTitle = `Order #${order.orderId} delivered!`;
       restaurantUserBody = "Hope you enjoyed your meal!";
@@ -3171,6 +3261,9 @@ function emitOrderUpdate(order, deliveryPartnerId) {
     } else if (status === "reached_drop") {
       riderTitle = "Reached drop location";
       riderBody = `Order #${order.orderId} is ready for handover.`;
+    } else if (status === "user_unavailable_review") {
+      riderTitle = "Request sent for review";
+      riderBody = `Order #${order.orderId} is awaiting admin review for user unavailable proof.`;
     } else if (status === "delivered") {
       riderTitle = "Order delivered";
       riderBody = `Order #${order.orderId} has been marked as delivered.`;
@@ -3241,7 +3334,7 @@ export async function updateOrderStatusDelivery(orderId, deliveryPartnerId, orde
     if (!nextOrderStatus) throw new ValidationError('orderStatus is required');
     const normalizedReasonType = String(payload?.reasonType || '').trim().toLowerCase();
     if (nextOrderStatus === 'cancelled_by_restaurant' && normalizedReasonType === 'user_unavailable') {
-      nextOrderStatus = 'cancelled_by_user_unavailable';
+      nextOrderStatus = 'user_unavailable_review';
     }
 
     const identity = buildOrderIdentityFilter(orderId);
@@ -3250,75 +3343,48 @@ export async function updateOrderStatusDelivery(orderId, deliveryPartnerId, orde
     if (!order) throw new NotFoundError('Order not found');
     if (order.dispatch.deliveryPartnerId?.toString() !== deliveryPartnerId.toString()) throw new ForbiddenError('Not your order');
     const from = order.orderStatus;
-    order.orderStatus = nextOrderStatus;
-    pushStatusHistory(order, { byRole: 'DELIVERY_PARTNER', byId: deliveryPartnerId, from, to: nextOrderStatus });
-    await order.save();
 
-    const isNoResponseCancellation =
-      nextOrderStatus === 'cancelled_by_user_unavailable' &&
+    const isNoResponseReviewRequest =
+      (nextOrderStatus === 'cancelled_by_user_unavailable' || nextOrderStatus === 'user_unavailable_review') &&
       normalizedReasonType === 'user_unavailable';
 
-    if (isNoResponseCancellation) {
-      const recoverableAmount = Number(order?.pricing?.total || 0);
-      if (recoverableAmount > 0 && order?.userId) {
-        const waitTimerCompletedAt = payload?.waitTimerCompletedAt
-          ? new Date(payload.waitTimerCompletedAt)
-          : null;
-
-        await FoodUserDebt.findOneAndUpdate(
-          { failedOrderId: order._id },
-          {
-            $set: {
-              userId: order.userId,
-              amount: recoverableAmount,
-              currency: String(order?.pricing?.currency || 'INR'),
-              reasonType: normalizedReasonType,
-              reason: String(payload?.reason || 'User not responding at drop location'),
-              proofImageUrl: String(payload?.noResponseProofImage || ''),
-              callAttempted: payload?.callAttempted === true,
-              waitTimerCompletedAt:
-                waitTimerCompletedAt && !Number.isNaN(waitTimerCompletedAt.getTime())
-                  ? waitTimerCompletedAt
-                  : null,
-              meta: {
-                cancelledBy: 'DELIVERY_PARTNER',
-                deliveryPartnerId: String(deliveryPartnerId || ''),
-              },
-            },
-            $setOnInsert: {
-              status: 'unpaid',
-              failedOrderId: order._id,
-            },
-          },
-          { new: true, upsert: true },
-        );
-
-        enqueueOrderEvent('user_debt_recorded', {
-          orderMongoId: order._id?.toString?.(),
-          orderId: order.orderId,
-          userId: String(order.userId || ''),
-          amount: recoverableAmount,
-          reasonType: normalizedReasonType,
-        });
-
-        try {
-          await foodTransactionService.updateTransactionStatus(order._id, 'cancelled_by_delivery_no_response', {
-            status: 'captured',
-            note: 'User unavailable at drop. Restaurant payout preserved in normal flow.',
-            recordedByRole: 'DELIVERY_PARTNER',
-            recordedById: deliveryPartnerId,
-          });
-        } catch (txErr) {
-          logger.warn(
-            `No-response transaction sync failed for order ${order._id?.toString?.() || ''}: ${txErr?.message || txErr}`,
-          );
-        }
-      } else {
-        logger.warn(
-          `Skipped no-response debt creation for order ${order._id?.toString?.() || ''}: missing userId/amount`,
-        );
-      }
+    if (isNoResponseReviewRequest) {
+      nextOrderStatus = 'user_unavailable_review';
+      order.userUnavailableRequest = {
+        ...(order.userUnavailableRequest?.toObject?.() || order.userUnavailableRequest || {}),
+        status: 'pending',
+        requestedAt: new Date(),
+        requestedBy: deliveryPartnerId,
+        proofImageUrl: String(payload?.noResponseProofImage || ''),
+        reason: String(payload?.reason || 'User not responding at drop location'),
+        callAttempted: payload?.callAttempted === true,
+        waitTimerCompletedAt:
+          payload?.waitTimerCompletedAt && !Number.isNaN(new Date(payload.waitTimerCompletedAt).getTime())
+            ? new Date(payload.waitTimerCompletedAt)
+            : null,
+        reviewedAt: null,
+        reviewedBy: null,
+        reviewNote: '',
+      };
     }
+
+    if (isNoResponseReviewRequest) {
+      order.deliveryState = {
+        ...(order.deliveryState?.toObject?.() || order.deliveryState || {}),
+        status: 'user_unavailable_review',
+      };
+    }
+
+    order.orderStatus = nextOrderStatus;
+
+    pushStatusHistory(order, {
+      byRole: 'DELIVERY_PARTNER',
+      byId: deliveryPartnerId,
+      from,
+      to: nextOrderStatus,
+      note: isNoResponseReviewRequest ? 'User unavailable proof submitted for admin review' : '',
+    });
+    await order.save();
 
     emitOrderUpdate(order, deliveryPartnerId);
 
@@ -3531,6 +3597,7 @@ export async function listOrdersAdmin(query, adminScope = {}) {
     $or: [
       { "payment.method": { $in: ["cash", "wallet"] } },
       { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
+      { orderStatus: "user_unavailable_review" },
     ],
   };
 
@@ -3560,6 +3627,15 @@ export async function listOrdersAdmin(query, adminScope = {}) {
         break;
       case "food-on-the-way":
         filter.orderStatus = "picked_up";
+        break;
+      case "user-unavailable":
+      case "user_unavailable":
+        filter.orderStatus = {
+          $in: [
+            "user_unavailable_review",
+            "cancelled_by_user_unavailable",
+          ],
+        };
         break;
       case "delivered":
         filter.orderStatus = "delivered";

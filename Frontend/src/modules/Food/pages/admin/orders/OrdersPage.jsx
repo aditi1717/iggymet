@@ -30,6 +30,7 @@ const statusConfig = {
   "accepted": { title: "Accepted Orders", color: "green", icon: Package },
   "processing": { title: "Processing Orders", color: "orange", icon: Package },
   "food-on-the-way": { title: "Picked Up Orders", color: "amber", icon: Package },
+  "user-unavailable": { title: "User Unavailable Review", color: "rose", icon: Package },
   "delivered": { title: "Delivered Orders", color: "emerald", icon: Package },
   "canceled": { title: "Canceled Orders", color: "rose", icon: Package },
   "restaurant-cancelled": { title: "Restaurant Cancelled Orders", color: "red", icon: Package },
@@ -458,6 +459,9 @@ export default function OrdersPage({ statusKey = "all" }) {
       const platformFee = Number(pricing.platformFee || 0)
       const taxAmount = Number(pricing.tax || 0)
       const discountAmount = Number(pricing.discount || 0)
+      const dueAmount = Number(
+        pricing.previousDue ?? order.previousDue ?? order.dueAmount ?? 0
+      )
       const computedTotal = subtotal + deliveryFee + platformFee + taxAmount - discountAmount
       const totalAmount = Number(
         pricing.total != null ? pricing.total : computedTotal
@@ -483,6 +487,7 @@ export default function OrdersPage({ statusKey = "all" }) {
       }
 
       const backendStatus = String(order.orderStatus || "").toLowerCase()
+      const noResponseMeta = order.noResponseMeta || null
       let paymentCollectionStatus = order.paymentCollectionStatus || null
 
       let displayStatus = order.orderStatus
@@ -512,6 +517,35 @@ export default function OrdersPage({ statusKey = "all" }) {
         displayStatus = "Cancelled by User"
       } else if (backendStatus === "cancelled_by_admin") {
         displayStatus = "Cancelled by Admin"
+      } else if (backendStatus === "cancelled_by_user_unavailable") {
+        displayStatus = "Cancelled - User Unavailable"
+      } else if (backendStatus === "user_unavailable_review") {
+        displayStatus = "User Unavailable Review"
+      }
+
+      if (backendStatus === "user_unavailable_review") {
+        paymentStatus = "Awaiting Review"
+        paymentCollectionStatus = "Admin Review Pending"
+      } else if (backendStatus === "cancelled_by_user_unavailable" || noResponseMeta?.isUserUnavailable) {
+        const dueStatus = String(noResponseMeta?.dueStatus || "").toLowerCase()
+        paymentStatus =
+          dueStatus === "paid"
+            ? "Recovered from User Due"
+            : "User Due Pending"
+        paymentCollectionStatus =
+          dueStatus === "paid"
+            ? "Recovery Settled"
+            : "Customer Recovery Pending"
+      }
+
+      let dueLabel = "Previous Due"
+      if (dueAmount > 0) {
+        if (backendStatus === "cancelled_by_user_unavailable" || noResponseMeta?.isUserUnavailable) {
+          const dueStatus = String(noResponseMeta?.dueStatus || "").toLowerCase()
+          dueLabel = dueStatus === "paid" ? "Recovered Penalty" : "User Unavailable Penalty"
+        } else {
+          dueLabel = "Penalty / Previous Due"
+        }
       }
 
       const dp = order.dispatch?.deliveryPartnerId
@@ -566,6 +600,8 @@ export default function OrdersPage({ statusKey = "all" }) {
         items,
         subtotal,
         totalItemAmount: subtotal,
+        dueAmount,
+        dueLabel,
         couponDiscount: discountAmount,
         itemDiscount: 0,
         deliveryCharge: deliveryFee,
@@ -729,6 +765,9 @@ export default function OrdersPage({ statusKey = "all" }) {
   }, [orderIdFromUrl, normalizedOrders, handleViewOrder])
 
   const handleAcceptOrder = async (order) => {
+    if (order?.orderStatus === "User Unavailable Review") {
+      return handleApproveUserUnavailable(order)
+    }
     const orderIdToUse = order.id || order._id || order.orderId
     if (!orderIdToUse) {
       toast.error("Order ID not found")
@@ -754,6 +793,9 @@ export default function OrdersPage({ statusKey = "all" }) {
   }
 
   const handleRejectOrder = async (order) => {
+    if (order?.orderStatus === "User Unavailable Review") {
+      return handleRejectUserUnavailable(order)
+    }
     const orderIdToUse = order.id || order._id || order.orderId
     if (!orderIdToUse) {
       toast.error("Order ID not found")
@@ -780,6 +822,61 @@ export default function OrdersPage({ statusKey = "all" }) {
     } catch (error) {
       debugError("Error rejecting order:", error)
       toast.error(error.response?.data?.message || "Failed to reject order")
+    } finally {
+      setProcessingAction({ orderId: null, type: null })
+    }
+  }
+
+  const handleApproveUserUnavailable = async (order) => {
+    const orderIdToUse = order.id || order._id || order.orderId
+    if (!orderIdToUse) {
+      toast.error("Order ID not found")
+      return
+    }
+
+    try {
+      setProcessingAction({ orderId: order.id || order.orderId, type: "accept" })
+      const response = await adminAPI.approveUserUnavailableOrder(orderIdToUse, "Approved user unavailable proof")
+      if (response.data?.success) {
+        toast.success(response.data?.message || `Order ${order.orderId} marked as user unavailable`)
+        await fetchOrders({ silent: true, withRingCheck: false })
+      } else {
+        toast.error(response.data?.message || "Failed to approve request")
+      }
+    } catch (error) {
+      debugError("Error approving user unavailable request:", error)
+      toast.error(error.response?.data?.message || "Failed to approve request")
+    } finally {
+      setProcessingAction({ orderId: null, type: null })
+    }
+  }
+
+  const handleRejectUserUnavailable = async (order) => {
+    const orderIdToUse = order.id || order._id || order.orderId
+    if (!orderIdToUse) {
+      toast.error("Order ID not found")
+      return
+    }
+
+    const reason = prompt(
+      `Enter rejection reason for user unavailable request on order ${order.orderId}:`,
+      "User unavailable proof rejected by admin",
+    )
+
+    if (reason === null) return
+
+    try {
+      setProcessingAction({ orderId: order.id || order.orderId, type: "reject" })
+      const response = await adminAPI.rejectUserUnavailableOrder(orderIdToUse, reason)
+      if (response.data?.success) {
+        toast.success(response.data?.message || `User unavailable request rejected for ${order.orderId}`)
+        await fetchOrders({ silent: true, withRingCheck: false })
+      } else {
+        toast.error(response.data?.message || "Failed to reject request")
+      }
+    } catch (error) {
+      debugError("Error rejecting user unavailable request:", error)
+      toast.error(error.response?.data?.message || "Failed to reject request")
     } finally {
       setProcessingAction({ orderId: null, type: null })
     }
@@ -994,6 +1091,9 @@ export default function OrdersPage({ statusKey = "all" }) {
         isOpen={isViewOrderOpen}
         onOpenChange={setIsViewOrderOpen}
         order={selectedOrder}
+        onApproveUserUnavailable={statusKey === "user-unavailable" || statusKey === "all" ? handleApproveUserUnavailable : undefined}
+        onRejectUserUnavailable={statusKey === "user-unavailable" || statusKey === "all" ? handleRejectUserUnavailable : undefined}
+        actionLoading={processingAction}
       />
       <RefundModal
         isOpen={refundModalOpen}
@@ -1009,8 +1109,8 @@ export default function OrdersPage({ statusKey = "all" }) {
         onPrintOrder={handlePrintOrder}
         onRefund={handleRefund}
         onDeleteOrder={statusKey === "all" ? handleDeleteOrder : undefined}
-        onAcceptOrder={statusKey === "all" || statusKey === "pending" ? handleAcceptOrder : undefined}
-        onRejectOrder={statusKey === "all" || statusKey === "pending" ? handleRejectOrder : undefined}
+        onAcceptOrder={statusKey === "all" || statusKey === "pending" ? handleAcceptOrder : statusKey === "user-unavailable" ? handleApproveUserUnavailable : undefined}
+        onRejectOrder={statusKey === "all" || statusKey === "pending" ? handleRejectOrder : statusKey === "user-unavailable" ? handleRejectUserUnavailable : undefined}
         actionLoading={processingAction}
         deletingOrderId={deletingOrderId}
       />

@@ -109,6 +109,41 @@ const deriveTripStatusFromOrder = (orderLike) => {
   return 'PICKING_UP';
 };
 
+const getClosedOrderStatusMeta = (statusLike) => {
+  const normalizedStatus = String(statusLike || '').toLowerCase();
+
+  if (normalizedStatus === 'user_unavailable_review') {
+    return {
+      label: 'Awaiting Admin Review',
+      toneClass: 'border-amber-100 bg-amber-50 text-amber-700',
+    };
+  }
+
+  if (normalizedStatus === 'cancelled_by_user_unavailable') {
+    return {
+      label: 'User Unavailable',
+      toneClass: 'border-rose-100 bg-rose-50 text-rose-700',
+    };
+  }
+
+  if (
+    normalizedStatus === 'cancelled' ||
+    normalizedStatus === 'rejected' ||
+    normalizedStatus === 'deleted' ||
+    normalizedStatus.startsWith('cancelled_by_')
+  ) {
+    return {
+      label: 'Cancelled',
+      toneClass: 'border-rose-100 bg-rose-50 text-rose-700',
+    };
+  }
+
+  return {
+    label: 'Delivered',
+    toneClass: 'border-emerald-100 bg-emerald-50 text-emerald-700',
+  };
+};
+
 const getRestaurantTitle = (order) =>
   order?.restaurantName ||
   order?.restaurantId?.restaurantName ||
@@ -190,7 +225,18 @@ const isClosedOrderLike = (orderLike) => {
     orderLike?.deliveryStatus ||
     '',
   ).toLowerCase();
-  return ['delivered', 'completed', 'cancelled', 'deleted'].includes(status);
+  return (
+    [
+      'delivered',
+      'completed',
+      'cancelled',
+      'deleted',
+      'rejected',
+      'user_unavailable_review',
+      'cancelled_by_user_unavailable',
+    ].includes(status) ||
+    status.startsWith('cancelled_by_')
+  );
 };
 
 const normalizeQueueStatus = (orderLike) =>
@@ -207,7 +253,9 @@ const getOrderProgressLabel = (orderLike) => {
   const phase = String(orderLike?.deliveryState?.currentPhase || '').toLowerCase();
 
   if (['delivered', 'completed'].includes(backendStatus)) return 'Delivered';
-  if (['cancelled', 'rejected'].includes(backendStatus)) return 'Cancelled';
+  if (backendStatus === 'user_unavailable_review') return 'Awaiting admin review';
+  if (backendStatus === 'cancelled_by_user_unavailable') return 'User unavailable';
+  if (['cancelled', 'rejected'].includes(backendStatus) || backendStatus.startsWith('cancelled_by_')) return 'Cancelled';
   if (phase === 'at_drop' || backendStatus === 'reached_drop') return 'Arrived at delivery location';
   if (['picked_up', 'delivering'].includes(backendStatus)) return 'Picked up';
   if (phase === 'at_pickup' || backendStatus === 'reached_pickup') return 'Arrived at pickup';
@@ -413,10 +461,7 @@ function OrdersTabV2({
 
   const HistoryCard = ({ order }) => {
     const rawStatus = String(order?.status || '').toLowerCase();
-    const statusLabel = rawStatus === 'cancelled' ? 'Cancelled' : 'Delivered';
-    const toneClass = rawStatus === 'cancelled'
-      ? 'border-amber-100 bg-amber-50 text-amber-700'
-      : 'border-emerald-100 bg-emerald-50 text-emerald-700';
+    const { label: statusLabel, toneClass } = getClosedOrderStatusMeta(rawStatus);
     const eventDate = getOrderEventDate(order);
     const timeLabel = eventDate
       ? new Date(eventDate).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
@@ -1256,13 +1301,19 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
         const filtered = trips
           .filter((trip) => {
             const status = String(trip?.status || '').toLowerCase();
-            return ['completed', 'delivered', 'cancelled'].includes(status);
+            return (
+              [
+                'completed',
+                'delivered',
+                'cancelled',
+                'rejected',
+                'user_unavailable_review',
+                'cancelled_by_user_unavailable',
+              ].includes(status) ||
+              status.startsWith('cancelled_by_')
+            );
           })
           .filter((trip) => isSameCalendarDay(getOrderEventDate(trip)))
-          .map((trip) => ({
-            ...trip,
-            status: String(trip?.status || '').toLowerCase() === 'cancelled' ? 'cancelled' : 'delivered',
-          }))
           .sort((left, right) => new Date(getOrderEventDate(right) || 0) - new Date(getOrderEventDate(left) || 0));
 
         if (!cancelled) {
@@ -1299,6 +1350,8 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
       const isIncomingOrderUpdate = eventOrderId && eventOrderId === getOrderIdentity(incomingOrder);
       const isCancelledEvent = eventStatus.includes('cancel') || eventStatus === 'deleted';
       const isDeliveredEvent = ['delivered', 'completed'].includes(eventStatus);
+      const isReviewEvent = eventStatus === 'user_unavailable_review';
+      const isClosedTransitionEvent = isCancelledEvent || isDeliveredEvent || isReviewEvent;
 
       const applyRealtimeStatus = (orderLike) => {
         if (!orderLike || getOrderIdentity(orderLike) !== eventOrderId) return orderLike;
@@ -1321,7 +1374,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
         }
       }
 
-      if (isCancelledEvent) {
+      if (isClosedTransitionEvent) {
         if (isIncomingOrderUpdate) {
           persistFocusedOrder('');
           setIncomingOrder(null);
@@ -1333,30 +1386,16 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
         }
 
         if (isActiveOrderUpdate) {
-          toast.error('Current order cancelled');
+          if (isReviewEvent) {
+            toast.success('Order moved to admin review');
+          } else if (isCancelledEvent) {
+            toast.error('Current order cancelled');
+          }
           if (!promoteNextAcceptedOrder()) {
             resetTrip();
           }
-        } else {
+        } else if (isCancelledEvent) {
           toast.error('Queued order removed');
-        }
-      }
-
-      if (isDeliveredEvent) {
-        if (isIncomingOrderUpdate) {
-          persistFocusedOrder('');
-          setIncomingOrder(null);
-          clearPersistedIncomingOrder();
-        }
-
-        if (eventOrderId) {
-          removeAdvancedOrder(orderStatusUpdate);
-        }
-
-        if (isActiveOrderUpdate) {
-          if (!promoteNextAcceptedOrder()) {
-            resetTrip();
-          }
         }
       }
       if (currentTab === 'orders') {

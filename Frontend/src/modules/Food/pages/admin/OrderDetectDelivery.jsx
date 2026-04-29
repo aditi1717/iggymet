@@ -66,6 +66,14 @@ const mapOrderStatus = (order) => {
   const status = getOrderStatus(order)
   const { deliveryPartnerName, deliveryState, cancelledAt, dispatch } = order
 
+  if (status === "user_unavailable_review") {
+    return "User Unavailable Review"
+  }
+
+  if (status === "cancelled_by_user_unavailable") {
+    return "User Unavailable"
+  }
+
   // If cancelled, show as Rejected
   if (isCancelledOrder(status, cancelledAt)) {
     return "Rejected"
@@ -159,6 +167,22 @@ const buildStatusHistory = (order) => {
     history.push({
       status: "Rejected",
       timestamp: formatTimestamp(cancelledAt) || formatTimestamp(order.updatedAt) || "N/A"
+    })
+    return history
+  }
+
+  if (status === "user_unavailable_review") {
+    history.push({
+      status: "User Unavailable Review",
+      timestamp: formatTimestamp(order?.userUnavailableRequest?.requestedAt) || formatTimestamp(order.updatedAt) || "N/A"
+    })
+    return history
+  }
+
+  if (status === "cancelled_by_user_unavailable") {
+    history.push({
+      status: "User Unavailable",
+      timestamp: formatTimestamp(order?.userUnavailableRequest?.reviewedAt) || formatTimestamp(order.cancelledAt) || formatTimestamp(order.updatedAt) || "N/A"
     })
     return history
   }
@@ -558,6 +582,9 @@ export default function OrderDetectDelivery() {
     const ordered = filteredData.filter(o => o.status === "Ordered").length
     const restaurantAccepted = filteredData.filter(o => o.status === "Restaurant Accepted" || o.status === "Accepted").length
     const rejected = filteredData.filter(o => o.status === "Rejected").length
+    const userUnavailable = filteredData.filter(
+      (o) => o.status === "User Unavailable Review" || o.status === "User Unavailable"
+    ).length
     const readyForAssignment = filteredData.filter(o => o.status === "Ready for Assignment").length
     const deliveryBoyAssigned = filteredData.filter(o => o.status === "Delivery Boy Assigned").length
     const assignmentAccepted = filteredData.filter(o => o.status === "Assignment Accepted").length
@@ -566,7 +593,7 @@ export default function OrderDetectDelivery() {
     const reachedDrop = filteredData.filter(o => o.status === "Reached Drop").length
     const delivered = filteredData.filter(o => o.status === "Ordered Delivered").length
     
-    return { total, ordered, restaurantAccepted, rejected, readyForAssignment, deliveryBoyAssigned, assignmentAccepted, reachedPickup, orderIdAccepted, reachedDrop, delivered }
+    return { total, ordered, restaurantAccepted, rejected, userUnavailable, readyForAssignment, deliveryBoyAssigned, assignmentAccepted, reachedPickup, orderIdAccepted, reachedDrop, delivered }
   }, [filteredData, orders.length])
 
   const zoneNameById = useMemo(() => {
@@ -766,6 +793,17 @@ export default function OrderDetectDelivery() {
             </div>
             <div className="p-3 bg-red-50 rounded-lg">
               <XCircle className="w-6 h-6 text-red-600" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-500 mb-1">User Unavailable</p>
+              <p className="text-2xl font-bold text-amber-600">{stats.userUnavailable}</p>
+            </div>
+            <div className="p-3 bg-amber-50 rounded-lg">
+              <Clock className="w-6 h-6 text-amber-600" />
             </div>
           </div>
         </div>
