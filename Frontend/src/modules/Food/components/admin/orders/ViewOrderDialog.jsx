@@ -578,7 +578,7 @@ export default function ViewOrderDialog({
               {order.dueAmount !== undefined && Number(order.dueAmount) > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-600">{order.dueLabel || "Previous Due"}</span>
-                  <span className="font-medium text-slate-900">â‚¹{Number(order.dueAmount).toFixed(2)}</span>
+                  <span className="font-medium text-slate-900">₹{Number(order.dueAmount).toFixed(2)}</span>
                 </div>
               )}
               {order.deliveryCharge !== undefined && (

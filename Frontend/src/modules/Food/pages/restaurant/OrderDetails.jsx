@@ -150,11 +150,17 @@ export default function OrderDetails() {
           const couponByRestaurant = firstNumber(pricing.couponByRestaurant, order.couponByRestaurant) ?? 0
           const offerByRestaurant = firstNumber(pricing.offerByRestaurant, order.offerByRestaurant) ?? 0
           const commission = firstNumber(order.commission, pricing.restaurantCommission) ?? 0
+          let dueAmount =
+            firstNumber(
+              pricing.previousDue,
+              order.previousDue,
+              order.dueAmount,
+              pricing.dueAmount
+            ) ?? 0
 
-          const total =
+          const baseTotal =
             firstNumber(
               pricing.total,
-              order.payment?.amountDue,
               order.totalAmount,
               order.total,
               order.amount
@@ -168,6 +174,18 @@ export default function OrderDetails() {
                 platformFee -
                 discount
             )
+
+          const total =
+            firstNumber(
+              order.payment?.amountDue,
+              pricing.amountDue
+            ) ??
+            (baseTotal + dueAmount)
+
+          if (!(dueAmount > 0) && total > baseTotal) {
+            dueAmount = total - baseTotal
+          }
+
           const paidAmount = firstNumber(order.payment?.amountDue, order.payment?.amount, total) ?? total
           const directRestaurantEarning = firstNumber(
             order.restaurantEarning,
@@ -273,6 +291,7 @@ export default function OrderDetails() {
               discount,
               couponDiscount,
               referralDiscount,
+              dueAmount,
               restaurantEarning,
               total,
               paidAmount,
@@ -967,6 +986,12 @@ export default function OrderDetails() {
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm text-green-700">Referral discount</span>
                 <span className="text-sm text-green-700">{formatDiscount(orderData.billing.referralDiscount)}</span>
+              </div>
+            )}
+            {Number(orderData.billing.dueAmount) > 0 && (
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-orange-700">Penalty / Previous Due</span>
+                <span className="text-sm text-orange-700">{formatMoney(orderData.billing.dueAmount)}</span>
               </div>
             )}
             <div className="my-3"></div>

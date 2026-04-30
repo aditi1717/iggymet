@@ -33,7 +33,6 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@food/components/ui/avatar";
-import { useCompanyName } from "@food/hooks/useCompanyName";
 import OptimizedImage from "@food/components/OptimizedImage";
 import { getCachedSettings, loadBusinessSettings } from "@food/utils/businessSettings";
 import BRAND_THEME from "@/config/brandTheme";
@@ -60,7 +59,6 @@ export default function Profile() {
     useProfile();
   const { openLocationSelector } = useLocationSelector();
   const navigate = useNavigate();
-  const companyName = useCompanyName();
   const [brandLogoUrl, setBrandLogoUrl] = useState("");
   const defaultAddress = getDefaultAddress?.();
   const savedAddressSummary = defaultAddress
@@ -80,7 +78,6 @@ export default function Profile() {
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [walletBalance, setWalletBalance] = useState(0);
 
   // Trigger web push registration when profile mounts to ensure FCM token is saved
   useEffect(() => {
@@ -474,38 +471,6 @@ export default function Profile() {
 
         {/* Account Options */}
         <div className="space-y-2 mb-3 mt-3">
-          <Link to="/food/user/wallet" className="block">
-            <motion.div
-              whileHover={{ x: 2 }}
-              transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
-              <Card className={optionCardClass}>
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <motion.div
-                      className={iconWrapClass}
-                      whileHover={{ scale: 1.03 }}
-                      transition={{ duration: 0.3 }}>
-                      <Wallet className="h-5 w-5 text-gray-700 dark:text-gray-300" />
-                    </motion.div>
-                    <span className={rowLabelClass}>
-                      {companyName} Money
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-base font-medium text-green-600 dark:text-green-400">
-                      {"\u20B9"}{Number(walletBalance || 0).toFixed(0)}
-                    </span>
-                    <motion.div
-                      whileHover={{ x: 2 }}
-                      transition={{ duration: 0.2 }}>
-                      <ChevronRight className={chevronClass} />
-                    </motion.div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </Link>
-
           <Link to="/food/user/profile/coupons" className="block">
             <motion.div
               whileHover={{ x: 2 }}

@@ -1074,10 +1074,12 @@ export async function getTransactionReport(query = {}) {
         const recoveredDebt = orderIdForMeta
             ? recoveredPenaltyMap.get(orderIdForMeta)
             : null;
+        const paymentMethod = String(order?.payment?.method || order?.paymentMethod || '').trim().toLowerCase();
+        const isCashLikeOrder = ['cash', 'cod', 'cash_on_delivery'].includes(paymentMethod);
         let displayStatus = tx.status || order?.orderStatus || 'N/A';
         if (String(order?.orderStatus || '').toLowerCase() === 'cancelled_by_user_unavailable') {
             displayStatus =
-                String(debt?.status || '').toLowerCase() === 'paid'
+                !isCashLikeOrder || String(debt?.status || '').toLowerCase() === 'paid'
                     ? 'user_unavailable_recovered'
                     : 'user_unavailable_due_pending';
         }
@@ -1100,7 +1102,9 @@ export async function getTransactionReport(query = {}) {
             platformFee,
             orderAmount: tx.amounts?.totalCustomerPaid || pricing.total || 0,
             penaltyAmount:
-                recoveredDebt
+                !isCashLikeOrder
+                    ? 0
+                    : recoveredDebt
                     ? Number(recoveredDebt?.amount || 0)
                     : String(debt?.status || '').toLowerCase() === 'unpaid'
                         ? Number(debt?.amount || 0)
@@ -1111,8 +1115,8 @@ export async function getTransactionReport(query = {}) {
             noResponseMeta: debt
                 ? {
                     isUserUnavailable: true,
-                    dueAmount: Number(debt?.amount || 0),
-                    dueStatus: debt?.status || 'unpaid',
+                    dueAmount: isCashLikeOrder ? Number(debt?.amount || 0) : 0,
+                    dueStatus: isCashLikeOrder ? (debt?.status || 'unpaid') : 'paid',
                     settledOrderId: debt?.settledOrderId || null,
                     settledAt: debt?.settledAt || null,
                 }

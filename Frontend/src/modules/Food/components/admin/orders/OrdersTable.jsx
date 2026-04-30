@@ -371,7 +371,7 @@ export default function OrdersTable({
                           <span>{order.orderStatus === "User Unavailable Review" ? "Approve" : "Accept"}</span>
                         </button>
                       )}
-                      {(order.orderStatus === "Pending" || order.orderStatus === "User Unavailable Review") && onRejectOrder && (
+                      {order.orderStatus === "User Unavailable Review" && onRejectOrder && (
                         <button
                           onClick={() => onRejectOrder(order)}
                           disabled={loadingOrderId === (order.id || order.orderId)}

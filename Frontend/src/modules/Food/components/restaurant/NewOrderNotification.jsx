@@ -2,12 +2,64 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, X, ShoppingBag, MapPin, Clock, IndianRupee } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+const toFiniteNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const getDueAmount = (orderLike) => {
+  const directCandidates = [
+    orderLike?.pricing?.previousDue,
+    orderLike?.previousDue,
+    orderLike?.dueAmount,
+    orderLike?.pricing?.dueAmount,
+  ];
+
+  for (const candidate of directCandidates) {
+    const amount = toFiniteNumber(candidate);
+    if (amount !== null && amount > 0) return amount;
+  }
+
+  const payableAmount = toFiniteNumber(orderLike?.payment?.amountDue);
+  const baseTotal = toFiniteNumber(
+    orderLike?.pricing?.total ??
+      orderLike?.totalAmount ??
+      orderLike?.total,
+  );
+
+  if (payableAmount !== null && baseTotal !== null && payableAmount > baseTotal) {
+    return payableAmount - baseTotal;
+  }
+
+  return 0;
+};
+
+const getPayableAmount = (orderLike) => {
+  const dueAmount = getDueAmount(orderLike);
+  const payableCandidates = [
+    orderLike?.payment?.amountDue,
+    orderLike?.pricing?.amountDue,
+    orderLike?.amountDue,
+    orderLike?.totalAmount,
+    orderLike?.total,
+  ];
+
+  for (const candidate of payableCandidates) {
+    const amount = toFiniteNumber(candidate);
+    if (amount !== null && amount > 0) return amount;
+  }
+
+  return dueAmount;
+};
+
 /**
  * New Order Notification Component
  * Displays a notification popup when a new order is received
  */
 export default function NewOrderNotification({ order, onClose, onViewOrder }) {
   const navigate = useNavigate();
+  const dueAmount = getDueAmount(order);
+  const payableAmount = getPayableAmount(order);
 
   const handleViewOrder = () => {
     if (onViewOrder && order) {
@@ -22,121 +74,118 @@ export default function NewOrderNotification({ order, onClose, onViewOrder }) {
     <AnimatePresence>
       {order && (
         <motion.div
-        initial={{ opacity: 0, y: -50 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -50 }}
-        transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="fixed top-4 left-4 right-4 z-50 max-w-md mx-auto"
-      >
-        <div className="bg-white rounded-2xl shadow-2xl border-2 border-green-500 overflow-hidden">
-          {/* Header with bell icon */}
-          <div className="bg-gradient-to-r from-green-500 to-green-600 px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                <Bell className="w-6 h-6 text-white animate-pulse" />
-              </div>
-              <div>
-                <h3 className="text-white font-bold text-lg">New Order!</h3>
-                <p className="text-white/90 text-sm">Order #{order.orderId}</p>
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
-            >
-              <X className="w-5 h-5 text-white" />
-            </button>
-          </div>
-
-          {/* Order Details */}
-          <div className="p-6">
-            <div className="space-y-4">
-              {/* Total Amount */}
-              <div className="flex items-center justify-between p-4 bg-green-50 rounded-xl">
-                <div className="flex items-center gap-2">
-                  <IndianRupee className="w-5 h-5 text-green-600" />
-                  <span className="text-gray-600 font-medium">Total Amount</span>
+          initial={{ opacity: 0, y: -50 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -50 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          className="fixed top-4 left-4 right-4 z-50 mx-auto max-w-md"
+        >
+          <div className="overflow-hidden rounded-2xl border-2 border-green-500 bg-white shadow-2xl">
+            <div className="flex items-center justify-between bg-gradient-to-r from-green-500 to-green-600 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20">
+                  <Bell className="h-6 w-6 animate-pulse text-white" />
                 </div>
-                <span className="text-2xl font-bold text-green-600">
-                  ₹{order.total?.toFixed(2) || '0.00'}
-                </span>
-              </div>
-
-              {/* Items */}
-              <div>
-                <h4 className="text-sm font-semibold text-gray-700 mb-2">Items:</h4>
-                <div className="space-y-2">
-                  {order.items?.slice(0, 3).map((item, index) => (
-                    <div key={index} className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">
-                        {item.name} × {item.quantity}
-                      </span>
-                      <span className="text-gray-800 font-medium">
-                        ₹{(item.price * item.quantity).toFixed(2)}
-                      </span>
-                    </div>
-                  ))}
-                  {order.items?.length > 3 && (
-                    <p className="text-xs text-gray-500 mt-2">
-                      +{order.items.length - 3} more items
-                    </p>
-                  )}
+                <div>
+                  <h3 className="text-lg font-bold text-white">New Order!</h3>
+                  <p className="text-sm text-white/90">Order #{order.orderId}</p>
                 </div>
               </div>
-
-              {/* Delivery Address */}
-              {order.customerAddress && (
-                <div className="flex items-start gap-2 p-3 bg-gray-50 rounded-lg">
-                  <MapPin className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-xs text-gray-500 mb-1">Delivery Address</p>
-                    <p className="text-sm text-gray-800">
-                      {order.customerAddress.street || order.customerAddress.label || 'Address'}
-                      {order.customerAddress.city && `, ${order.customerAddress.city}`}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Estimated Time */}
-              {order.estimatedDeliveryTime && (
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Clock className="w-4 h-4" />
-                  <span>Est. delivery: {order.estimatedDeliveryTime} mins</span>
-                </div>
-              )}
-
-              {/* Restaurant Note */}
-              {(order.restaurantNote || order.note) && (
-                <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <p className="text-xs text-yellow-800 font-medium mb-1">Restaurant Note:</p>
-                  <p className="text-sm text-yellow-900">{order.restaurantNote || order.note}</p>
-                </div>
-              )}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-3 mt-6">
               <button
                 onClick={onClose}
-                className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 transition-colors hover:bg-white/30"
               >
-                Dismiss
-              </button>
-              <button
-                onClick={handleViewOrder}
-                className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
-              >
-                <ShoppingBag className="w-5 h-5" />
-                View Order
+                <X className="h-5 w-5 text-white" />
               </button>
             </div>
+
+            <div className="p-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between rounded-xl bg-green-50 p-4">
+                  <div className="flex items-center gap-2">
+                    <IndianRupee className="h-5 w-5 text-green-600" />
+                    <span className="font-medium text-gray-600">Total Amount</span>
+                  </div>
+                  <span className="text-2xl font-bold text-green-600">
+                    Rs {payableAmount.toFixed(2)}
+                  </span>
+                </div>
+
+                {dueAmount > 0 && (
+                  <div className="flex items-center justify-between rounded-xl border border-orange-200 bg-orange-50 px-4 py-3">
+                    <span className="text-sm font-medium text-orange-800">Penalty / Previous Due</span>
+                    <span className="text-sm font-bold text-orange-800">Rs {dueAmount.toFixed(2)}</span>
+                  </div>
+                )}
+
+                <div>
+                  <h4 className="mb-2 text-sm font-semibold text-gray-700">Items:</h4>
+                  <div className="space-y-2">
+                    {order.items?.slice(0, 3).map((item, index) => (
+                      <div key={index} className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">
+                          {item.name} x {item.quantity}
+                        </span>
+                        <span className="font-medium text-gray-800">
+                          Rs {(Number(item.price || 0) * Number(item.quantity || 0)).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                    {order.items?.length > 3 && (
+                      <p className="mt-2 text-xs text-gray-500">
+                        +{order.items.length - 3} more items
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {order.customerAddress && (
+                  <div className="flex items-start gap-2 rounded-lg bg-gray-50 p-3">
+                    <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-500" />
+                    <div className="flex-1">
+                      <p className="mb-1 text-xs text-gray-500">Delivery Address</p>
+                      <p className="text-sm text-gray-800">
+                        {order.customerAddress.street || order.customerAddress.label || 'Address'}
+                        {order.customerAddress.city ? `, ${order.customerAddress.city}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {order.estimatedDeliveryTime && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Clock className="h-4 w-4" />
+                    <span>Est. delivery: {order.estimatedDeliveryTime} mins</span>
+                  </div>
+                )}
+
+                {(order.restaurantNote || order.note) && (
+                  <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+                    <p className="mb-1 text-xs font-medium text-yellow-800">Restaurant Note:</p>
+                    <p className="text-sm text-yellow-900">{order.restaurantNote || order.note}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={onClose}
+                  className="flex-1 rounded-xl bg-gray-100 px-4 py-3 font-semibold text-gray-700 transition-colors hover:bg-gray-200"
+                >
+                  Dismiss
+                </button>
+                <button
+                  onClick={handleViewOrder}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-green-700"
+                >
+                  <ShoppingBag className="h-5 w-5" />
+                  View Order
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
       )}
     </AnimatePresence>
   );
 }
-
-

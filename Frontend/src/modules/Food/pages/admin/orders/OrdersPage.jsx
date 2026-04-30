@@ -468,6 +468,8 @@ export default function OrdersPage({ statusKey = "all" }) {
       )
 
       const paymentMethod = order.payment?.method || order.paymentMethod || ""
+      const normalizedPaymentMethod = String(paymentMethod || "").trim().toLowerCase()
+      const isCashLikeOrder = ["cash", "cod", "cash_on_delivery"].includes(normalizedPaymentMethod)
       let paymentType = order.paymentType
       if (!paymentType) {
         if (paymentMethod === "cash" || paymentMethod === "cod") paymentType = "Cash on Delivery"
@@ -523,10 +525,15 @@ export default function OrdersPage({ statusKey = "all" }) {
         displayStatus = "User Unavailable Review"
       }
 
+      const hasUserUnavailableDue =
+        (backendStatus === "cancelled_by_user_unavailable" || noResponseMeta?.isUserUnavailable) &&
+        isCashLikeOrder &&
+        dueAmount > 0
+
       if (backendStatus === "user_unavailable_review") {
         paymentStatus = "Awaiting Review"
         paymentCollectionStatus = "Admin Review Pending"
-      } else if (backendStatus === "cancelled_by_user_unavailable" || noResponseMeta?.isUserUnavailable) {
+      } else if (hasUserUnavailableDue) {
         const dueStatus = String(noResponseMeta?.dueStatus || "").toLowerCase()
         paymentStatus =
           dueStatus === "paid"
@@ -540,7 +547,7 @@ export default function OrdersPage({ statusKey = "all" }) {
 
       let dueLabel = "Previous Due"
       if (dueAmount > 0) {
-        if (backendStatus === "cancelled_by_user_unavailable" || noResponseMeta?.isUserUnavailable) {
+        if (hasUserUnavailableDue) {
           const dueStatus = String(noResponseMeta?.dueStatus || "").toLowerCase()
           dueLabel = dueStatus === "paid" ? "Recovered Penalty" : "User Unavailable Penalty"
         } else {

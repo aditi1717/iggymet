@@ -279,6 +279,62 @@ const toFiniteNumber = (value) => {
 
 const formatMoney = (value) => `Rs ${Number(value || 0).toFixed(2)}`;
 
+const getDueAmount = (orderLike) => {
+  const directCandidates = [
+    orderLike?.pricing?.previousDue,
+    orderLike?.previousDue,
+    orderLike?.dueAmount,
+    orderLike?.pricing?.dueAmount,
+  ];
+
+  for (const candidate of directCandidates) {
+    const amount = toFiniteNumber(candidate);
+    if (amount !== null && amount > 0) return amount;
+  }
+
+  const payableAmount = toFiniteNumber(orderLike?.payment?.amountDue);
+  const baseTotal = toFiniteNumber(
+    orderLike?.pricing?.total ??
+      orderLike?.totalAmount ??
+      orderLike?.total ??
+      orderLike?.amount,
+  );
+
+  if (
+    payableAmount !== null &&
+    baseTotal !== null &&
+    payableAmount > baseTotal
+  ) {
+    return payableAmount - baseTotal;
+  }
+
+  return 0;
+};
+
+const getPayableAmount = (orderLike) => {
+  const dueAmount = getDueAmount(orderLike);
+  const payableCandidates = [
+    orderLike?.payment?.amountDue,
+    orderLike?.pricing?.amountDue,
+    orderLike?.amountDue,
+  ];
+
+  for (const candidate of payableCandidates) {
+    const amount = toFiniteNumber(candidate);
+    if (amount !== null && amount > 0) return amount;
+  }
+
+  const baseTotal =
+    toFiniteNumber(
+      orderLike?.pricing?.total ??
+        orderLike?.totalAmount ??
+        orderLike?.total ??
+        orderLike?.amount,
+    ) ?? 0;
+
+  return baseTotal + dueAmount;
+};
+
 const getPaymentMethodMeta = (orderLike) => {
   const method = String(orderLike?.payment?.method || orderLike?.paymentMethod || '').toLowerCase();
   if (method === 'cash' || method === 'cod') {
@@ -656,12 +712,8 @@ const OrderDetailV2 = () => {
     order?.deliveryCharge ??
     order?.deliveryFee,
   ) || 0;
-  const grandTotal = toFiniteNumber(
-    order?.pricing?.total ??
-    order?.totalAmount ??
-    order?.total ??
-    order?.amount,
-  ) ?? Math.max(0, subtotal + deliveryCharge);
+  const dueAmount = getDueAmount(order);
+  const grandTotal = getPayableAmount(order) ?? Math.max(0, subtotal + deliveryCharge + dueAmount);
 
   const openOrderMapInApp = useCallback(() => {
     const targetOrderId = getOrderIdentity(order) || String(orderId || '').trim();
@@ -1215,6 +1267,12 @@ const OrderDetailV2 = () => {
               )}
 
               <div className="mt-3 border-t border-slate-100 pt-3 text-sm">
+                {dueAmount > 0 ? (
+                  <div className="mb-2 flex items-center justify-between text-slate-600">
+                    <span>Penalty / Previous Due</span>
+                    <span>{formatMoney(dueAmount)}</span>
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between font-semibold text-slate-900">
                   <span>Total Amount</span>
                   <span>{formatMoney(grandTotal)}</span>

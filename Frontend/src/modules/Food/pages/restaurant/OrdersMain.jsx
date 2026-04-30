@@ -937,14 +937,33 @@ export default function OrdersMain() {
   const getPopupOrderTotal = (orderLike) => {
     if (!orderLike) return 0;
 
-    const directTotal = Number(orderLike.total);
-    if (Number.isFinite(directTotal) && directTotal > 0) return directTotal;
+    const directDueCandidates = [
+      orderLike?.pricing?.previousDue,
+      orderLike?.previousDue,
+      orderLike?.dueAmount,
+      orderLike?.pricing?.dueAmount,
+    ];
 
-    const pricingTotal = Number(orderLike.pricing?.total);
-    if (Number.isFinite(pricingTotal) && pricingTotal > 0) return pricingTotal;
+    let derivedDueAmount = 0;
+    for (const candidate of directDueCandidates) {
+      const amount = Number(candidate);
+      if (Number.isFinite(amount) && amount > 0) {
+        derivedDueAmount = amount;
+        break;
+      }
+    }
 
     const amountDue = Number(orderLike.payment?.amountDue);
     if (Number.isFinite(amountDue) && amountDue > 0) return amountDue;
+
+    const amountDueFromPricing = Number(orderLike.pricing?.amountDue);
+    if (Number.isFinite(amountDueFromPricing) && amountDueFromPricing > 0) return amountDueFromPricing;
+
+    const directTotal = Number(orderLike.total);
+    if (Number.isFinite(directTotal) && directTotal > 0) return directTotal + derivedDueAmount;
+
+    const pricingTotal = Number(orderLike.pricing?.total);
+    if (Number.isFinite(pricingTotal) && pricingTotal > 0) return pricingTotal + derivedDueAmount;
 
     const items = Array.isArray(orderLike.items) ? orderLike.items : [];
     const itemsTotal = items.reduce((sum, item) => {
@@ -953,7 +972,7 @@ export default function OrdersMain() {
       return sum + (Number.isFinite(price) ? price : 0) * (Number.isFinite(qty) ? qty : 0);
     }, 0);
 
-    return Number.isFinite(itemsTotal) ? itemsTotal : 0;
+    return (Number.isFinite(itemsTotal) ? itemsTotal : 0) + derivedDueAmount;
   };
 
   const formatPopupAmount = (value) => {
@@ -1004,6 +1023,21 @@ export default function OrdersMain() {
     const discountRaw = Number(pricing?.discount ?? orderLike?.discount ?? 0);
     const discount = Number.isFinite(discountRaw) ? discountRaw : 0;
 
+    const directDueCandidates = [
+      pricing?.previousDue,
+      orderLike?.previousDue,
+      orderLike?.dueAmount,
+      pricing?.dueAmount,
+    ];
+    let dueAmount = 0;
+    for (const candidate of directDueCandidates) {
+      const amount = Number(candidate);
+      if (Number.isFinite(amount) && amount > 0) {
+        dueAmount = amount;
+        break;
+      }
+    }
+
     const couponByRestaurantRaw = Number(pricing?.couponByRestaurant ?? 0);
     const couponByRestaurant = Number.isFinite(couponByRestaurantRaw)
       ? couponByRestaurantRaw
@@ -1018,11 +1052,23 @@ export default function OrdersMain() {
     );
     const commission = Number.isFinite(commissionRaw) ? commissionRaw : 0;
 
-    const totalRaw =
+    const baseTotalRaw =
       Number(pricing?.total) ||
-      Number(orderLike?.payment?.amountDue) ||
       Number(orderLike?.total) ||
       itemTotal + packagingFee + deliveryFee + platformFee + taxes - discount;
+    const baseTotal = Number.isFinite(baseTotalRaw) ? Math.max(0, baseTotalRaw) : 0;
+
+    if (!(dueAmount > 0)) {
+      const payableAmount = Number(orderLike?.payment?.amountDue);
+      if (Number.isFinite(payableAmount) && payableAmount > baseTotal) {
+        dueAmount = payableAmount - baseTotal;
+      }
+    }
+
+    const totalRaw =
+      Number(orderLike?.payment?.amountDue) ||
+      Number(pricing?.amountDue) ||
+      baseTotal + dueAmount;
     const total = Number.isFinite(totalRaw) ? Math.max(0, totalRaw) : 0;
 
     // Keep this aligned with restaurant order report/invoice logic:
@@ -1051,6 +1097,7 @@ export default function OrdersMain() {
       platformFee,
       taxes,
       discount,
+      dueAmount,
       commission,
       total,
       restaurantEarning,
@@ -2895,6 +2942,12 @@ export default function OrdersMain() {
                             <span>Taxes & charges (GST)</span>
                             <span>{formatPopupAmount(bill.taxes)}</span>
                           </div>
+                          {bill.dueAmount > 0 && (
+                            <div className="flex items-center justify-between text-orange-700">
+                              <span>Penalty / Previous Due</span>
+                              <span>{formatPopupAmount(bill.dueAmount)}</span>
+                            </div>
+                          )}
                           {bill.discount > 0 && (
                             <div className="flex items-center justify-between text-green-700">
                               <span>Total discount</span>

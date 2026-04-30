@@ -2438,8 +2438,10 @@ export async function updateOrderStatusAdmin(
     order.payment?.status === "paid" &&
     order.userId
   ) {
+    const paymentMethod = String(order?.payment?.method || "").trim().toLowerCase();
+    const isCashLikeOrder = ["cash", "cod", "cash_on_delivery"].includes(paymentMethod);
     const recoverableAmount = Number(order?.pricing?.total || 0);
-    if (recoverableAmount > 0) {
+    if (recoverableAmount > 0 && isCashLikeOrder) {
       const requestMeta = order?.userUnavailableRequest || {};
       const waitTimerCompletedAt = requestMeta?.waitTimerCompletedAt
         ? new Date(requestMeta.waitTimerCompletedAt)
@@ -2492,6 +2494,11 @@ export async function updateOrderStatusAdmin(
       } catch (err) {
         logger.warn(`updateOrderStatusAdmin user-unavailable transaction sync failed: ${err?.message || err}`);
       }
+    } else if (!isCashLikeOrder) {
+      await FoodUserDebt.deleteOne({
+        failedOrderId: order._id,
+        reasonType: "user_unavailable",
+      });
     }
   }
 

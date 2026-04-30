@@ -216,6 +216,33 @@ const getDueAmountFromOrder = (apiOrder, previousOrder = null) => {
   return previousDue !== null && previousDue > 0 ? previousDue : 0
 }
 
+const getPayableAmountFromOrder = (apiOrder, previousOrder = null, dueAmount = 0) => {
+  const orderTotal =
+    toFiniteNumber(
+      apiOrder?.pricing?.total ??
+        apiOrder?.totalAmount ??
+        apiOrder?.total ??
+        previousOrder?.totalAmount ??
+        previousOrder?.total,
+    ) || 0
+
+  const payableCandidates = [
+    apiOrder?.payment?.amountDue,
+    apiOrder?.pricing?.amountDue,
+    apiOrder?.amountDue,
+    previousOrder?.payableAmount,
+  ]
+
+  for (const candidate of payableCandidates) {
+    const amount = toFiniteNumber(candidate)
+    if (amount !== null && amount > 0) {
+      return amount
+    }
+  }
+
+  return orderTotal + Math.max(0, Number(dueAmount) || 0)
+}
+
 const getDueLabelFromOrder = (apiOrder, previousOrder = null, dueAmount = 0) => {
   if (!(Number(dueAmount) > 0)) return "Previous Due"
 
@@ -236,6 +263,7 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
   const customerCoordsResolved = getCustomerCoordsFromApiOrder(apiOrder, previousOrder)
   const dueAmount = getDueAmountFromOrder(apiOrder, previousOrder)
   const dueLabel = getDueLabelFromOrder(apiOrder, previousOrder, dueAmount)
+  const payableAmount = getPayableAmountFromOrder(apiOrder, previousOrder, dueAmount)
 
   return {
     id: apiOrder?.orderId || apiOrder?._id,
@@ -343,6 +371,7 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
         : previousOrder?.sendCutlery,
     dueAmount,
     dueLabel,
+    payableAmount,
     noResponseMeta: apiOrder?.noResponseMeta || previousOrder?.noResponseMeta || null,
     paymentMethod: apiOrder?.paymentMethod || apiOrder?.payment?.method || previousOrder?.paymentMethod || null,
     payment: apiOrder?.payment || previousOrder?.payment || null,
@@ -1852,7 +1881,7 @@ export default function OrderTracking() {
 
               <div className="pt-2 border-t border-gray-200 flex justify-between items-center">
                 <span className="text-base font-bold text-gray-900">Total Amount</span>
-                <span className="text-lg font-bold text-gray-900">{"\u20B9"}{Number(order?.totalAmount || 0).toFixed(2)}</span>
+                <span className="text-lg font-bold text-gray-900">{"\u20B9"}{Number((order?.payableAmount ?? order?.totalAmount) || 0).toFixed(2)}</span>
               </div>
             </div>
 

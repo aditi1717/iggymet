@@ -52,6 +52,63 @@ const getRecipientMeta = (order) => {
   };
 };
 
+const toFiniteNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const getDueAmount = (orderLike) => {
+  const directCandidates = [
+    orderLike?.pricing?.previousDue,
+    orderLike?.previousDue,
+    orderLike?.dueAmount,
+    orderLike?.pricing?.dueAmount,
+  ];
+
+  for (const candidate of directCandidates) {
+    const amount = toFiniteNumber(candidate);
+    if (amount !== null && amount > 0) return amount;
+  }
+
+  const payableAmount = toFiniteNumber(orderLike?.payment?.amountDue);
+  const baseTotal = toFiniteNumber(
+    orderLike?.pricing?.total ??
+      orderLike?.totalAmount ??
+      orderLike?.total ??
+      orderLike?.amountToCollect,
+  );
+
+  if (payableAmount !== null && baseTotal !== null && payableAmount > baseTotal) {
+    return payableAmount - baseTotal;
+  }
+
+  return 0;
+};
+
+const getPayableAmount = (orderLike) => {
+  const dueAmount = getDueAmount(orderLike);
+  const payableCandidates = [
+    orderLike?.payment?.amountDue,
+    orderLike?.pricing?.amountDue,
+    orderLike?.amountDue,
+    orderLike?.amountToCollect,
+  ];
+
+  for (const candidate of payableCandidates) {
+    const amount = toFiniteNumber(candidate);
+    if (amount !== null && amount > 0) return amount;
+  }
+
+  const baseTotal =
+    toFiniteNumber(
+      orderLike?.pricing?.total ??
+        orderLike?.totalAmount ??
+        orderLike?.total,
+    ) ?? 0;
+
+  return baseTotal + dueAmount;
+};
+
 const Backdrop = ({ onClose }) => (
   <motion.div 
     initial={{ opacity: 0 }} 
@@ -179,7 +236,7 @@ const PaymentModal = ({ order, otpString, onComplete, onClose }) => {
   const pollingRef = useRef(null);
 
   const orderId = order.orderId || order._id || 'ORD';
-  const amountToCollect = order.pricing?.total || order.amountToCollect || 0;
+  const amountToCollect = getPayableAmount(order);
 
   const checkPaymentSync = useCallback(async () => {
     try {

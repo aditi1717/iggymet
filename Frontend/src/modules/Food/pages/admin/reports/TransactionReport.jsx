@@ -211,9 +211,9 @@ export default function TransactionReport() {
 
   const formatStatusLabel = (status) => {
     const normalized = String(status || '').toLowerCase()
-    if (normalized === 'user_unavailable_due_pending') return 'User Unavailable'
-    if (normalized === 'user_unavailable_recovered') return 'Recovered'
-    if (normalized === 'cancelled_by_user_unavailable') return 'User Unavailable'
+    if (normalized === 'user_unavailable_due_pending') return 'User Unavailable (Pending)'
+    if (normalized === 'user_unavailable_recovered') return 'User Unavailable (Recovered)'
+    if (normalized === 'cancelled_by_user_unavailable') return 'User Unavailable (Pending)'
     return status || 'N/A'
   }
 

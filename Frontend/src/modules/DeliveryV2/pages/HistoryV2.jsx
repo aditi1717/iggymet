@@ -45,6 +45,24 @@ const formatTripTime = (trip) => {
 };
 
 const isCashLike = (trip) => ['cash', 'cod'].includes(String(trip?.paymentMethod || '').toLowerCase());
+const isCompletedTrip = (trip) => ['completed', 'delivered'].includes(String(trip?.status || '').toLowerCase());
+const isUserUnavailableTrip = (trip) => {
+  const rawStatus = String(trip?.rawOrderStatus || trip?.orderStatus || trip?.status || '')
+    .trim()
+    .toLowerCase();
+
+  return Boolean(
+    trip?.codExempt ||
+      trip?.isCompensatedCancellation ||
+      trip?.noResponseMeta?.isUserUnavailable ||
+      rawStatus === 'cancelled_by_user_unavailable',
+  );
+};
+const isEarningEligibleTrip = (trip) => isCompletedTrip(trip) || isUserUnavailableTrip(trip);
+const getTripEarning = (trip) => {
+  if (!isEarningEligibleTrip(trip)) return 0;
+  return Number(trip?.deliveryEarning || trip?.earningAmount || trip?.amount || 0);
+};
 const htmlEscape = (value) =>
   String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -186,11 +204,13 @@ export const HistoryV2 = () => {
     return filteredTrips.reduce(
       (acc, trip) => {
         const status = String(trip?.status || '').toLowerCase();
-        const earning = Number(trip?.deliveryEarning || trip?.earningAmount || trip?.amount || 0);
+        const earning = getTripEarning(trip);
         const codAmt = isCashLike(trip) ? Number(trip?.codCollectedAmount || 0) : 0;
 
-        if (['completed', 'delivered'].includes(status)) {
+        if (isEarningEligibleTrip(trip)) {
           acc.earnings += earning;
+        }
+        if (['completed', 'delivered'].includes(status)) {
           acc.completed += 1;
         }
         if (['cancelled', 'rejected'].includes(status)) acc.cancelled += 1;
@@ -221,7 +241,7 @@ export const HistoryV2 = () => {
       const id = getTripIdentity(trip);
       const status = getStatusStyle(trip?.status).label;
       const cod = isCashLike(trip) ? Number(trip?.codCollectedAmount || 0).toFixed(2) : '0.00';
-      const earning = Number(trip?.deliveryEarning || trip?.earningAmount || trip?.amount || 0).toFixed(2);
+      const earning = getTripEarning(trip).toFixed(2);
       const payment = isCashLike(trip) ? 'COD' : 'Online';
       return [
         id,
@@ -494,7 +514,7 @@ export const HistoryV2 = () => {
                     const id = getTripIdentity(trip) || `row-${idx}`;
                     const statusStyle = getStatusStyle(trip?.status);
                     const cod = isCashLike(trip) ? Number(trip?.codCollectedAmount || 0) : 0;
-                    const earning = Number(trip?.deliveryEarning || trip?.earningAmount || trip?.amount || 0);
+                    const earning = getTripEarning(trip);
                     return (
                       <tr
                         key={id}

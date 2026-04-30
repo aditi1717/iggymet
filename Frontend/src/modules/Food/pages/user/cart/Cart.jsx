@@ -3128,17 +3128,6 @@ export default function Cart() {
                           badge: 'SECURE'
                         },
                         {
-                          id: 'wallet',
-                          name: 'Quick Wallet',
-                          description: 'Pay from your wallet',
-                          icon: <Wallet className="w-5 h-5" />,
-                          color: 'bg-brand-50 text-brand-600 dark:bg-brand-900/40 dark:text-brand-400',
-                          selectedColor: 'bg-brand-500 text-white',
-                          subInfo: `Bal: ${RUPEE_SYMBOL}${walletBalance.toFixed(0)}`,
-                          disabled: walletBalance < totalPayable,
-                          disabledText: 'Low Balance'
-                        },
-                        {
                           id: 'cash',
                           name: 'Cash on Delivery',
                           description: 'Pay when order arrives',
