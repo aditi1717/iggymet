@@ -21,6 +21,7 @@ import {
   Power,
   ShoppingCart,
   MapPin,
+  Bell,
 } from "lucide-react";
 
 import AnimatedPage from "@food/components/user/AnimatedPage";
@@ -402,6 +403,103 @@ export default function Profile() {
   const handleLogoutClick = () => {
     if (isLoggingOut) return;
     setLogoutConfirmOpen(true);
+  };
+
+  const handleTestNotification = async () => {
+    if (typeof window === "undefined") {
+      toast.error("Notification test is unavailable right now.");
+      return;
+    }
+
+    if (typeof Notification === "undefined") {
+      toast.error("Notifications are not supported in this browser/webview.");
+      return;
+    }
+
+    if (!window.isSecureContext && window.location.hostname !== "localhost") {
+      toast.error("Notifications require HTTPS (or localhost).");
+      return;
+    }
+
+    let permission = Notification.permission;
+    try {
+      if (permission === "default") {
+        permission = await Notification.requestPermission();
+      }
+    } catch (error) {
+      debugWarn("Notification permission request failed:", error);
+      toast.error("Could not request notification permission.");
+      return;
+    }
+
+    if (permission !== "granted") {
+      toast.error(`Notification permission is ${permission}. Please allow it first.`);
+      return;
+    }
+
+    const title = "IggyMet Test Notification";
+    const body = "If you can see this, notifications are working.";
+    const notificationIcon = "/MapRider.png";
+
+    try {
+      // Flutter WebView path (browser Notification API can be unavailable/limited there)
+      if (
+        window.flutter_inappwebview &&
+        typeof window.flutter_inappwebview.callHandler === "function"
+      ) {
+        const handlerNames = [
+          "playNotificationSound",
+          "triggerNotificationFeedback",
+          "onPushNotification",
+        ];
+        for (const handlerName of handlerNames) {
+          try {
+            await window.flutter_inappwebview.callHandler(handlerName, {
+              title,
+              body,
+              targetUrl: "/food/user/profile",
+              notificationId: "manual-profile-test",
+            });
+            toast.success("Test notification triggered via app bridge.");
+            return;
+          } catch (bridgeError) {
+            debugWarn(`Bridge handler failed: ${handlerName}`, bridgeError);
+          }
+        }
+      }
+
+      // Show immediately via Notification API first.
+      const direct = new Notification(title, {
+        body,
+        icon: notificationIcon,
+        tag: "iggymet-test-notification",
+      });
+      direct.onclick = () => {
+        window.focus();
+      };
+
+      // Also try service worker notification when registration exists.
+      if ("serviceWorker" in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration?.showNotification) {
+          await registration.showNotification(title, {
+            body,
+            icon: notificationIcon,
+            tag: "iggymet-test-notification-sw",
+          });
+        }
+      }
+
+      toast.success("Test notification sent.");
+    } catch (error) {
+      debugWarn("Test notification failed:", {
+        error,
+        permission: Notification.permission,
+        secureContext: window.isSecureContext,
+        hasServiceWorker: "serviceWorker" in navigator,
+      });
+      toast.error("Could not show test notification. Check browser notification settings.");
+    }
   };
 
   return (
@@ -831,6 +929,33 @@ export default function Profile() {
                 </Card>
               </motion.div>
             </Link>
+
+            <motion.div
+              whileHover={{ x: 2 }}
+              transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
+              <Card
+                className={optionCardClass}
+                onClick={handleTestNotification}>
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <motion.div
+                      className={iconWrapClass}
+                      whileHover={{ scale: 1.03 }}
+                      transition={{ duration: 0.3 }}>
+                      <Bell className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                    </motion.div>
+                    <span className={rowLabelClass}>
+                      Test notification
+                    </span>
+                  </div>
+                  <motion.div
+                    whileHover={{ x: 2 }}
+                    transition={{ duration: 0.2 }}>
+                    <ChevronRight className={chevronClass} />
+                  </motion.div>
+                </CardContent>
+              </Card>
+            </motion.div>
 
             <motion.div
               whileHover={{ x: 2 }}
