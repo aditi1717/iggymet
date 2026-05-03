@@ -203,7 +203,7 @@ export const PocketStatementV2 = () => {
                             <div className="flex items-start gap-4">
                                <div className={`w-2 h-2 rounded mt-1.5 ${
                                   index % 3 === 0 ? 'bg-green-500' : 
-                                  index % 3 === 1 ? 'bg-[#005128]' : 'bg-brand-500'
+                                  index % 3 === 1 ? 'bg-[#2979fb]' : 'bg-brand-500'
                                }`}></div>
                                <div>
                                   <p className="text-gray-900 text-sm font-bold mb-0.5">

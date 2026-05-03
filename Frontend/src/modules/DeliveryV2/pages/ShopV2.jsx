@@ -20,9 +20,9 @@ import {
 import { BRAND_THEME } from '@/config/brandTheme';
 
 const RUPEE = '\u20B9';
-const BRAND_PRIMARY = BRAND_THEME?.colors?.brand?.primary || '#005128';
-const BRAND_PRIMARY_DARK = BRAND_THEME?.colors?.brand?.primaryDark || '#003d1e';
-const BRAND_SOFT = BRAND_THEME?.colors?.brand?.primarySoft || '#e6f0eb';
+const BRAND_PRIMARY = BRAND_THEME?.colors?.brand?.primary || '#2979fb';
+const BRAND_PRIMARY_DARK = BRAND_THEME?.colors?.brand?.primaryDark || '#1e5fd1';
+const BRAND_SOFT = BRAND_THEME?.colors?.brand?.primarySoft || '#eaf2ff';
 
 const formatCurrency = (value) => `${RUPEE}${Number(value || 0).toFixed(2)}`;
 const formatPdfCurrency = (value) => `Rs. ${Number(value || 0).toFixed(2)}`;

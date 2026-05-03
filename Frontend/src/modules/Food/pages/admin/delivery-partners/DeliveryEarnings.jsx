@@ -194,7 +194,7 @@ export default function DeliveryEarnings() {
     return (
       <div className="p-4 lg:p-6 bg-slate-50 min-h-screen w-full max-w-full overflow-x-hidden flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-[#005128]" />
+          <Loader2 className="w-8 h-8 animate-spin text-[#2979fb]" />
           <p className="text-gray-600">Loading delivery earnings...</p>
         </div>
       </div>
@@ -228,7 +228,7 @@ export default function DeliveryEarnings() {
                 <p className="text-2xl font-bold text-slate-900">{summary.totalDeliveryPartners || 0}</p>
               </div>
               <div className="w-12 h-12 rounded-lg bg-brand-100 flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-[#005128]" />
+                <DollarSign className="w-6 h-6 text-[#2979fb]" />
               </div>
             </div>
           </div>
@@ -324,7 +324,7 @@ export default function DeliveryEarnings() {
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="px-4 py-2 bg-[#005128] text-white rounded-lg hover:bg-[#003d1e] flex items-center gap-2">
+                <button className="px-4 py-2 bg-[#2979fb] text-white rounded-lg hover:bg-[#1e5fd1] flex items-center gap-2">
                   <Download className="w-4 h-4" />
                   <span>Export</span>
                   <ChevronDown className="w-4 h-4" />
@@ -396,7 +396,7 @@ export default function DeliveryEarnings() {
                       <td className="px-4 py-3 text-sm text-slate-700">
                         {earning.deliveryPartnerPhone || 'N/A'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-[#005128] font-medium">
+                      <td className="px-4 py-3 text-sm text-[#2979fb] font-medium">
                         {earning.orderId || 'N/A'}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-700">
@@ -465,7 +465,7 @@ export default function DeliveryEarnings() {
                       onClick={() => handlePageChange(pageNum)}
                       className={`px-3 py-1 text-sm rounded border ${
                         pagination.page === pageNum
-                          ? "bg-[#005128] border-brand-600 text-white"
+                          ? "bg-[#2979fb] border-brand-600 text-white"
                           : "border-slate-300 text-slate-700 hover:bg-slate-50"
                       }`}
                     >

@@ -24,26 +24,26 @@
   --card-foreground: #0f172a;
   --popover: #ffffff;
   --popover-foreground: #0f172a;
-  --primary: #005128;
+  --primary: #2979fb;
   --primary-foreground: #ffffff;
   --secondary: #f1f5f9;
   --secondary-foreground: #334155;
   --muted: #f8fafc;
   --muted-foreground: #64748b;
-  --accent: #e6f0eb;
-  --accent-foreground: #003d1e;
+  --accent: #eaf2ff;
+  --accent-foreground: #1e5fd1;
   --destructive: oklch(0.577 0.245 27.325);
   --border: #d9e7ff;
   --input: #f8fafc;
-  --ring: #005128;
+  --ring: #2979fb;
   --sidebar: #ffffff;
   --sidebar-foreground: #0f172a;
-  --sidebar-primary: #005128;
+  --sidebar-primary: #2979fb;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #f1f5f9;
   --sidebar-accent-foreground: #334155;
   --sidebar-border: #d9e7ff;
-  --sidebar-ring: #005128;
+  --sidebar-ring: #2979fb;
   
   /* Date Picker Colors */
   --date-picker-bg: #ffffff;
@@ -117,14 +117,14 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --color-brand-50: #e6f0eb;
+  --color-brand-50: #eaf2ff;
   --color-brand-100: #cce1d7;
   --color-brand-200: #99c3af;
   --color-brand-300: #66a587;
   --color-brand-400: #33875f;
-  --color-brand-500: #005128;
+  --color-brand-500: #2979fb;
   --color-brand-600: #004924;
-  --color-brand-700: #003d1e;
+  --color-brand-700: #1e5fd1;
   --color-brand-800: #003118;
   --color-brand-900: #002512;
   --color-brand-950: #00190c;

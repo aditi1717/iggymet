@@ -229,7 +229,7 @@ export default function JoinRequest() {
       <div className="max-w-7xl mx-auto">
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-[#005128] flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-[#2979fb] flex items-center justify-center">
               <Package className="w-5 h-5 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-slate-900">New Joining Request</h1>
@@ -241,7 +241,7 @@ export default function JoinRequest() {
               onClick={() => handleTabChange("pending")}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === "pending"
-                  ? "border-brand-600 text-[#005128]"
+                  ? "border-brand-600 text-[#2979fb]"
                   : "border-transparent text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -251,7 +251,7 @@ export default function JoinRequest() {
               onClick={() => handleTabChange("denied")}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === "denied"
-                  ? "border-brand-600 text-[#005128]"
+                  ? "border-brand-600 text-[#2979fb]"
                   : "border-transparent text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -324,7 +324,7 @@ export default function JoinRequest() {
           <div className="overflow-x-auto">
             {loading ? (
               <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 animate-spin text-[#005128]" />
+                <Loader2 className="w-8 h-8 animate-spin text-[#2979fb]" />
                 <span className="ml-3 text-sm text-slate-600">Loading requests...</span>
               </div>
             ) : (
@@ -410,7 +410,7 @@ export default function JoinRequest() {
                               )}
                             </div>
                             <span 
-                              className="text-sm font-medium text-slate-900 cursor-pointer hover:text-[#005128] transition-colors"
+                              className="text-sm font-medium text-slate-900 cursor-pointer hover:text-[#2979fb] transition-colors"
                               onClick={() => handleView(request)}
                             >
                               {request.name}
@@ -454,7 +454,7 @@ export default function JoinRequest() {
                           <div className="flex items-center justify-center gap-2">
                             <button
                               onClick={() => handleView(request)}
-                              className="p-1.5 rounded bg-brand-50 text-[#005128] hover:bg-brand-100 transition-colors"
+                              className="p-1.5 rounded bg-brand-50 text-[#2979fb] hover:bg-brand-100 transition-colors"
                               title="View Details"
                             >
                               <Eye className="w-4 h-4" />
@@ -767,7 +767,7 @@ export default function JoinRequest() {
                                 href={viewDetails.documents.aadhar.document} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-sm text-[#005128] hover:text-brand-700"
+                                className="inline-flex items-center gap-1 text-sm text-[#2979fb] hover:text-brand-700"
                               >
                                 <ExternalLink className="w-3 h-3" /> View Document
                               </a>
@@ -789,7 +789,7 @@ export default function JoinRequest() {
                                 href={viewDetails.documents.pan.document} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-sm text-[#005128] hover:text-brand-700"
+                                className="inline-flex items-center gap-1 text-sm text-[#2979fb] hover:text-brand-700"
                               >
                                 <ExternalLink className="w-3 h-3" /> View Document
                               </a>
@@ -816,7 +816,7 @@ export default function JoinRequest() {
                                 href={viewDetails.documents.drivingLicense.document} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-sm text-[#005128] hover:text-brand-700"
+                                className="inline-flex items-center gap-1 text-sm text-[#2979fb] hover:text-brand-700"
                               >
                                 <ExternalLink className="w-3 h-3" /> View Document
                               </a>
@@ -838,7 +838,7 @@ export default function JoinRequest() {
                                 href={viewDetails.documents.vehicleRC.document} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-sm text-[#005128] hover:text-brand-700"
+                                className="inline-flex items-center gap-1 text-sm text-[#2979fb] hover:text-brand-700"
                               >
                                 <ExternalLink className="w-3 h-3" /> View Document
                               </a>
@@ -923,7 +923,7 @@ export default function JoinRequest() {
               </div>
             ) : (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-[#005128]" />
+                <Loader2 className="w-6 h-6 animate-spin text-[#2979fb]" />
               </div>
             )}
           </div>
@@ -997,7 +997,7 @@ export default function JoinRequest() {
             </button>
             <button
               onClick={() => setIsFilterOpen(false)}
-              className="px-4 py-2 text-sm font-medium rounded-lg bg-[#005128] text-white hover:bg-[#003d1e] transition-all shadow-md"
+              className="px-4 py-2 text-sm font-medium rounded-lg bg-[#2979fb] text-white hover:bg-[#1e5fd1] transition-all shadow-md"
             >
               Apply
             </button>

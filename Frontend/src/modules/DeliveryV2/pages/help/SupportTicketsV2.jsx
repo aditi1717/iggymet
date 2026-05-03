@@ -90,7 +90,7 @@ export const SupportTicketsV2 = () => {
                 <div className="flex justify-between items-start mb-3">
                    <div className="flex-1 pr-4">
                       <div className="flex items-center gap-2 mb-1">
-                         <h4 className="text-sm font-black text-gray-950 group-hover:text-[#005128] transition-colors uppercase tracking-tight line-clamp-1">{ticket.subject}</h4>
+                         <h4 className="text-sm font-black text-gray-950 group-hover:text-[#2979fb] transition-colors uppercase tracking-tight line-clamp-1">{ticket.subject}</h4>
                          {ticket.ticketId && <span className="text-[9px] font-mono font-bold bg-gray-100 px-2 py-0.5 rounded">#{ticket.ticketId}</span>}
                       </div>
                       <p className="text-xs text-gray-500 font-medium line-clamp-1">{ticket.description}</p>

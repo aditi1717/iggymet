@@ -328,7 +328,7 @@ export default function UnifiedOTPFastLogin() {
                              document.getElementById(`otp-${Math.min(pasteData.length, 3)}`)?.focus();
                            }
                          }}
-                         className="w-[3.1rem] h-[3.5rem] sm:w-[3.4rem] sm:h-[3.8rem] text-center text-xl font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-[#005128] focus:ring-2 focus:ring-[#005128]/20 rounded-xl outline-none transition-all text-gray-900 dark:text-white"
+                         className="w-[3.1rem] h-[3.5rem] sm:w-[3.4rem] sm:h-[3.8rem] text-center text-xl font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-[#2979fb] focus:ring-2 focus:ring-[#2979fb]/20 rounded-xl outline-none transition-all text-gray-900 dark:text-white"
                          placeholder="-"
                        />
                      ))}

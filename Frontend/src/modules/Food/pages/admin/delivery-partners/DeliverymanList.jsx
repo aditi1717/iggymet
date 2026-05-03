@@ -670,7 +670,7 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
           <div className="overflow-x-auto">
             {loading ? (
               <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 animate-spin text-[#005128]" />
+                <Loader2 className="w-8 h-8 animate-spin text-[#2979fb]" />
                 <span className="ml-3 text-sm text-slate-600">Loading delivery partners...</span>
               </div>
             ) : (
@@ -766,7 +766,7 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
                               </div>
                               <div className="flex items-center gap-2">
                                 <span 
-                                  className="text-sm font-medium text-slate-900 cursor-pointer hover:text-[#005128] transition-colors"
+                                  className="text-sm font-medium text-slate-900 cursor-pointer hover:text-[#2979fb] transition-colors"
                                   onClick={() => handleView(dm)}
                                 >
                                   {dm.name}
@@ -803,7 +803,7 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
                           <td className="px-6 py-4">
                             <div className="flex flex-col">
                               <span className="text-xs">
-                                Active Status: <span className={`${dm.status === 'Online' ? 'text-[#005128]' : 'text-slate-600'} underline`}>{dm.status}</span>
+                                Active Status: <span className={`${dm.status === 'Online' ? 'text-[#2979fb]' : 'text-slate-600'} underline`}>{dm.status}</span>
                               </span>
                             </div>
                           </td>
@@ -813,7 +813,7 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
                             <div className="flex items-center justify-center gap-2">
                               <button 
                                 onClick={() => handleView(dm)}
-                                className="p-1.5 rounded bg-brand-50 text-[#005128] hover:bg-brand-100 transition-colors" 
+                                className="p-1.5 rounded bg-brand-50 text-[#2979fb] hover:bg-brand-100 transition-colors" 
                                 title="View Details"
                               >
                                 <Eye className="w-4 h-4" />
@@ -1064,7 +1064,7 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
                                 href={viewDetails.documents.aadhar.document} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-sm text-[#005128] hover:text-brand-700"
+                                className="inline-flex items-center gap-1 text-sm text-[#2979fb] hover:text-brand-700"
                               >
                                 <ExternalLink className="w-3 h-3" /> View Document
                               </a>
@@ -1086,7 +1086,7 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
                                 href={viewDetails.documents.pan.document} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-sm text-[#005128] hover:text-brand-700"
+                                className="inline-flex items-center gap-1 text-sm text-[#2979fb] hover:text-brand-700"
                               >
                                 <ExternalLink className="w-3 h-3" /> View Document
                               </a>
@@ -1113,7 +1113,7 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
                                 href={viewDetails.documents.drivingLicense.document} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-sm text-[#005128] hover:text-brand-700"
+                                className="inline-flex items-center gap-1 text-sm text-[#2979fb] hover:text-brand-700"
                               >
                                 <ExternalLink className="w-3 h-3" /> View Document
                               </a>
@@ -1135,7 +1135,7 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
                                 href={viewDetails.documents.vehicleRC.document} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-sm text-[#005128] hover:text-brand-700"
+                                className="inline-flex items-center gap-1 text-sm text-[#2979fb] hover:text-brand-700"
                               >
                                 <ExternalLink className="w-3 h-3" /> View Document
                               </a>
@@ -1212,7 +1212,7 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
               </div>
             ) : (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-[#005128]" />
+                <Loader2 className="w-6 h-6 animate-spin text-[#2979fb]" />
               </div>
             )}
           </div>
@@ -1326,7 +1326,7 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
               type="button"
               onClick={handleSaveZone}
               disabled={!selectedZoneId || savingZoneForDeliveryId === String(selectedDeliveryForZone?._id || "")}
-              className="px-4 py-2 rounded-lg bg-[#005128] text-sm font-medium text-white hover:bg-[#1565C0] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 rounded-lg bg-[#2979fb] text-sm font-medium text-white hover:bg-[#1565C0] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {savingZoneForDeliveryId === String(selectedDeliveryForZone?._id || "") ? "Saving..." : "Save Zone"}
             </button>

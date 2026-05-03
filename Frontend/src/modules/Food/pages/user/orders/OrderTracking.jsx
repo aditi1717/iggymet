@@ -19,6 +19,7 @@ import {
   Loader2
 } from "lucide-react"
 import AnimatedPage from "@food/components/user/AnimatedPage"
+import DeliveryTrackingMap from "@food/components/user/DeliveryTrackingMap"
 import { Button } from "@food/components/ui/button"
 import {
   Dialog,
@@ -1177,6 +1178,31 @@ export default function OrderTracking() {
   // --------------------------------------------------------------------------
 
   // Loading state (moved after hooks)
+  const trackingMapCoords = useMemo(() => {
+    const restaurantRaw = order?.restaurantLocation?.coordinates
+    const customerRaw = order?.address?.coordinates
+
+    const toMapLatLng = (coords) => {
+      if (!Array.isArray(coords) || coords.length < 2) return null
+      const lng = Number(coords[0])
+      const lat = Number(coords[1])
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+      return { lat, lng }
+    }
+
+    return {
+      restaurant: toMapLatLng(restaurantRaw),
+      customer: toMapLatLng(customerRaw),
+    }
+  }, [order?.restaurantLocation?.coordinates, order?.address?.coordinates])
+
+  const trackingIds = useMemo(() => {
+    const ids = [orderId, resolvedLookupId, order?.orderId, order?.mongoId, order?.id]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+    return [...new Set(ids)]
+  }, [orderId, resolvedLookupId, order?.orderId, order?.mongoId, order?.id])
+
   if (loading) {
     return (
       <AnimatedPage className="min-h-screen bg-gray-50 p-4">
@@ -1282,6 +1308,11 @@ export default function OrderTracking() {
     orderStatus === "delivered" ||
     order?.status === "delivered" ||
     Boolean(order?.deliveredAt)
+  const canShowLiveTrackingMap =
+    !isDeliveredOrder &&
+    orderStatus !== "cancelled" &&
+    Boolean(order?.deliveryPartnerId) &&
+    Boolean(trackingMapCoords.restaurant && trackingMapCoords.customer)
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-[#0a0a0a]">
@@ -1352,7 +1383,19 @@ export default function OrderTracking() {
       )}
       </motion.div>
 
-      {/* Map removed from user order tracking page as requested */}
+      {canShowLiveTrackingMap && (
+        <div className="max-w-4xl mx-auto px-4 md:px-6 lg:px-8 pt-4 md:pt-6">
+          <div className="h-[36vh] min-h-[280px] md:h-[44vh] rounded-2xl overflow-hidden">
+            <DeliveryTrackingMap
+              orderId={resolvedLookupId || orderId}
+              orderTrackingIds={trackingIds}
+              restaurantCoords={trackingMapCoords.restaurant}
+              customerCoords={trackingMapCoords.customer}
+              order={order}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Scrollable Content */}
       <div className="max-w-4xl mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 space-y-4 md:space-y-6 pb-24 md:pb-32">

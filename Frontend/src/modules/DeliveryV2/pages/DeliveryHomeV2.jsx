@@ -434,7 +434,7 @@ function OrdersTabV2({
             type="button"
             onClick={() => onAcceptQueuedOrder?.(order)}
             disabled={isBusy}
-            className="rounded-xl bg-[#005128] px-3 py-2 text-[11px] font-bold text-white disabled:opacity-60"
+            className="rounded-xl bg-[#2979fb] px-3 py-2 text-[11px] font-bold text-white disabled:opacity-60"
           >
             {isAcceptBusy ? 'Accepting...' : 'Accept'}
           </button>
@@ -1612,7 +1612,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
 
             {/* SIMULATION INDICATOR */}
             {isSimMode && (
-              <div className="absolute top-[180px] left-4 right-4 z-[100] bg-[#005128]/70 backdrop-blur-md rounded-xl p-4 border border-white/20 flex items-center justify-between shadow-2xl">
+              <div className="absolute top-[180px] left-4 right-4 z-[100] bg-[#2979fb]/70 backdrop-blur-md rounded-xl p-4 border border-white/20 flex items-center justify-between shadow-2xl">
                 <div className="flex items-center gap-4">
                   <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center animate-pulse">
                     <Play className="w-4 h-4 text-white fill-current" />

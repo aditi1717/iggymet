@@ -814,7 +814,7 @@ export default function SearchResults() {
                   style={isSelected ? { borderColor: BRAND_THEME.colors.brand.primary } : undefined}
                 >
                   {isAllCategory ? (
-                    <div className={`w-16 h-16 rounded-full border-2 transition-all flex items-center justify-center ${isSelected ? 'shadow-lg bg-[#e6f0eb] dark:bg-brand-950/20' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-[#222222]'}`} style={isSelected ? { borderColor: BRAND_THEME.colors.brand.primary } : undefined}>
+                    <div className={`w-16 h-16 rounded-full border-2 transition-all flex items-center justify-center ${isSelected ? 'shadow-lg bg-[#eaf2ff] dark:bg-brand-950/20' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-[#222222]'}`} style={isSelected ? { borderColor: BRAND_THEME.colors.brand.primary } : undefined}>
                       <Grid2x2 className={`h-6 w-6 ${isSelected ? '' : 'text-gray-500 dark:text-gray-400'}`} style={isSelected ? { color: BRAND_THEME.colors.brand.primary } : undefined} />
                     </div>
                   ) : cat.image ? (
@@ -827,7 +827,7 @@ export default function SearchResults() {
                       />
                     </div>
                   ) : (
-                    <div className={`w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center border-2 transition-all ${isSelected ? 'shadow-lg bg-[#e6f0eb] dark:bg-brand-950/20' : 'border-transparent'
+                    <div className={`w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center border-2 transition-all ${isSelected ? 'shadow-lg bg-[#eaf2ff] dark:bg-brand-950/20' : 'border-transparent'
                       }`} style={isSelected ? { borderColor: BRAND_THEME.colors.brand.primary } : undefined}>
                       <span className="text-xl">???</span>
                     </div>

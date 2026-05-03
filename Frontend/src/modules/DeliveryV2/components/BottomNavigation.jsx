@@ -124,7 +124,7 @@ export default function BottomNavigation() {
               src={profileImage}
               alt="Profile"
               className={`w-7 h-7 rounded-full border-2 object-cover ${
-                isActive("/delivery/profile") ? "border-[#005128]" : "border-gray-300"
+                isActive("/delivery/profile") ? "border-[#2979fb]" : "border-gray-300"
               }`}
               onError={() => {
                 setImageError(true)
@@ -132,7 +132,7 @@ export default function BottomNavigation() {
             />
           ) : (
             <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center bg-gray-200 ${
-              isActive("/delivery/profile") ? "border-[#005128]" : "border-gray-300"
+              isActive("/delivery/profile") ? "border-[#2979fb]" : "border-gray-300"
             }`}>
               <User className="w-4 h-4 text-gray-500" />
             </div>

@@ -1816,7 +1816,7 @@ export default function CategoryPage() {
                               key={option.id || 'relevance'}
                               onClick={() => setSortBy(option.id)}
                               className={`px-4 md:px-5 py-3 md:py-4 rounded-xl border text-left transition-colors ${sortBy === option.id
-                                ? 'border-transparent bg-[#e6f0eb] dark:bg-brand-950/20'
+                                ? 'border-transparent bg-[#eaf2ff] dark:bg-brand-950/20'
                                 : 'border-gray-200 dark:border-gray-700'
                                 }`}
                               style={sortBy === option.id ? { borderColor: BRAND_THEME.colors.brand.primary, backgroundColor: `${BRAND_THEME.colors.brand.primary}14` } : undefined}
@@ -1840,7 +1840,7 @@ export default function CategoryPage() {
                           <button
                             onClick={() => toggleFilter('under-30-mins')}
                             className={`flex flex-col items-center gap-2 p-4 md:p-5 rounded-xl border transition-colors ${activeFilters.has('under-30-mins')
-                              ? 'border-transparent bg-[#e6f0eb] dark:bg-brand-950/20'
+                              ? 'border-transparent bg-[#eaf2ff] dark:bg-brand-950/20'
                               : 'border-gray-200 dark:border-gray-700'
                               }`}
                             style={activeFilters.has('under-30-mins') ? { borderColor: BRAND_THEME.colors.brand.primary, backgroundColor: `${BRAND_THEME.colors.brand.primary}14` } : undefined}
@@ -1851,7 +1851,7 @@ export default function CategoryPage() {
                           <button
                             onClick={() => toggleFilter('delivery-under-45')}
                             className={`flex flex-col items-center gap-2 p-4 md:p-5 rounded-xl border transition-colors ${activeFilters.has('delivery-under-45')
-                              ? 'border-transparent bg-[#e6f0eb] dark:bg-brand-950/20'
+                              ? 'border-transparent bg-[#eaf2ff] dark:bg-brand-950/20'
                               : 'border-gray-200 dark:border-gray-700'
                               }`}
                             style={activeFilters.has('delivery-under-45') ? { borderColor: BRAND_THEME.colors.brand.primary, backgroundColor: `${BRAND_THEME.colors.brand.primary}14` } : undefined}

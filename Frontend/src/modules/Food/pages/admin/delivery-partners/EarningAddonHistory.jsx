@@ -268,7 +268,7 @@ export default function EarningAddonHistory() {
               <button
                 onClick={handleCheckAllCompletions}
                 disabled={isCheckingCompletions}
-                className="px-4 py-2.5 text-sm font-medium rounded-lg bg-[#005128] text-white hover:bg-[#003d1e] disabled:bg-brand-300 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
+                className="px-4 py-2.5 text-sm font-medium rounded-lg bg-[#2979fb] text-white hover:bg-[#1e5fd1] disabled:bg-brand-300 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
                 title="Check all delivery partners for completed offers"
               >
                 <RefreshCw className={`w-4 h-4 ${isCheckingCompletions ? 'animate-spin' : ''}`} />
@@ -416,7 +416,7 @@ export default function EarningAddonHistory() {
                         {visibleColumns.deliveryman && (
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex flex-col">
-                              <span className="text-sm font-medium text-[#005128]">
+                              <span className="text-sm font-medium text-[#2979fb]">
                                 {item.deliveryman || 'Unknown'}
                               </span>
                               {item.deliveryId && (
@@ -526,7 +526,7 @@ export default function EarningAddonHistory() {
                 {/* Deliveryman Info */}
                 <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
                   <div className="p-2 bg-brand-100 rounded-lg">
-                    <User className="w-5 h-5 text-[#005128]" />
+                    <User className="w-5 h-5 text-[#2979fb]" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Deliveryman</p>

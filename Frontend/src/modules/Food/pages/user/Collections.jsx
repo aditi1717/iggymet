@@ -157,7 +157,7 @@ export default function Collections() {
               onClick={() => setIsCreateDialogOpen(true)}
               className="bg-white dark:bg-[#1a1a1a] border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl p-4 h-48 flex flex-col items-center justify-center gap-3 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
-              <div className="w-12 h-12 rounded-full bg-[#e6f0eb] dark:bg-brand-950/30 flex items-center justify-center border-2" style={{ borderColor: `${BRAND_THEME.colors.brand.primary}4d` }}>
+              <div className="w-12 h-12 rounded-full bg-[#eaf2ff] dark:bg-brand-950/30 flex items-center justify-center border-2" style={{ borderColor: `${BRAND_THEME.colors.brand.primary}4d` }}>
                 <Plus className="h-6 w-6" style={{ color: BRAND_THEME.colors.brand.primary }} />
               </div>
               <div className="text-center">

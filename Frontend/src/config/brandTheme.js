@@ -1,8 +1,8 @@
 const COLORS = {
   brand: {
-    primary: "#005128",
-    primaryDark: "#003d1e",
-    primarySoft: "#e6f0eb",
+    primary: "#2979fb",
+    primaryDark: "#1e5fd1",
+    primarySoft: "#eaf2ff",
     accentGreen: "#1B7347",
     accentRed: "#FA0000",
     accentRedSoft: "#FFE5E5",
@@ -154,7 +154,7 @@ export const BRAND_THEME = {
       primaryBorder: COLORS.brand.primary,
       primaryButton: `bg-[${COLORS.brand.primary}] hover:bg-[${COLORS.brand.primaryDark}] text-white`,
       primaryButtonAlt: `bg-white border border-[${COLORS.brand.primary}] text-[${COLORS.brand.primary}] hover:bg-green-50`,
-      pillSurface: "bg-green-50 text-[#005128] border border-green-100",
+      pillSurface: "bg-green-50 text-[#2979fb] border border-green-100",
       paymentSelected:
         `border-[${COLORS.brand.primary}] bg-[${COLORS.brand.primary}] shadow-lg shadow-green-500/30`,
       paymentHover: "hover:border-green-200 dark:hover:border-green-900/30",

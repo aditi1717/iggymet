@@ -430,7 +430,7 @@ const getItemLineTotal = (item = {}) => {
 
 const StatusPill = ({ tone = 'slate', children }) => {
   const tones = {
-    brand: 'border-[#005128]/10 bg-[#005128]/5 text-[#005128]',
+    brand: 'border-[#2979fb]/10 bg-[#2979fb]/5 text-[#2979fb]',
     blue: 'border-sky-100 bg-sky-50 text-sky-700',
     emerald: 'border-emerald-100 bg-emerald-50 text-emerald-700',
     amber: 'border-amber-100 bg-amber-50 text-amber-700',
@@ -449,7 +449,7 @@ const CompactSection = ({ title, icon: Icon, children, action }) => (
   <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
     <div className="flex items-center justify-between mb-4">
       <div className="flex items-center gap-2.5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-50 text-[#005128]">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-50 text-[#2979fb]">
           {Icon && <Icon className="h-4 w-4" />}
         </div>
         <h3 className="text-sm font-bold text-slate-800 uppercase tracking-tight">{title}</h3>
@@ -469,7 +469,7 @@ const ActionButton = ({ disabled, busy, onClick, children, variant = 'primary' }
       disabled || busy
         ? 'cursor-not-allowed bg-slate-100 text-slate-400'
         : variant === 'primary'
-        ? 'bg-[#005128] text-white shadow-lg shadow-[#005128]/20'
+        ? 'bg-[#2979fb] text-white shadow-lg shadow-[#2979fb]/20'
         : 'bg-white border border-slate-200 text-slate-700'
     }`}
   >
@@ -904,7 +904,7 @@ const OrderDetailV2 = () => {
           <button
             type="button"
             onClick={() => navigate('/food/delivery/orders')}
-            className="mt-8 w-full rounded-2xl bg-[#005128] py-4 text-sm font-semibold text-white"
+            className="mt-8 w-full rounded-2xl bg-[#2979fb] py-4 text-sm font-semibold text-white"
           >
             Go back to orders list
           </button>
@@ -926,7 +926,7 @@ const OrderDetailV2 = () => {
           </button>
           <div className="flex flex-col">
             <span className="text-base font-semibold tracking-tight text-slate-800">Order Detail</span>
-            <span className="text-xs font-bold text-[#005128]">{order?.displayOrderId ? `#${order.displayOrderId}` : '--'}</span>
+            <span className="text-xs font-bold text-[#2979fb]">{order?.displayOrderId ? `#${order.displayOrderId}` : '--'}</span>
           </div>
         </div>
       </div>
@@ -996,9 +996,9 @@ const OrderDetailV2 = () => {
                   if (!sliderStepConfig?.run) return;
                   await sliderStepConfig.run();
                 }}
-                color="bg-[#005128]"
+                color="bg-[#2979fb]"
                 containerStyle={{ backgroundColor: '#E8F3EE' }}
-                style={{ background: 'linear-gradient(135deg, #005128 0%, #0A7A45 100%)' }}
+                style={{ background: 'linear-gradient(135deg, #2979fb 0%, #0A7A45 100%)' }}
               />
             </div>
           )}
@@ -1160,16 +1160,16 @@ const OrderDetailV2 = () => {
               <p className="text-sm leading-5 text-slate-800">{restaurantAddress}</p>
               <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-slate-600">
                 <p>
-                  <span className="mr-1 inline-flex items-center rounded-md bg-[#E6F4EC] px-1.5 py-0.5 text-[11px] font-bold text-[#005128]">Recipient</span>
+                  <span className="mr-1 inline-flex items-center rounded-md bg-[#E6F4EC] px-1.5 py-0.5 text-[11px] font-bold text-[#2979fb]">Recipient</span>
                   <span className="font-semibold text-slate-900">{pickupMeta.name || '--'}</span>
                 </p>
                 <p className="flex items-center gap-2">
                   <span>
-                    <span className="mr-1 inline-flex items-center rounded-md bg-[#E6F4EC] px-1.5 py-0.5 text-[11px] font-bold text-[#005128]">Number</span>
+                    <span className="mr-1 inline-flex items-center rounded-md bg-[#E6F4EC] px-1.5 py-0.5 text-[11px] font-bold text-[#2979fb]">Number</span>
                     <span className="font-semibold text-slate-900">{pickupDisplayPhone || '--'}</span>
                   </span>
                   {pickupMeta.dialPhone && (
-                    <a href={`tel:${pickupMeta.dialPhone}`} className="inline-flex items-center font-medium text-[#005128]">
+                    <a href={`tel:${pickupMeta.dialPhone}`} className="inline-flex items-center font-medium text-[#2979fb]">
                       <Phone className="mr-1 h-3.5 w-3.5" /> Call
                     </a>
                   )}
@@ -1183,16 +1183,16 @@ const OrderDetailV2 = () => {
             >
               <div className="mb-2 grid grid-cols-1 gap-1 text-xs text-slate-600">
                 <p>
-                  <span className="mr-1 inline-flex items-center rounded-md bg-[#E6F4EC] px-1.5 py-0.5 text-[11px] font-bold text-[#005128]">Recipient</span>
+                  <span className="mr-1 inline-flex items-center rounded-md bg-[#E6F4EC] px-1.5 py-0.5 text-[11px] font-bold text-[#2979fb]">Recipient</span>
                   <span className="font-semibold text-slate-900">{customerMeta.name || '--'}</span>
                 </p>
                 <p className="flex items-center gap-2">
                   <span>
-                    <span className="mr-1 inline-flex items-center rounded-md bg-[#E6F4EC] px-1.5 py-0.5 text-[11px] font-bold text-[#005128]">Number</span>
+                    <span className="mr-1 inline-flex items-center rounded-md bg-[#E6F4EC] px-1.5 py-0.5 text-[11px] font-bold text-[#2979fb]">Number</span>
                     <span className="font-semibold text-slate-900">{customerDisplayPhone || '--'}</span>
                   </span>
                   {customerMeta.dialPhone && (
-                    <a href={`tel:${customerMeta.dialPhone}`} className="inline-flex items-center font-medium text-[#005128]">
+                    <a href={`tel:${customerMeta.dialPhone}`} className="inline-flex items-center font-medium text-[#2979fb]">
                       <Phone className="mr-1 h-3.5 w-3.5" /> Call
                     </a>
                   )}
@@ -1202,7 +1202,7 @@ const OrderDetailV2 = () => {
                 <div className="space-y-1.5">
                   {customerAddressSegments.map((segment) => (
                     <p key={segment.key} className="text-sm leading-5 text-slate-900">
-                      <span className="mr-1.5 rounded-md bg-[#E6F4EC] px-1.5 py-0.5 text-xs font-bold text-[#005128]">
+                      <span className="mr-1.5 rounded-md bg-[#E6F4EC] px-1.5 py-0.5 text-xs font-bold text-[#2979fb]">
                         {segment.label}
                       </span>
                       <span className="font-semibold text-slate-900">{segment.value}</span>

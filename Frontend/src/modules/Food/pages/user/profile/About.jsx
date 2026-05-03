@@ -81,7 +81,7 @@ export default function About() {
     return (
       <div className="min-h-screen bg-gradient-to-b from-brand-50 to-white dark:from-[#0a0a0a] dark:to-[#1a1a1a] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-10 w-10 animate-spin text-[#005128]" />
+          <Loader2 className="h-10 w-10 animate-spin text-[#2979fb]" />
           <p className="text-sm text-gray-500">Loading About…</p>
         </div>
       </div>
@@ -126,7 +126,7 @@ export default function About() {
                 className="flex justify-center mb-0"
               >
                 <div className="relative p-4 md:p-5 lg:p-6">
-                  <div className="absolute inset-0 bg-[#005128] rounded-2xl blur-3xl opacity-0 animate-pulse" />
+                  <div className="absolute inset-0 bg-[#2979fb] rounded-2xl blur-3xl opacity-0 animate-pulse" />
                   <div className="relative bg-transparent dark:bg-transparent rounded-2xl p-4 md:p-5 lg:p-6 shadow-none">
                     <img
                       src={heroLogo}
@@ -237,7 +237,7 @@ export default function About() {
                     <FileText className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                   </div>
                   <div className="flex-1">
-                    <div className="text-base font-medium text-gray-900 dark:text-white group-hover:text-[#005128] dark:group-hover:text-brand-400 transition-colors">
+                    <div className="text-base font-medium text-gray-900 dark:text-white group-hover:text-[#2979fb] dark:group-hover:text-brand-400 transition-colors">
                       Terms and Conditions
                     </div>
                     <div className="text-sm text-gray-500 dark:text-gray-500">
@@ -255,7 +255,7 @@ export default function About() {
                     <Lock className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                   </div>
                   <div className="flex-1">
-                    <div className="text-base font-medium text-gray-900 dark:text-white group-hover:text-[#005128] dark:group-hover:text-brand-400 transition-colors">
+                    <div className="text-base font-medium text-gray-900 dark:text-white group-hover:text-[#2979fb] dark:group-hover:text-brand-400 transition-colors">
                       Privacy Policy
                     </div>
                     <div className="text-sm text-gray-500 dark:text-gray-500">
@@ -273,7 +273,7 @@ export default function About() {
                     <Receipt className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                   </div>
                   <div className="flex-1">
-                    <div className="text-base font-medium text-gray-900 dark:text-white group-hover:text-[#005128] dark:group-hover:text-brand-400 transition-colors">
+                    <div className="text-base font-medium text-gray-900 dark:text-white group-hover:text-[#2979fb] dark:group-hover:text-brand-400 transition-colors">
                       Refund Policy
                     </div>
                     <div className="text-sm text-gray-500 dark:text-gray-500">
@@ -291,7 +291,7 @@ export default function About() {
                     <Truck className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                   </div>
                   <div className="flex-1">
-                    <div className="text-base font-medium text-gray-900 dark:text-white group-hover:text-[#005128] dark:group-hover:text-brand-400 transition-colors">
+                    <div className="text-base font-medium text-gray-900 dark:text-white group-hover:text-[#2979fb] dark:group-hover:text-brand-400 transition-colors">
                       Shipping Policy
                     </div>
                     <div className="text-sm text-gray-500 dark:text-gray-500">
@@ -309,7 +309,7 @@ export default function About() {
                     <XCircle className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                   </div>
                   <div className="flex-1">
-                    <div className="text-base font-medium text-gray-900 dark:text-white group-hover:text-[#005128] dark:group-hover:text-brand-400 transition-colors">
+                    <div className="text-base font-medium text-gray-900 dark:text-white group-hover:text-[#2979fb] dark:group-hover:text-brand-400 transition-colors">
                       Cancellation Policy
                     </div>
                     <div className="text-sm text-gray-500 dark:text-gray-500">

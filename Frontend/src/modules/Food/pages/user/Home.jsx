@@ -3020,7 +3020,7 @@ export default function Home() {
                 <Button
                   variant="outline"
                   onClick={loadMoreRestaurants}
-                  className="text-sm font-medium border-gray-300 hover:border-[#005128] hover:text-[#005128]">
+                  className="text-sm font-medium border-gray-300 hover:border-[#2979fb] hover:text-[#2979fb]">
                   Load more restaurants
                 </Button>
               )}

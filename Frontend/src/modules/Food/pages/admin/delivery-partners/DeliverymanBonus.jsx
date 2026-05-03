@@ -290,7 +290,7 @@ export default function DeliverymanBonus() {
           </button>
 
           <div className="flex items-center gap-3 mb-6">
-            <Wallet className="w-5 h-5 text-[#005128]" />
+            <Wallet className="w-5 h-5 text-[#2979fb]" />
             <h1 className="text-2xl font-bold text-slate-900">Bonus</h1>
           </div>
 
@@ -354,7 +354,7 @@ export default function DeliverymanBonus() {
               </button>
               <button
                 type="submit"
-                className="px-6 py-2.5 text-sm font-medium rounded-lg bg-[#005128] text-white hover:bg-[#003d1e] transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-6 py-2.5 text-sm font-medium rounded-lg bg-[#2979fb] text-white hover:bg-[#1e5fd1] transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 disabled={submitting}
               >
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -412,7 +412,7 @@ export default function DeliverymanBonus() {
           {/* Table */}
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20">
-              <Loader2 className="w-12 h-12 text-[#005128] animate-spin mb-4" />
+              <Loader2 className="w-12 h-12 text-[#2979fb] animate-spin mb-4" />
               <p className="text-sm text-slate-600">Loading transactions...</p>
             </div>
           ) : filteredTransactions.length === 0 ? (
