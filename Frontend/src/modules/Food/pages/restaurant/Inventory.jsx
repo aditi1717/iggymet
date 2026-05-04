@@ -2085,8 +2085,7 @@ export default function Inventory() {
                 <button
                   onClick={() => setIsAddAddonOpen((v) => !v)}
                   className="h-12 rounded-[20px] px-4 text-sm font-semibold text-white shadow-[0_18px_32px_-24px_rgba(41,121,251,0.45)] transition-colors"
-                  style={{ background: BRAND_THEME.gradients.primary }}
-                  style={{ minWidth: "128px" }}
+                  style={{ background: BRAND_THEME.gradients.primary, minWidth: "128px" }}
                 >
                   {isAddAddonOpen ? "Close" : "Add Add-on"}
                 </button>

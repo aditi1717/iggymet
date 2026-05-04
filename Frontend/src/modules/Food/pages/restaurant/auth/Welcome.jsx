@@ -291,8 +291,7 @@ export default function RestaurantWelcome() {
       {/* Bottom Section - 30% height */}
       <div
         className="px-6 py-6 md:py-8 flex flex-col justify-center gap-4"
-        style={{ backgroundColor: BRAND_THEME.colors.brand.primary }}
-        style={{ height: "30vh", minHeight: "240px" }}
+        style={{ backgroundColor: BRAND_THEME.colors.brand.primary, height: "30vh", minHeight: "240px" }}
       >
         {/* Login Button */}
         <Button
