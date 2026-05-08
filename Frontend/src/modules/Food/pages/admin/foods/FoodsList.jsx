@@ -296,12 +296,35 @@ export default function FoodsList() {
 
     const loadCategoryOptions = async () => {
       try {
-        const res = await adminAPI.getCategories({ limit: 1000 })
-        const list = res?.data?.data?.categories || []
+        // Fetch categories - pass restaurantId if available to get union of Global + Restaurant categories
+        const params = { limit: 1000 }
+        if (foodForm.restaurantId) {
+          params.restaurantId = foodForm.restaurantId
+        }
+
+        const res = await adminAPI.getCategories(params)
+        const list = res?.data?.data?.categories || res?.data?.categories || []
         const options = Array.isArray(list)
           ? list
-              .map((c) => ({ id: String(c.id || c._id || c.name), name: String(c.name || "").trim() }))
-              .filter((c) => c.name)
+              .map((c) => {
+                const rId = String(c.restaurantId || c.createdByRestaurantId || "")
+                const isGlobal = Boolean(c.isGlobal || (!c.restaurantId && !c.createdByRestaurantId))
+                return {
+                  id: String(c.id || c._id || ""),
+                  name: String(c.name || "").trim(),
+                  isGlobal,
+                  restaurantId: rId,
+                }
+              })
+              .filter((c) => {
+                if (!c.name) return false
+                // If a restaurant is selected, strictly show only its private categories + global ones
+                if (foodForm.restaurantId) {
+                  return c.isGlobal || c.restaurantId === String(foodForm.restaurantId)
+                }
+                // If no restaurant selected, show only global categories to avoid clutter
+                return c.isGlobal
+              })
           : []
         if (!cancelled) setCategoryOptions(options)
       } catch (error) {
@@ -316,7 +339,7 @@ export default function FoodsList() {
     return () => {
       cancelled = true
     }
-  }, [showFoodFormModal])
+  }, [showFoodFormModal, foodForm.restaurantId])
 
   const handleVariantChange = (variantId, field, value) => {
     setFoodForm((prev) => ({
@@ -818,11 +841,16 @@ export default function FoodsList() {
                               setFoodForm((prev) => ({ ...prev, categoryId: c.id, categoryName: c.name }))
                               setCategoryPopoverOpen(false)
                             }}
-                            className={`w-full text-left px-3 py-2 rounded-md text-sm hover:bg-slate-100 ${
+                            className={`w-full text-left px-3 py-2 rounded-md text-sm hover:bg-slate-100 flex items-center justify-between ${
                               String(foodForm.categoryName || "") === String(c.name) ? "bg-slate-100 font-medium" : ""
                             }`}
                           >
-                            {c.name}
+                            <span>{c.name}</span>
+                            {c.isGlobal && (
+                              <span className="text-[10px] bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                                Global
+                              </span>
+                            )}
                           </button>
                         ))}
                       {categoryOptions.length === 0 && (

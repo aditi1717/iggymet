@@ -24,7 +24,6 @@ const defaultFormData = {
   image: "",
   status: true,
   type: "",
-  zoneId: "global",
   foodTypeScope: "Both",
   visibilityStartHour: "",
   visibilityStartMinute: "",
@@ -84,22 +83,7 @@ const scopeBadgeClass = (scope) => {
   return "bg-slate-100 text-slate-700 border-slate-200"
 }
 
-const zoneLabel = (zone, zones = []) => {
-  if (!zone || zone === "global") return "Global (all zones)"
-  
-  const zoneId = typeof zone === "string" ? zone : (zone?._id || zone?.id)
-  if (zoneId && Array.isArray(zones)) {
-    const found = zones.find(z => String(z?._id || z?.id) === String(zoneId))
-    if (found) return found.name || found.zoneName || found.serviceLocation || "Zone"
-  }
 
-  if (typeof zone === "string") {
-    const value = zone.trim()
-    if (/^[a-f0-9]{24}$/i.test(value)) return `Zone ID ${value.slice(-6)}`
-    return value
-  }
-  return zone?.name || zone?.zoneName || zone?.serviceLocation || "Zone"
-}
 
 export default function Category() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -108,8 +92,6 @@ export default function Category() {
   const [showPendingOnly, setShowPendingOnly] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState(null)
-  const [zones, setZones] = useState([])
-  const [zonesLoading, setZonesLoading] = useState(false)
   const [formData, setFormData] = useState(defaultFormData)
   const [selectedImageFile, setSelectedImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
@@ -126,30 +108,7 @@ export default function Category() {
     fetchCategories()
   }, [])
 
-  useEffect(() => {
-    let cancelled = false
-    setZonesLoading(true)
-    adminAPI
-      .getZones({ limit: 1000 })
-      .then((res) => {
-        const list =
-          res?.data?.data?.zones ||
-          res?.data?.data?.data?.zones ||
-          res?.data?.data ||
-          []
-        if (!cancelled) setZones(Array.isArray(list) ? list : [])
-      })
-      .catch(() => {
-        if (!cancelled) setZones([])
-      })
-      .finally(() => {
-        if (!cancelled) setZonesLoading(false)
-      })
 
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -219,17 +178,13 @@ export default function Category() {
 
   const handleEdit = (category) => {
     setEditingCategory(category)
-    const zoneIdValue =
-      typeof category?.zoneId === "string"
-        ? category.zoneId
-        : category?.zoneId?._id || category?.zoneId?.id || "global"
+
 
     setFormData({
       name: category?.name || "",
       image: category?.image || "",
       status: category?.status !== false,
       type: category?.type || "",
-      zoneId: zoneIdValue || "global",
       foodTypeScope: category?.foodTypeScope || "Both",
       ...(() => {
         const start = parse24To12(category?.visibilityStartTime || "")
@@ -358,13 +313,12 @@ export default function Category() {
         category?.name || "N/A",
         category?.foodTypeScope || "Both",
         category?.isGlobal ? "Global" : "Private",
-        zoneLabel(category?.zoneId, zones),
         category?.approvalStatus || "pending",
       ])
 
       autoTable(doc, {
         startY: 35,
-        head: [["SL", "Category", "Diet Scope", "Visibility", "Zone", "Approval"]],
+        head: [["SL", "Category", "Diet Scope", "Visibility", "Approval"]],
         body: tableData,
         theme: "striped",
         headStyles: {
@@ -421,7 +375,7 @@ export default function Category() {
         type: String(formData.type || "").trim(),
         status: Boolean(formData.status),
         image: imageUrl || undefined,
-        zoneId: formData.zoneId || "global",
+        zoneId: "global",
         foodTypeScope: formData.foodTypeScope,
         visibilityStartTime: startTime24,
         visibilityEndTime: endTime24,
@@ -516,7 +470,6 @@ export default function Category() {
               <tr>
                 <th className="w-[25%] px-5 py-4 text-left text-[11px] font-bold uppercase tracking-wider text-slate-600">Category</th>
                 <th className="w-[17%] px-4 py-4 text-left text-[11px] font-bold uppercase tracking-wider text-slate-600">Owner</th>
-                <th className="w-[15%] px-4 py-4 text-left text-[11px] font-bold uppercase tracking-wider text-slate-600">Zone</th>
                 <th className="w-[10%] px-4 py-4 text-center text-[11px] font-bold uppercase tracking-wider text-slate-600">Diet</th>
                 <th className="w-[10%] px-4 py-4 text-center text-[11px] font-bold uppercase tracking-wider text-slate-600">Status</th>
                 {/* COMMENTED OUT: Approval column removed - categories are auto-approved */}
@@ -544,7 +497,6 @@ export default function Category() {
                   const creatorName = category?.createdByRestaurant?.name || category?.restaurant?.name || "Admin"
                   const approvalStatus = category?.approvalStatus || "pending"
                   const isRestaurantCategory = Boolean(category?.createdByRestaurantId || category?.restaurantId)
-                  const zoneText = zoneLabel(category?.zoneId, zones)
 
                   return (
                     <tr key={category.id} className="align-top hover:bg-slate-50/80">
@@ -583,13 +535,7 @@ export default function Category() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-5">
-                        <div className="max-w-[180px]">
-                          <p className="truncate text-sm font-medium text-slate-700" title={zoneText}>
-                            {zoneText}
-                          </p>
-                        </div>
-                      </td>
+
                       <td className="px-4 py-5 text-center">
                         <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${scopeBadgeClass(category?.foodTypeScope)}`}>
                           {category?.foodTypeScope || "Both"}
@@ -699,26 +645,7 @@ export default function Category() {
 
                     <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
                       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
-                        <div>
-                          <label className="mb-2 block text-sm font-medium text-slate-700">Zone</label>
-                          <select
-                            value={formData.zoneId}
-                            onChange={(event) => setFormData((prev) => ({ ...prev, zoneId: event.target.value }))}
-                            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-slate-900"
-                          >
-                            <option value="global">Global (all zones)</option>
-                            {zonesLoading && <option value="" disabled>Loading zones...</option>}
-                            {zones.map((zone) => {
-                              const id = String(zone?._id || zone?.id || "")
-                              const label = zone?.name || zone?.zoneName || zone?.serviceLocation || id
-                              return (
-                                <option key={id} value={id}>
-                                  {label}
-                                </option>
-                              )
-                            })}
-                          </select>
-                        </div>
+
 
                         <div>
                           <label className="mb-2 block text-sm font-medium text-slate-700">Diet Scope</label>
