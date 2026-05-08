@@ -63,6 +63,96 @@ const dataUrlToFile = (dataUrl, fileName = "document.jpg") => {
   return new File([bytes], fileName, { type: mimeType })
 }
 
+const isUploadableFile = (value) => {
+  if (!value || typeof value !== "object") return false
+  if (typeof File !== "undefined" && value instanceof File) return true
+  if (typeof Blob !== "undefined" && value instanceof Blob) return true
+  return (
+    typeof value.size === "number" &&
+    (typeof value.slice === "function" || typeof value.arrayBuffer === "function")
+  )
+}
+
+const DELIVERY_FILES_DB = "DeliverySignupFiles"
+const DELIVERY_FILES_STORE = "files"
+
+const openDeliveryFilesDB = () =>
+  new Promise((resolve, reject) => {
+    try {
+      const request = indexedDB.open(DELIVERY_FILES_DB, 1)
+      request.onupgradeneeded = (e) => {
+        const db = e.target.result
+        if (!db.objectStoreNames.contains(DELIVERY_FILES_STORE)) {
+          db.createObjectStore(DELIVERY_FILES_STORE)
+        }
+      }
+      request.onsuccess = (e) => resolve(e.target.result)
+      request.onerror = (e) => reject(e.target.error)
+    } catch (err) {
+      reject(err)
+    }
+  })
+
+const saveFileToDB = async (key, file) => {
+  if (!isUploadableFile(file)) return
+  try {
+    const db = await openDeliveryFilesDB()
+    const tx = db.transaction(DELIVERY_FILES_STORE, "readwrite")
+    tx.objectStore(DELIVERY_FILES_STORE).put(file, key)
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => reject(tx.error || new Error("IndexedDB write failed"))
+      tx.onabort = () => reject(tx.error || new Error("IndexedDB write aborted"))
+    })
+  } catch (err) {
+    debugError("Failed to persist delivery file in IndexedDB:", err)
+  }
+}
+
+const getFileFromDB = async (key) => {
+  try {
+    const db = await openDeliveryFilesDB()
+    const tx = db.transaction(DELIVERY_FILES_STORE, "readonly")
+    const request = tx.objectStore(DELIVERY_FILES_STORE).get(key)
+    return new Promise((resolve) => {
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => resolve(null)
+    })
+  } catch {
+    return null
+  }
+}
+
+const deleteFileFromDB = async (key) => {
+  try {
+    const db = await openDeliveryFilesDB()
+    const tx = db.transaction(DELIVERY_FILES_STORE, "readwrite")
+    tx.objectStore(DELIVERY_FILES_STORE).delete(key)
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => reject(tx.error || new Error("IndexedDB delete failed"))
+      tx.onabort = () => reject(tx.error || new Error("IndexedDB delete aborted"))
+    })
+  } catch (err) {
+    debugError("Failed to delete delivery file from IndexedDB:", err)
+  }
+}
+
+const clearAllFilesFromDB = async () => {
+  try {
+    const db = await openDeliveryFilesDB()
+    const tx = db.transaction(DELIVERY_FILES_STORE, "readwrite")
+    tx.objectStore(DELIVERY_FILES_STORE).clear()
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => reject(tx.error || new Error("IndexedDB clear failed"))
+      tx.onabort = () => reject(tx.error || new Error("IndexedDB clear aborted"))
+    })
+  } catch (err) {
+    debugError("Failed to clear delivery IndexedDB files:", err)
+  }
+}
+
 const getFriendlyRegistrationError = (error) => {
   const rawMessage =
     error?.response?.data?.message ||
@@ -112,8 +202,9 @@ export default function SignupStep2() {
     panPhoto: null,
     drivingLicensePhoto: null
   })
+  const [hasRestored, setHasRestored] = useState(false)
   const [uploadedDocs, setUploadedDocs] = useState(() => {
-    const saved = sessionStorage.getItem("deliverySignupDocs")
+    const saved = localStorage.getItem("deliverySignupDocs")
     if (saved) {
       try {
         return sanitizeUploadedDocs(JSON.parse(saved))
@@ -133,32 +224,60 @@ export default function SignupStep2() {
     document.body.scrollTop = 0
   }, [])
 
-  // Save uploaded docs to session storage whenever they change
+  // Save uploaded docs to storage whenever they change
   useEffect(() => {
-    sessionStorage.setItem("deliverySignupDocs", JSON.stringify(uploadedDocs))
-  }, [uploadedDocs])
-
-  useEffect(() => {
-    const restored = {}
-    Object.keys(createEmptyUploadedDocs()).forEach((docType) => {
-      const uploaded = uploadedDocs?.[docType]
-      const dataUrl =
-        (typeof uploaded === "string" && uploaded.startsWith("data:") && uploaded) ||
-        (uploaded?.dataUrl && String(uploaded.dataUrl).startsWith("data:") && uploaded.dataUrl) ||
-        (uploaded?.url && String(uploaded.url).startsWith("data:") && uploaded.url) ||
-        null
-      if (!dataUrl) return
-      const nextFile = dataUrlToFile(
-        dataUrl,
-        uploaded?.fileName || `${docType}-${Date.now()}.jpg`,
-      )
-      if (nextFile) restored[docType] = nextFile
-    })
-
-    if (Object.keys(restored).length > 0) {
-      setDocuments((prev) => ({ ...prev, ...restored }))
+    if (hasRestored) {
+      localStorage.setItem("deliverySignupDocs", JSON.stringify(uploadedDocs))
     }
-  }, [uploadedDocs])
+  }, [uploadedDocs, hasRestored])
+
+  // Load files from IndexedDB on mount
+  useEffect(() => {
+    const restoreFiles = async () => {
+      try {
+        const [profile, aadhar, pan, license] = await Promise.all([
+          getFileFromDB("profilePhoto"),
+          getFileFromDB("aadharPhoto"),
+          getFileFromDB("panPhoto"),
+          getFileFromDB("drivingLicensePhoto"),
+        ])
+
+        const restored = {}
+        if (profile) restored.profilePhoto = profile
+        if (aadhar) restored.aadharPhoto = aadhar
+        if (pan) restored.panPhoto = pan
+        if (license) restored.drivingLicensePhoto = license
+
+        if (Object.keys(restored).length > 0) {
+          setDocuments((prev) => ({ ...prev, ...restored }))
+          setUploadedDocs((prev) => {
+            const next = { ...prev }
+            Object.keys(restored).forEach(k => {
+              next[k] = { fileName: restored[k].name, url: URL.createObjectURL(restored[k]) }
+            })
+            return next
+          })
+        }
+      } finally {
+        setHasRestored(true)
+      }
+    }
+    restoreFiles()
+  }, [])
+
+  // Save files to IndexedDB whenever documents change
+  useEffect(() => {
+    if (!hasRestored) return
+
+    Object.keys(documents).forEach(docType => {
+      const file = documents[docType]
+      if (isUploadableFile(file)) {
+        saveFileToDB(docType, file)
+      } else if (!file) {
+        deleteFileFromDB(docType)
+      }
+    })
+  }, [documents, hasRestored])
 
   const previewUrlsRefs = useRef({});
 
@@ -345,10 +464,11 @@ export default function SignupStep2() {
         : await deliveryAPI.completeProfile(formData)
 
       if (response?.data?.success) {
-        sessionStorage.removeItem("deliverySignupDetails")
-        sessionStorage.removeItem("deliverySignupDocs")
+        localStorage.removeItem("deliverySignupDetails")
+        localStorage.removeItem("deliverySignupDocs")
+        clearAllFilesFromDB()
         if (isCompleteProfile) {
-          sessionStorage.removeItem("deliveryNeedsRegistration")
+          localStorage.removeItem("deliveryNeedsRegistration")
           toast.success("Registration successful. Please login with OTP.")
           setTimeout(() => navigate("/food/delivery/login", { replace: true }), 1500)
         } else {

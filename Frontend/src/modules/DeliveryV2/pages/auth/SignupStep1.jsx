@@ -11,8 +11,9 @@ const debugError = (...args) => {}
 export default function SignupStep1() {
   const navigate = useNavigate()
   const goBack = useDeliveryBackNavigation()
+  const [hasRestored, setHasRestored] = useState(false)
   const [formData, setFormData] = useState(() => {
-    const saved = sessionStorage.getItem("deliverySignupDetails")
+    const saved = localStorage.getItem("deliverySignupDetails")
     const base = {
       name: "",
       phone: "",
@@ -38,8 +39,12 @@ export default function SignupStep1() {
     }
     return base
   })
-  const [errors, setErrors] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Mark as restored once the initial useState initialization is done
+  useEffect(() => {
+    setHasRestored(true)
+  }, [])
 
   const sanitizeLocationValue = (value) =>
     value.replace(/[^A-Za-z\s.-]/g, "").replace(/\s{2,}/g, " ")
@@ -83,10 +88,12 @@ export default function SignupStep1() {
   const sanitizeEmailValue = (value) =>
     value.replace(/\s/g, "").toLowerCase()
 
-  // Save data to session storage whenever formData changes
+  // Save data to storage whenever formData changes
   useEffect(() => {
-    sessionStorage.setItem("deliverySignupDetails", JSON.stringify(formData))
-  }, [formData])
+    if (hasRestored) {
+      localStorage.setItem("deliverySignupDetails", JSON.stringify(formData))
+    }
+  }, [formData, hasRestored])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -219,7 +226,7 @@ export default function SignupStep1() {
         panNumber: formData.panNumber.trim().toUpperCase(),
         aadharNumber: formData.aadharNumber.replace(/\s/g, "")
       }
-      sessionStorage.setItem("deliverySignupDetails", JSON.stringify(details))
+      localStorage.setItem("deliverySignupDetails", JSON.stringify(details))
       toast.success("Details saved")
       navigate("/food/delivery/signup/documents")
     } catch (error) {

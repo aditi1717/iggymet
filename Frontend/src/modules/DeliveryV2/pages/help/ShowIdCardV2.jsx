@@ -125,13 +125,13 @@ export default function ShowIdCardV2() {
         <div className="bg-white w-full rounded-2xl shadow-lg border border-gray-100 overflow-hidden relative">
           
           {/* Card Top Brand Strip */}
-          <div className="h-16 bg-gray-900 relative px-4 flex items-center justify-between overflow-hidden">
+          <div className="h-20 bg-gray-900 relative px-4 pt-4 flex items-start justify-between overflow-hidden">
              <div className="absolute inset-0 bg-gradient-to-r from-gray-900 to-gray-800" />
              <div className="relative z-10">
                 <p className="text-[9px] font-black uppercase tracking-[0.3em] text-orange-400">{companyName}</p>
                 <p className="text-[10px] text-gray-300 font-bold tracking-widest mt-0.5">AUTHORISED PERSONNEL</p>
              </div>
-             <ShieldCheck className="w-6 h-6 text-white/20 relative z-10" />
+             <ShieldCheck className="w-6 h-6 text-white/20 relative z-10 mt-1" />
           </div>
 
           {/* Profile Content */}

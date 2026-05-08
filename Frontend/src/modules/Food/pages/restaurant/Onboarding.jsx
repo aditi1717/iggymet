@@ -71,6 +71,87 @@ let onboardingFileCache = {
   },
 }
 
+const ONBOARDING_FILES_DB = "RestaurantOnboardingFiles"
+const ONBOARDING_FILES_STORE = "files"
+const MAX_MENU_FILES = 15
+
+const openOnboardingFilesDB = () =>
+  new Promise((resolve, reject) => {
+    try {
+      const request = indexedDB.open(ONBOARDING_FILES_DB, 1)
+      request.onupgradeneeded = (e) => {
+        const db = e.target.result
+        if (!db.objectStoreNames.contains(ONBOARDING_FILES_STORE)) {
+          db.createObjectStore(ONBOARDING_FILES_STORE)
+        }
+      }
+      request.onsuccess = (e) => resolve(e.target.result)
+      request.onerror = (e) => reject(e.target.error)
+    } catch (err) {
+      reject(err)
+    }
+  })
+
+const saveFileToDB = async (key, file) => {
+  if (!isUploadableFile(file)) return
+  try {
+    const db = await openOnboardingFilesDB()
+    const tx = db.transaction(ONBOARDING_FILES_STORE, "readwrite")
+    tx.objectStore(ONBOARDING_FILES_STORE).put(file, key)
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => reject(tx.error || new Error("IndexedDB write failed"))
+      tx.onabort = () => reject(tx.error || new Error("IndexedDB write aborted"))
+    })
+  } catch (err) {
+    debugError("Failed to persist file in IndexedDB:", err)
+  }
+}
+
+const getFileFromDB = async (key) => {
+  try {
+    const db = await openOnboardingFilesDB()
+    const tx = db.transaction(ONBOARDING_FILES_STORE, "readonly")
+    const request = tx.objectStore(ONBOARDING_FILES_STORE).get(key)
+    return new Promise((resolve) => {
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => resolve(null)
+    })
+  } catch {
+    return null
+  }
+}
+
+const deleteFileFromDB = async (key) => {
+  try {
+    const db = await openOnboardingFilesDB()
+    const tx = db.transaction(ONBOARDING_FILES_STORE, "readwrite")
+    tx.objectStore(ONBOARDING_FILES_STORE).delete(key)
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => reject(tx.error || new Error("IndexedDB delete failed"))
+      tx.onabort = () => reject(tx.error || new Error("IndexedDB delete aborted"))
+    })
+  } catch (err) {
+    debugError("Failed to delete file from IndexedDB:", err)
+  }
+}
+
+const clearAllFilesFromDB = async () => {
+  try {
+    const db = await openOnboardingFilesDB()
+    const tx = db.transaction(ONBOARDING_FILES_STORE, "readwrite")
+    tx.objectStore(ONBOARDING_FILES_STORE).clear()
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => reject(tx.error || new Error("IndexedDB clear failed"))
+      tx.onabort = () => reject(tx.error || new Error("IndexedDB clear aborted"))
+    })
+  } catch (err) {
+    debugError("Failed to clear IndexedDB files:", err)
+  }
+}
+
 const isUploadableFile = (value) => {
   if (!value || typeof value !== "object") return false
 
@@ -220,6 +301,7 @@ const loadOnboardingFromLocalStorage = () => {
 const clearOnboardingFromLocalStorage = () => {
   try {
     localStorage.removeItem(ONBOARDING_STORAGE_KEY)
+    clearAllFilesFromDB()
   } catch (error) {
     debugError("Failed to clear onboarding data from localStorage:", error)
   }
@@ -383,6 +465,7 @@ export default function RestaurantOnboarding() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [hasRestored, setHasRestored] = useState(false)
 
   const handleLogout = async () => {
     if (isLoggingOut) return
@@ -593,6 +676,43 @@ export default function RestaurantOnboarding() {
         setStep(localData.currentStep)
       }
     }
+    const restoreFiles = async () => {
+      try {
+        const [profileImg, panImg, gstImg, fssaiImg] = await Promise.all([
+          getFileFromDB("profileImage"),
+          getFileFromDB("panImage"),
+          getFileFromDB("gstImage"),
+          getFileFromDB("fssaiImage"),
+        ])
+        const menuFilePromises = Array.from({ length: MAX_MENU_FILES }, (_, i) => getFileFromDB(`menuImage_${i}`))
+        const menuFilesFromDB = (await Promise.all(menuFilePromises)).filter(Boolean)
+
+        if (profileImg) {
+          setStep2(prev => ({ ...prev, profileImage: profileImg }))
+          onboardingFileCache.step2.profileImage = profileImg
+        }
+        if (menuFilesFromDB.length) {
+          setStep2(prev => ({ ...prev, menuImages: [...prev.menuImages, ...menuFilesFromDB] }))
+          onboardingFileCache.step2.menuImages = menuFilesFromDB
+        }
+        if (panImg) {
+          setStep3(prev => ({ ...prev, panImage: panImg }))
+          onboardingFileCache.step3.panImage = panImg
+        }
+        if (gstImg) {
+          setStep3(prev => ({ ...prev, gstImage: gstImg }))
+          onboardingFileCache.step3.gstImage = gstImg
+        }
+        if (fssaiImg) {
+          setStep3(prev => ({ ...prev, fssaiImage: fssaiImg }))
+          onboardingFileCache.step3.fssaiImage = fssaiImg
+        }
+      } finally {
+        setHasRestored(true)
+      }
+    }
+
+    restoreFiles()
   }, [searchParams])
 
   useEffect(() => {
@@ -623,12 +743,49 @@ export default function RestaurantOnboarding() {
 
   // Save to localStorage whenever step data changes
   useEffect(() => {
-    saveOnboardingToLocalStorage(step1, step2, step3, step4, step)
-  }, [step1, step2, step3, step4, step])
+    if (hasRestored) {
+      saveOnboardingToLocalStorage(step1, step2, step3, step4, step)
+    }
+  }, [step1, step2, step3, step4, step, hasRestored])
 
   useEffect(() => {
     syncOnboardingFileCache(step2, step3)
-  }, [step2, step3])
+
+    if (hasRestored) {
+      // Persist files to IndexedDB
+      if (isUploadableFile(step2.profileImage)) {
+        saveFileToDB("profileImage", step2.profileImage)
+      } else if (!step2.profileImage) {
+        deleteFileFromDB("profileImage")
+      }
+
+      const uploadableMenuFiles = (step2.menuImages || []).filter(isUploadableFile).slice(0, MAX_MENU_FILES)
+      uploadableMenuFiles.forEach((file, idx) => {
+        saveFileToDB(`menuImage_${idx}`, file)
+      })
+      for (let i = uploadableMenuFiles.length; i < MAX_MENU_FILES; i++) {
+        deleteFileFromDB(`menuImage_${i}`)
+      }
+
+      if (isUploadableFile(step3.panImage)) {
+        saveFileToDB("panImage", step3.panImage)
+      } else if (!step3.panImage) {
+        deleteFileFromDB("panImage")
+      }
+
+      if (isUploadableFile(step3.gstImage)) {
+        saveFileToDB("gstImage", step3.gstImage)
+      } else if (!step3.gstImage) {
+        deleteFileFromDB("gstImage")
+      }
+
+      if (isUploadableFile(step3.fssaiImage)) {
+        saveFileToDB("fssaiImage", step3.fssaiImage)
+      } else if (!step3.fssaiImage) {
+        deleteFileFromDB("fssaiImage")
+      }
+    }
+  }, [step2, step3, hasRestored])
 
   useEffect(() => {
     return () => {
@@ -787,11 +944,26 @@ export default function RestaurantOnboarding() {
     if (!step1.zoneId?.trim()) {
       errors.push("Service zone is required")
     }
+    if (!step1.location?.formattedAddress?.trim()) {
+      errors.push("Please search and select an address from the location search")
+    }
+    if (!step1.location?.addressLine1?.trim()) {
+      errors.push("Shop no. / building no. is required")
+    }
+    if (!step1.location?.addressLine2?.trim()) {
+      errors.push("Floor / tower is required")
+    }
+    if (!step1.location?.landmark?.trim()) {
+      errors.push("Nearby landmark is required")
+    }
     if (!step1.location?.area?.trim()) {
       errors.push("Area/Sector/Locality is required")
     }
     if (!step1.location?.city?.trim()) {
       errors.push("City is required")
+    }
+    if (!step1.location?.state?.trim()) {
+      errors.push("State is required")
     }
     if (!step1.location?.pincode?.trim()) {
       errors.push("Pincode is required")
@@ -1296,7 +1468,7 @@ export default function RestaurantOnboarding() {
             </p>
           </div>
           <div>
-            <Label className="text-xs text-gray-700">Search location</Label>
+            <Label className="text-xs text-gray-700">Search location*</Label>
             <Input
               ref={locationSearchInputRef}
               className="mt-1 bg-white text-sm text-black! dark:text-white! placeholder:text-gray-500 dark:placeholder:text-gray-400 caret-black dark:caret-white"
@@ -1304,8 +1476,17 @@ export default function RestaurantOnboarding() {
               placeholder="Start typing your restaurant address..."
             />
             <p className="text-[11px] text-gray-500 mt-1">
-              Select a suggestion to auto-fill area/city/state/pincode and coordinates.
+              Select a suggestion to auto-fill address details.
             </p>
+          </div>
+          <div>
+            <Label className="text-xs text-gray-700">Full Address*</Label>
+            <Input
+              value={step1.location?.formattedAddress || ""}
+              disabled
+              className="mt-1 bg-gray-50 text-sm cursor-not-allowed opacity-100 text-black"
+              placeholder="Address will be filled from search"
+            />
           </div>
           <Input
             value={step1.location?.addressLine1 || ""}
@@ -1316,7 +1497,7 @@ export default function RestaurantOnboarding() {
               })
             }
             className="bg-white text-sm"
-            placeholder="Shop no. / building no. (optional)"
+            placeholder="Shop no. / building no.*"
           />
           <Input
             value={step1.location?.addressLine2 || ""}
@@ -1327,7 +1508,7 @@ export default function RestaurantOnboarding() {
               })
             }
             className="bg-white text-sm"
-            placeholder="Floor / tower (optional)"
+            placeholder="Floor / tower*"
           />
           <Input
             value={step1.location?.landmark || ""}
@@ -1338,7 +1519,7 @@ export default function RestaurantOnboarding() {
               })
             }
             className="bg-white text-sm"
-            placeholder="Nearby landmark (optional)"
+            placeholder="Nearby landmark*"
           />
           <Input
             value={step1.location?.area || ""}
@@ -1353,52 +1534,22 @@ export default function RestaurantOnboarding() {
           />
           <Input
             value={step1.location?.city || ""}
-            onChange={(e) =>
-              setStep1({
-                ...step1,
-                location: { ...step1.location, city: e.target.value },
-              })
-            }
-            className="bg-white text-sm"
-            placeholder="City"
+            disabled
+            className="mt-1 bg-gray-50 text-sm cursor-not-allowed opacity-100 text-black"
+            placeholder="City*"
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               value={step1.location?.state || ""}
-              onChange={(e) =>
-                setStep1({
-                  ...step1,
-                  location: { ...step1.location, state: e.target.value },
-                })
-              }
-              className="bg-white text-sm"
-              placeholder="State"
+              disabled
+              className="mt-1 bg-gray-50 text-sm cursor-not-allowed opacity-100 text-black"
+              placeholder="State*"
             />
             <Input
               value={step1.location?.pincode || ""}
-              onChange={(e) => {
-                const pincode = e.target.value.replace(/\D/g, "").slice(0, 6)
-                setStep1({
-                  ...step1,
-                  location: { ...step1.location, pincode },
-                })
-              }}
-              onKeyDown={(e) => {
-                const allowed = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter"]
-                if (!allowed.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault()
-                if (/^\d$/.test(e.key) && (step1.location?.pincode || "").length >= 6) e.preventDefault()
-              }}
-              onPaste={(e) => {
-                e.preventDefault()
-                const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6)
-                setStep1({
-                  ...step1,
-                  location: { ...step1.location, pincode: pasted },
-                })
-              }}
-              inputMode="numeric"
-              className="bg-white text-sm"
-              placeholder="Pincode"
+              disabled
+              className="mt-1 bg-gray-50 text-sm cursor-not-allowed opacity-100 text-black"
+              placeholder="Pincode*"
             />
           </div>
           <p className="text-[11px] text-gray-500 mt-1">

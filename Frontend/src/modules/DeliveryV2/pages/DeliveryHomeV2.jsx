@@ -1505,26 +1505,28 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
               >
                 <img src={profileImage || "https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png"} alt="Profile" className="w-full h-full object-cover" />
               </div>
-              <button
-                onClick={async () => {
-                  const nextState = !isOnline;
-                  toggleOnline(); 
-                  if (nextState) {
-                    navigator.geolocation.getCurrentPosition((pos) => {
-                      deliveryAPI.updateLocation(pos.coords.latitude, pos.coords.longitude, true).catch(() => { });
-                    }, (err) => console.warn('Online sync pos failed', err), { enableHighAccuracy: true });
-                  } else {
-                    deliveryAPI.updateOnlineStatus(false).catch(() => { });
-                  }
-                }}
-                className={`relative w-[86px] h-8 rounded-full p-1 transition-all duration-300 flex items-center shadow-sm border ${isOnline ? 'border-green-500 bg-green-500' : 'border-gray-200 bg-gray-100'}`}
-              >
-                <div className={`flex items-center justify-between w-full px-2 text-[9px] font-bold uppercase tracking-wider ${isOnline ? 'text-white' : 'text-gray-500'}`}>
-                  <span>{isOnline ? 'On' : ''}</span>
-                  <span>{!isOnline ? 'Off' : ''}</span>
-                </div>
-                <motion.div animate={{ x: isOnline ? 54 : 0 }} className="absolute left-1 w-6 h-6 bg-white rounded-full shadow-sm" />
-              </button>
+              {currentTab === 'feed' && (
+                <button
+                  onClick={async () => {
+                    const nextState = !isOnline;
+                    toggleOnline(); 
+                    if (nextState) {
+                      navigator.geolocation.getCurrentPosition((pos) => {
+                        deliveryAPI.updateLocation(pos.coords.latitude, pos.coords.longitude, true).catch(() => { });
+                      }, (err) => console.warn('Online sync pos failed', err), { enableHighAccuracy: true });
+                    } else {
+                      deliveryAPI.updateOnlineStatus(false).catch(() => { });
+                    }
+                  }}
+                  className={`relative w-[86px] h-8 rounded-full p-1 transition-all duration-300 flex items-center shadow-sm border ${isOnline ? 'border-green-500 bg-green-500' : 'border-gray-200 bg-gray-100'}`}
+                >
+                  <div className={`flex items-center justify-between w-full px-2 text-[9px] font-bold uppercase tracking-wider ${isOnline ? 'text-white' : 'text-gray-500'}`}>
+                    <span>{isOnline ? 'On' : ''}</span>
+                    <span>{!isOnline ? 'Off' : ''}</span>
+                  </div>
+                  <motion.div animate={{ x: isOnline ? 54 : 0 }} className="absolute left-1 w-6 h-6 bg-white rounded-full shadow-sm" />
+                </button>
+              )}
             </div>
             
             <div className="flex items-center gap-2">
