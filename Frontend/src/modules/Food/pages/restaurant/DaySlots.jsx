@@ -599,7 +599,7 @@ export default function DaySlots() {
         
         <div className="bg-gray-50 p-2">
           <p className="text-sm text-gray-700">
-            Add or modify your restaurant timings here. You can create maximum up to 3 time slots in a day.
+            Modify your restaurant timings for {dayName}.
           </p>
         </div>
 
@@ -622,16 +622,8 @@ export default function DaySlots() {
                 {/* Slot Header */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-base font-bold text-gray-900">Slot-{index + 1}</span>
-                    <span className="text-sm text-gray-600 ml-2">({duration})</span>
+                    <span className="text-base font-bold text-gray-900">Delivery Timing</span>
                   </div>
-                  <button
-                    onClick={() => deleteSlot(slot.id)}
-                    className="w-8 h-8 bg-pink-100 hover:bg-red-600 rounded-full flex items-center justify-center transition-colors"
-                    aria-label="Delete slot"
-                  >
-                    <Trash2 className="w-4 h-4 text-red-400" />
-                  </button>
                 </div>
 
                 {/* Start Time - All in one row */}
@@ -712,15 +704,7 @@ export default function DaySlots() {
           })}
         </div>
 
-        {/* Add Time Slot Button */}
-        {dayData.slots.length < 3 && (
-          <button
-            onClick={addSlot}
-            className="w-full text-brand-600 hover:text-brand-700 text-sm font-medium py-3 transition-colors"
-          >
-            + Add time slot
-          </button>
-        )}
+
       </div>
 
       {/* Sticky Bottom Controls */}

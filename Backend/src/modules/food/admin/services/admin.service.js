@@ -407,9 +407,7 @@ const validateOpeningClosingTimes = (openingTime, closingTime) => {
     if (open === close) {
         throw new ValidationError('Opening time and closing time cannot be same');
     }
-    if (close < open) {
-        throw new ValidationError('Closing time cannot be less than opening time');
-    }
+
 };
 
 export async function getRestaurantComplaints(query = {}) {

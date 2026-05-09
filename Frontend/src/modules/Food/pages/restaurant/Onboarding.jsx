@@ -1400,7 +1400,21 @@ export default function RestaurantOnboarding() {
             <Label className="text-xs text-gray-700">Phone number*</Label>
             <Input
               value={step1.ownerPhone || ""}
-              onChange={(e) => setStep1({ ...step1, ownerPhone: e.target.value })}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, "").slice(0, 10)
+                setStep1({ ...step1, ownerPhone: val })
+              }}
+              onKeyDown={(e) => {
+                const allowed = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter"]
+                if (!allowed.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault()
+                if (/^\d$/.test(e.key) && (step1.ownerPhone || "").length >= 10) e.preventDefault()
+              }}
+              onPaste={(e) => {
+                e.preventDefault()
+                const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 10)
+                setStep1({ ...step1, ownerPhone: pasted })
+              }}
+              inputMode="numeric"
               readOnly={Boolean(verifiedPhoneNumber)}
               className="mt-1 bg-white text-sm text-black placeholder-black"
               placeholder="+91 98XXXXXX"

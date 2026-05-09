@@ -3,7 +3,7 @@ import { ValidationError } from '../../../../core/auth/errors.js';
 import { FoodRestaurantOutletTimings } from '../models/outletTimings.model.js';
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const MAX_SLOTS_PER_DAY = 5;
+const MAX_SLOTS_PER_DAY = 1;
 
 const normalizeDay = (value) => {
     const v = String(value || '').trim();

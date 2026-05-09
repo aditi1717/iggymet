@@ -9,7 +9,7 @@ import { useCompanyName } from "@food/hooks/useCompanyName"
 import { restaurantAPI } from "@food/api"
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-const MAX_SLOTS = 5
+const MAX_SLOTS = 1
 
 const toTimeValue = (timeString, fallbackHour = 9, fallbackMinute = 0) => {
   if (!timeString || !String(timeString).includes(":")) {
@@ -89,43 +89,12 @@ const normalizeScheduleFromApi = (outletTimings) => {
 const validateSlots = (slots = []) => {
   if (!Array.isArray(slots) || slots.length === 0) return "At least one time slot is required."
 
-  const normalized = slots.map((slot) => {
-    const openingMinutes = timeToMinutes(slot?.openingTime)
-    const closingMinutes = timeToMinutes(slot?.closingTime)
-    const isOvernight =
-      openingMinutes !== null &&
-      closingMinutes !== null &&
-      closingMinutes < openingMinutes
-    return {
-      openingMinutes,
-      closingMinutes,
-      isOvernight,
-    }
-  })
+  const slot = slots[0]
+  const openingMinutes = timeToMinutes(slot?.openingTime)
+  const closingMinutes = timeToMinutes(slot?.closingTime)
 
-  const hasInvalid = normalized.some((slot) => slot.openingMinutes === null || slot.closingMinutes === null)
-  if (hasInvalid) return "Please select valid opening and closing times."
-
-  const hasSameTime = normalized.some((slot) => slot.closingMinutes === slot.openingMinutes)
-  if (hasSameTime) return "Opening and closing time cannot be same."
-
-  const expandedIntervals = normalized.flatMap((slot, index) => {
-    const endMinutes = slot.isOvernight
-      ? slot.closingMinutes + (24 * 60)
-      : slot.closingMinutes
-    return [
-      { index, start: slot.openingMinutes, end: endMinutes },
-      { index, start: slot.openingMinutes + (24 * 60), end: endMinutes + (24 * 60) },
-    ]
-  }).sort((a, b) => a.start - b.start)
-
-  for (let i = 1; i < expandedIntervals.length; i += 1) {
-    const current = expandedIntervals[i]
-    const previous = expandedIntervals[i - 1]
-    if (current.index !== previous.index && current.start < previous.end) {
-      return "Time slots cannot overlap."
-    }
-  }
+  if (openingMinutes === null || closingMinutes === null) return "Please select valid opening and closing times."
+  if (openingMinutes === closingMinutes) return "Opening and closing time cannot be same."
 
   return ""
 }
@@ -316,19 +285,7 @@ export default function OutletTimings() {
               <div className="mt-4 space-y-3">
                 {schedule.slots.map((slot, index) => (
                   <div key={slot.id} className="rounded-lg border border-slate-200 bg-white p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-semibold text-slate-900">Slot {index + 1}</p>
-                      {schedule.slots.length > 1 ? (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteSlot(slot.id)}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-50 text-red-600 hover:bg-red-100"
-                          aria-label="Delete slot"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      ) : null}
-                    </div>
+
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div>
@@ -378,18 +335,7 @@ export default function OutletTimings() {
                   </div>
                 ))}
 
-                <div className="flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={handleAddSlot}
-                    disabled={schedule.slots.length >= MAX_SLOTS}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add Slot
-                  </button>
-                  <p className="text-[11px] text-slate-500">{schedule.slots.length}/{MAX_SLOTS} slots</p>
-                </div>
+
 
                 {validationError ? (
                   <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700">{validationError}</p>

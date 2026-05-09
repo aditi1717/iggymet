@@ -208,7 +208,7 @@ export default function UpdateBankDetails() {
               <input
                 type="text"
                 value={form.accountHolderName}
-                onChange={(e) => setForm((p) => ({ ...p, accountHolderName: e.target.value }))}
+                onChange={(e) => setForm((p) => ({ ...p, accountHolderName: e.target.value.replace(/[^a-zA-Z\s]/g, "") }))}
                 className={inputClass("accountHolderName")}
                 placeholder="Enter account holder name"
               />
@@ -224,8 +224,9 @@ export default function UpdateBankDetails() {
               <input
                 type="text"
                 inputMode="numeric"
+                maxLength={18}
                 value={form.accountNumber}
-                onChange={(e) => setForm((p) => ({ ...p, accountNumber: e.target.value.replace(/[^\d\s-]/g, "") }))}
+                onChange={(e) => setForm((p) => ({ ...p, accountNumber: e.target.value.replace(/\D/g, "") }))}
                 className={inputClass("accountNumber")}
                 placeholder="Enter account number"
               />
@@ -241,8 +242,9 @@ export default function UpdateBankDetails() {
               <input
                 type="text"
                 inputMode="numeric"
+                maxLength={18}
                 value={form.confirmAccountNumber}
-                onChange={(e) => setForm((p) => ({ ...p, confirmAccountNumber: e.target.value.replace(/[^\d\s-]/g, "") }))}
+                onChange={(e) => setForm((p) => ({ ...p, confirmAccountNumber: e.target.value.replace(/\D/g, "") }))}
                 className={inputClass("confirmAccountNumber")}
                 placeholder="Re-enter account number"
               />

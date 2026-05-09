@@ -189,6 +189,32 @@ export default function Under250() {
     setPrevVegMode(newValue)
   }
 
+  // Body scroll lock effect
+  useEffect(() => {
+    const isAnyModalOpen =
+      showSortPopup ||
+      showItemDetail ||
+      showShareOptions ||
+      showVegModePopup ||
+      showSwitchOffPopup
+
+    if (isAnyModalOpen) {
+      document.body.style.overflow = "hidden"
+    } else {
+      document.body.style.overflow = ""
+    }
+
+    return () => {
+      document.body.style.overflow = ""
+    }
+  }, [
+    showSortPopup,
+    showItemDetail,
+    showShareOptions,
+    showVegModePopup,
+    showSwitchOffPopup,
+  ])
+
   // Helper function to parse delivery time (e.g., "12-15 mins" -> 12 or average)
   const parseDeliveryTime = (deliveryTime) => {
     if (typeof deliveryTime === "number" && Number.isFinite(deliveryTime)) return deliveryTime
@@ -1652,89 +1678,91 @@ export default function Under250() {
             />
 
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: -10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: -10 }}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
               transition={{ type: "spring", damping: 25, stiffness: 300, mass: 0.8 }}
-              className="fixed z-[9999] left-4 right-4 top-24 mx-auto bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-2xl p-4 w-[calc(100%-2rem)] max-w-xs"
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-base font-bold text-gray-900 dark:text-white mb-3">
-                See veg dishes from
-              </h3>
+              <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-2xl p-6 w-[85%] max-w-xs">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 text-center">
+                  See veg dishes from
+                </h3>
 
-              <div className="space-y-2 mb-4">
-                <label
-                  className="flex items-center gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                  onClick={() => setVegModeOption("all")}
-                >
-                  <div className="relative flex items-center justify-center">
-                    <input
-                      type="radio"
-                      name="under250VegModeOption"
-                      value="all"
-                      checked={vegModeOption === "all"}
-                      onChange={() => setVegModeOption("all")}
-                      className="sr-only"
-                    />
-                    <div
-                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
-                        vegModeOption === "all"
-                          ? "border-green-600 dark:border-green-500 bg-green-600 dark:bg-green-500"
-                          : "border-gray-300 dark:border-gray-600 bg-white dark:bg-[#2a2a2a]"
-                      }`}
-                    >
-                      {vegModeOption === "all" && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-white dark:bg-white" />
-                      )}
+                <div className="space-y-3 mb-6">
+                  <label
+                    className="flex items-center gap-3 cursor-pointer p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border border-transparent active:border-green-500"
+                    onClick={() => setVegModeOption("all")}
+                  >
+                    <div className="relative flex items-center justify-center">
+                      <input
+                        type="radio"
+                        name="under250VegModeOption"
+                        value="all"
+                        checked={vegModeOption === "all"}
+                        onChange={() => setVegModeOption("all")}
+                        className="sr-only"
+                      />
+                      <div
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                          vegModeOption === "all"
+                            ? "border-green-600 dark:border-green-500 bg-green-600 dark:bg-green-500"
+                            : "border-gray-300 dark:border-gray-600 bg-white dark:bg-[#2a2a2a]"
+                        }`}
+                      >
+                        {vegModeOption === "all" && (
+                          <div className="w-2 h-2 rounded-full bg-white" />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">
-                    All restaurants
-                  </span>
-                </label>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      Veg from all restaurant
+                    </span>
+                  </label>
 
-                <label
-                  className="flex items-center gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                  onClick={() => setVegModeOption("pure-veg")}
-                >
-                  <div className="relative flex items-center justify-center">
-                    <input
-                      type="radio"
-                      name="under250VegModeOption"
-                      value="pure-veg"
-                      checked={vegModeOption === "pure-veg"}
-                      onChange={() => setVegModeOption("pure-veg")}
-                      className="sr-only"
-                    />
-                    <div
-                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
-                        vegModeOption === "pure-veg"
-                          ? "border-green-600 dark:border-green-500 bg-green-600 dark:bg-green-500"
-                          : "border-gray-300 dark:border-gray-600 bg-white dark:bg-[#2a2a2a]"
-                      }`}
-                    >
-                      {vegModeOption === "pure-veg" && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-white dark:bg-white" />
-                      )}
+                  <label
+                    className="flex items-center gap-3 cursor-pointer p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border border-transparent active:border-green-500"
+                    onClick={() => setVegModeOption("pure-veg")}
+                  >
+                    <div className="relative flex items-center justify-center">
+                      <input
+                        type="radio"
+                        name="under250VegModeOption"
+                        value="pure-veg"
+                        checked={vegModeOption === "pure-veg"}
+                        onChange={() => setVegModeOption("pure-veg")}
+                        className="sr-only"
+                      />
+                      <div
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                          vegModeOption === "pure-veg"
+                            ? "border-green-600 dark:border-green-500 bg-green-600 dark:bg-green-500"
+                            : "border-gray-300 dark:border-gray-600 bg-white dark:bg-[#2a2a2a]"
+                        }`}
+                      >
+                        {vegModeOption === "pure-veg" && (
+                          <div className="w-2 h-2 rounded-full bg-white" />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">
-                    Pure Veg restaurants only
-                  </span>
-                </label>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      Veg from pure veg restaurant only
+                    </span>
+                  </label>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setShowVegModePopup(false)
+                    setVegMode(true)
+                    setPrevVegMode(true)
+                  }}
+                  className={`w-full font-bold py-3.5 rounded-xl transition-colors text-base ${BRAND_THEME.tokens.homepage.filters.primaryButton}`}
+                >
+                  Apply
+                </button>
               </div>
-
-              <button
-                onClick={() => {
-                  setShowVegModePopup(false)
-                  setVegMode(true)
-                  setPrevVegMode(true)
-                }}
-                className={`w-full font-semibold py-2.5 rounded-xl transition-colors mb-2 text-sm ${BRAND_THEME.tokens.homepage.filters.primaryButton}`}
-              >
-                Apply
-              </button>
             </motion.div>
           </>
         )}
