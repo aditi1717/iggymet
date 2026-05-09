@@ -121,7 +121,21 @@ const deliveryPartnerSchema = new mongoose.Schema(
             max: 5,
             set: normalizeRatingValue
         },
-        totalRatings: { type: Number, default: 0, min: 0 }
+        totalRatings: { type: Number, default: 0, min: 0 },
+        // Zone change approval tracking
+        pendingZoneId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'FoodZone',
+            default: null
+        },
+        zoneChangeRequestedAt: { type: Date },
+        // Document changes approval tracking
+        pendingDocuments: {
+            aadharNumber: String,
+            panNumber: String,
+            drivingLicenseNumber: String
+        },
+        documentsChangeRequestedAt: { type: Date }
     },
     {
         collection: 'food_delivery_partners',

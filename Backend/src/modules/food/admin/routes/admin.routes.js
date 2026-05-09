@@ -251,10 +251,13 @@ router.get('/delivery/support-tickets/stats', adminController.getSupportTicketSt
 router.get('/delivery/support-tickets', adminController.getSupportTickets);
 router.patch('/delivery/support-tickets/:id', adminController.updateSupportTicket);
 router.get('/delivery/partners', adminController.getDeliveryPartners);
+router.get('/delivery/partners-pending-zone', adminController.getDeliveryPartnersPendingZoneChange);
 router.get('/delivery/:id', adminController.getDeliveryPartnerById);
 router.patch('/delivery/:id/zone', adminController.updateDeliveryPartnerZone);
 router.patch('/delivery/:id/approve', adminController.approveDeliveryPartner);
 router.patch('/delivery/:id/reject', adminController.rejectDeliveryPartner);
+router.patch('/delivery/:id/zone-change/approve', adminController.approveDeliveryPartnerZoneChange);
+router.patch('/delivery/:id/zone-change/reject', adminController.rejectDeliveryPartnerZoneChange);
 
 // ----- Zones -----
 router.get('/zones', adminController.getZones);

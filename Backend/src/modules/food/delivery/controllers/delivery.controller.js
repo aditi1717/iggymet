@@ -31,8 +31,11 @@ export const updateDeliveryPartnerProfileController = async (req, res, next) => 
 export const updateDeliveryPartnerDetailsController = async (req, res, next) => {
     try {
         const userId = req.user?.userId;
-        const partner = await updateDeliveryPartnerDetails(userId, req.body || {});
-        return sendResponse(res, 200, 'Profile updated successfully', { partner });
+        const result = await updateDeliveryPartnerDetails(userId, req.body || {});
+        return sendResponse(res, 200, 'Profile updated successfully', {
+            partner: result.partner,
+            requiresReapproval: result.requiresReapproval || false
+        });
     } catch (error) {
         next(error);
     }
@@ -52,7 +55,7 @@ export const updateDeliveryPartnerBankDetailsController = async (req, res, next)
     try {
         const userId = req.user?.userId;
         const validated = validateDeliveryBankDetailsDto(req.body);
-        const partner = await updateDeliveryPartnerBankDetails(userId, validated, req.files);
+        const { partner, requiresReapproval } = await updateDeliveryPartnerBankDetails(userId, validated, req.files);
         const data = {
             bankDetails: {
                 accountHolderName: partner.bankAccountHolderName,
@@ -62,7 +65,8 @@ export const updateDeliveryPartnerBankDetailsController = async (req, res, next)
                 upiId: partner.upiId,
                 upiQrCode: partner.upiQrCode
             },
-            panNumber: partner.panNumber
+            panNumber: partner.panNumber,
+            requiresReapproval: requiresReapproval || false
         };
         return sendResponse(res, 200, 'Bank details updated successfully', data);
     } catch (error) {

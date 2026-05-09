@@ -3923,7 +3923,7 @@ export async function approveRestaurant(id) {
             await notifyOwnersSafely(
                 [{ ownerType: 'RESTAURANT', ownerId: updated._id }],
                 {
-                    title: 'Congratulations! ðŸŽ‰',
+                    title: 'Congratulations! 🎉',
                     body: `Your restaurant "${updated.restaurantName}" has been approved. You can now start receiving orders!`,
                     image: updated.profileImage || 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                     data: {
@@ -3960,7 +3960,7 @@ export async function rejectRestaurant(id, reason) {
             await notifyOwnersSafely(
                 [{ ownerType: 'RESTAURANT', ownerId: updated._id }],
                 {
-                    title: 'Update on Registration ðŸ“‹',
+                    title: 'Update on Registration 📋',
                     body: `Your restaurant registration for "${updated.restaurantName}" has been rejected. Reason: ${reason || 'Incomplete documents'}.`,
                     image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                     data: {
@@ -4065,7 +4065,7 @@ export async function createAdminOffer(body) {
             await notifyOwnersSafely(
                 [{ ownerType: 'RESTAURANT', ownerId: doc.restaurantId }],
                 {
-                    title: 'New Campaign Invitation! ðŸ“¢',
+                    title: 'New Campaign Invitation! 📢',
                     body: `You have been invited to join a new campaign: "${doc.couponCode}". Check it out now!`,
                     image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                     data: {
@@ -4538,6 +4538,62 @@ export async function getDeliveryPartners(query, adminScope = {}) {
     };
 }
 
+export async function getDeliveryPartnersPendingZoneChange(query, adminScope = {}) {
+    const { page = 1, limit = 1000, search } = query;
+    const filter = { status: 'approved', pendingZoneId: { $ne: null } };
+    const scope = normalizeAdminScope(adminScope);
+
+    if (search && typeof search === 'string' && search.trim()) {
+        const term = search.trim();
+        filter.$or = [
+            { name: { $regex: term, $options: 'i' } },
+            { phone: { $regex: term, $options: 'i' } },
+            { email: { $regex: term, $options: 'i' } }
+        ];
+    }
+
+    const skip = Math.max(0, (Number(page) || 1) - 1) * Math.max(1, Math.min(1000, Number(limit) || 100));
+    const limitNum = Math.max(1, Math.min(1000, Number(limit) || 100));
+
+    const [list, total] = await Promise.all([
+        FoodDeliveryPartner.find(filter)
+            .sort({ zoneChangeRequestedAt: -1 })
+            .skip(skip)
+            .limit(limitNum)
+            .populate('zoneId', 'name zoneName serviceLocation')
+            .populate('pendingZoneId', 'name zoneName serviceLocation')
+            .lean(),
+        FoodDeliveryPartner.countDocuments(filter)
+    ]);
+
+    const deliveryPartners = list.map((doc, index) => ({
+        _id: doc._id,
+        sl: skip + index + 1,
+        name: doc.name || '',
+        email: doc.email || '',
+        phone: doc.phone || '',
+        deliveryId: doc._id ? `DP-${doc._id.toString().slice(-8).toUpperCase()}` : null,
+        currentZoneId: doc.zoneId?._id || doc.zoneId || null,
+        currentZone: doc.zoneId?.name || doc.zoneId?.zoneName || doc.zoneId?.serviceLocation || 'Unassigned',
+        requestedZoneId: doc.pendingZoneId?._id || doc.pendingZoneId || null,
+        requestedZone: doc.pendingZoneId?.name || doc.pendingZoneId?.zoneName || doc.pendingZoneId?.serviceLocation || 'Unknown',
+        zoneChangeRequestedAt: doc.zoneChangeRequestedAt || null,
+        status: doc.status,
+        profilePhoto: doc.profilePhoto || null,
+        profileImage: doc.profilePhoto ? { url: doc.profilePhoto } : null
+    }));
+
+    return {
+        deliveryPartners,
+        pagination: {
+            page: Number(page) || 1,
+            limit: limitNum,
+            total,
+            pages: Math.ceil(total / limitNum) || 1
+        }
+    };
+}
+
 // ----- Delivery partner bonus (admin) -----
 function generateBonusTransactionId() {
     const n = Date.now().toString(36).slice(-6).toUpperCase();
@@ -4634,7 +4690,7 @@ export async function addDeliveryPartnerBonus(body, adminUser) {
         await notifyOwnerSafely(
             { ownerType: 'DELIVERY_PARTNER', ownerId: body.deliveryPartnerId },
             {
-                title: 'Bonus Credited! ðŸŽŠ',
+                title: 'Bonus Credited! 🎊',
                 body: `You have received a bonus of \u20B9${body.amount}. ${body.reference || 'Great job!'}`,
                 image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                 data: {
@@ -4992,7 +5048,7 @@ export async function creditEarningAddonHistory(historyId, notes) {
         await notifyOwnerSafely(
             { ownerType: 'DELIVERY_PARTNER', ownerId: doc.deliveryPartnerId },
             {
-                title: 'Incentive Credited! ðŸŽ¯',
+                title: 'Incentive Credited! 🎯',
                 body: `Your incentive for "${doc.offerId?.title || 'Earning Addon'}" has been approved and moved to your pocket.`,
                 image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                 data: {
@@ -5024,7 +5080,7 @@ export async function cancelEarningAddonHistory(historyId, reason) {
         await notifyOwnerSafely(
             { ownerType: 'DELIVERY_PARTNER', ownerId: doc.deliveryPartnerId },
             {
-                title: 'Incentive Update ðŸ“‹',
+                title: 'Incentive Update 📋',
                 body: `Your incentive request for "${doc.offerId?.title || 'Earning Addon'}" was not approved. Reason: ${doc.cancelReason || 'Ineligible'}`,
                 image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                 data: {
@@ -5230,7 +5286,7 @@ export async function approveDeliveryPartner(id) {
         await notifyOwnerSafely(
             { ownerType: 'DELIVERY_PARTNER', ownerId: partner._id },
             {
-                title: 'Welcome Aboard! ðŸš²',
+                title: 'Welcome Aboard! 🚲',
                 body: `Your delivery partner application has been approved. You can now go online and start earning!`,
                 image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                 data: {
@@ -5311,7 +5367,7 @@ export async function rejectDeliveryPartner(id, reason) {
             await notifyOwnerSafely(
                 { ownerType: 'DELIVERY_PARTNER', ownerId: updated._id },
                 {
-                    title: 'Onboarding Update ðŸ“‹',
+                    title: 'Onboarding Update 📋',
                     body: `Your application to join as a delivery partner was rejected. Reason: ${reason || 'Incomplete documents'}.`,
                     image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
                     data: {
@@ -5326,6 +5382,85 @@ export async function rejectDeliveryPartner(id, reason) {
         }
     }
     return updated;
+}
+
+export async function approveDeliveryPartnerZoneChange(id) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+
+    const partner = await FoodDeliveryPartner.findById(id);
+    if (!partner) return null;
+
+    // Check if there's a pending zone change
+    if (!partner.pendingZoneId) {
+        return partner.toObject();
+    }
+
+    // Apply the pending zone change
+    partner.zoneId = partner.pendingZoneId;
+    partner.pendingZoneId = null;
+    partner.zoneChangeRequestedAt = null;
+    await partner.save();
+
+    // Send notification
+    try {
+        const { notifyOwnerSafely } = await import('../../../../core/notifications/firebase.service.js');
+        await notifyOwnerSafely(
+            { ownerType: 'DELIVERY_PARTNER', ownerId: partner._id },
+            {
+                title: 'Zone Update Approved',
+                body: 'Your zone change request has been approved. You can now login and start delivering.',
+                image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
+                data: {
+                    type: 'zone_change_approved',
+                    partnerId: String(partner._id),
+                    zoneId: String(partner.zoneId || '')
+                }
+            }
+        );
+    } catch (e) {
+        console.error('Failed to send zone change approval notification:', e);
+    }
+
+    return partner.toObject();
+}
+
+export async function rejectDeliveryPartnerZoneChange(id, reason) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+
+    const partner = await FoodDeliveryPartner.findById(id);
+    if (!partner) return null;
+
+    // Check if there's a pending zone change
+    if (!partner.pendingZoneId) {
+        return partner.toObject();
+    }
+
+    // Clear the pending zone change
+    partner.pendingZoneId = null;
+    partner.zoneChangeRequestedAt = null;
+    await partner.save();
+
+    // Send notification
+    try {
+        const { notifyOwnerSafely } = await import('../../../../core/notifications/firebase.service.js');
+        await notifyOwnerSafely(
+            { ownerType: 'DELIVERY_PARTNER', ownerId: partner._id },
+            {
+                title: 'Zone Update Rejected',
+                body: `Your zone change request was rejected. Reason: ${reason || 'Does not meet criteria'}.`,
+                image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
+                data: {
+                    type: 'zone_change_rejected',
+                    partnerId: String(partner._id),
+                    reason: reason || ''
+                }
+            }
+        );
+    } catch (e) {
+        console.error('Failed to send zone change rejection notification:', e);
+    }
+
+    return partner.toObject();
 }
 
 export async function updateDeliveryPartnerZone(id, zoneId, adminScope = {}) {

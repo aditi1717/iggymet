@@ -5,6 +5,7 @@ import { DeliveryBonusTransaction } from '../../admin/models/deliveryBonusTransa
 import { FoodPayoutSettlement } from '../../admin/models/foodPayoutSettlement.model.js';
 import { FoodEarningAddon } from '../../admin/models/earningAddon.model.js';
 import { FoodOrder } from '../../orders/models/order.model.js';
+import { FoodZone } from '../../admin/models/zone.model.js';
 import { sanitizeOrderForExternal } from '../../orders/services/order.helpers.js';
 import { uploadImageBuffer } from '../../../../services/cloudinary.service.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
@@ -114,12 +115,15 @@ export const updateDeliveryPartnerProfile = async (userId, payload, files) => {
         throw new ValidationError('Delivery partner not found');
     }
 
+    let requiresReapproval = false;
+
     const {
         name, countryCode, address, city, state,
         vehicleType, vehicleName, vehicleNumber, drivingLicenseNumber, panNumber, aadharNumber,
         fcmToken, platform
     } = payload;
 
+    // Update profile fields (no approval needed)
     if (name) partner.name = name;
     if (countryCode !== undefined) partner.countryCode = countryCode;
     if (address !== undefined) partner.address = address;
@@ -128,7 +132,31 @@ export const updateDeliveryPartnerProfile = async (userId, payload, files) => {
     if (vehicleType !== undefined) partner.vehicleType = vehicleType;
     if (vehicleName !== undefined) partner.vehicleName = vehicleName;
     if (vehicleNumber !== undefined) partner.vehicleNumber = vehicleNumber;
-    if (drivingLicenseNumber !== undefined) partner.drivingLicenseNumber = drivingLicenseNumber;
+
+    // Handle document changes - store in pending and require approval
+    if (aadharNumber !== undefined || panNumber !== undefined || drivingLicenseNumber !== undefined) {
+        if (!partner.pendingDocuments) {
+            partner.pendingDocuments = {};
+        }
+        
+        if (aadharNumber !== undefined && String(aadharNumber).trim() !== String(partner.aadharNumber || '').trim()) {
+            partner.pendingDocuments.aadharNumber = String(aadharNumber).trim();
+            requiresReapproval = true;
+        }
+        if (panNumber !== undefined && String(panNumber).trim() !== String(partner.panNumber || '').trim()) {
+            partner.pendingDocuments.panNumber = String(panNumber).trim().toUpperCase();
+            requiresReapproval = true;
+        }
+        if (drivingLicenseNumber !== undefined && String(drivingLicenseNumber).trim() !== String(partner.drivingLicenseNumber || '').trim()) {
+            partner.pendingDocuments.drivingLicenseNumber = String(drivingLicenseNumber).trim().toUpperCase();
+            requiresReapproval = true;
+        }
+
+        if (requiresReapproval) {
+            partner.documentsChangeRequestedAt = new Date();
+            partner.status = 'pending';
+        }
+    }
 
     if (fcmToken) {
         if (platform === 'mobile') {
@@ -151,7 +179,7 @@ export const updateDeliveryPartnerProfile = async (userId, payload, files) => {
     await partner.save();
     return {
         partner: partner.toObject(),
-        requiresReapproval: false
+        requiresReapproval: requiresReapproval
     };
 };
 
@@ -160,6 +188,9 @@ export const updateDeliveryPartnerDetails = async (userId, payload) => {
     if (!partner) {
         throw new ValidationError('Delivery partner not found');
     }
+
+    let requiresReapproval = false;
+    const previousZoneId = String(partner.zoneId || '');
 
     const vehicle = payload?.vehicle;
     if (vehicle && typeof vehicle === 'object') {
@@ -173,8 +204,39 @@ export const updateDeliveryPartnerDetails = async (userId, payload) => {
         partner.profilePhoto = payload.profilePhoto ? String(payload.profilePhoto).trim() : '';
     }
 
+    // Handle zone update
+    if (payload?.zoneId !== undefined) {
+        const rawZoneId = String(payload.zoneId || '').trim();
+        if (rawZoneId) {
+            if (!mongoose.Types.ObjectId.isValid(rawZoneId)) {
+                throw new ValidationError('Invalid zoneId format');
+            }
+            const zone = await FoodZone.findById(rawZoneId).select('_id isActive').lean();
+            if (!zone) {
+                throw new ValidationError('Zone not found');
+            }
+            if (zone.isActive === false) {
+                throw new ValidationError('Cannot assign inactive zone');
+            }
+            const newZoneId = String(zone._id || '');
+            if (newZoneId !== previousZoneId) {
+                // Store pending zone change for admin approval
+                partner.pendingZoneId = new mongoose.Types.ObjectId(rawZoneId);
+                partner.zoneChangeRequestedAt = new Date();
+                partner.status = 'pending';
+                requiresReapproval = true;
+            }
+        } else if (previousZoneId) {
+            partner.pendingZoneId = null;
+            partner.zoneChangeRequestedAt = null;
+        }
+    }
+
     await partner.save();
-    return partner.toObject();
+    return {
+        partner: partner.toObject(),
+        requiresReapproval: requiresReapproval
+    };
 };
 
 export const updateDeliveryPartnerProfilePhotoBase64 = async (userId, payload) => {
@@ -205,6 +267,8 @@ export const updateDeliveryPartnerBankDetails = async (userId, payload, files) =
         throw new ValidationError('Delivery partner not found');
     }
 
+    let requiresReapproval = false;
+
     // Handle both nested JSON and flat FormData from multer
     let bankDetails = payload?.documents?.bankDetails;
     let panDetails = payload?.documents?.pan;
@@ -234,7 +298,14 @@ export const updateDeliveryPartnerBankDetails = async (userId, payload, files) =
     }
 
     if (panDetails?.number !== undefined) {
-        partner.panNumber = panDetails.number ? String(panDetails.number).trim().toUpperCase() : '';
+        const newPan = panDetails.number ? String(panDetails.number).trim().toUpperCase() : '';
+        if (newPan !== String(partner.panNumber || '').trim().toUpperCase()) {
+            if (!partner.pendingDocuments) partner.pendingDocuments = {};
+            partner.pendingDocuments.panNumber = newPan;
+            partner.documentsChangeRequestedAt = new Date();
+            partner.status = 'pending';
+            requiresReapproval = true;
+        }
     }
 
     if (files?.upiQrCode?.[0]) {
@@ -242,7 +313,10 @@ export const updateDeliveryPartnerBankDetails = async (userId, payload, files) =
     }
 
     await partner.save();
-    return partner.toObject();
+    return {
+        partner: partner.toObject(),
+        requiresReapproval
+    };
 };
 
 function generateTicketId() {

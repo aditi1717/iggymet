@@ -23,13 +23,11 @@ import { CreateSupportTicketV2 } from './pages/help/CreateSupportTicketV2';
 import { ViewSupportTicketV2 } from './pages/help/ViewSupportTicketV2';
 import ShowIdCardV2 from './pages/help/ShowIdCardV2';
 import { PocketDetailsV2 } from './pages/pocket/PocketDetailsV2';
-import { ProfileDetailsV2 } from './pages/profile/ProfileDetailsV2';
+import { EditDeliveryBoy } from './pages/profile/EditDeliveryBoy';
 import TermsAndConditionsV2 from './pages/TermsAndConditionsV2';
 import PrivacyPolicyV2 from './pages/PrivacyPolicyV2';
 import NotificationsV2 from './pages/NotificationsV2';
 import ShopV2 from './pages/ShopV2';
-
-
 
 const DeliveryV2Router = () => {
   return (
@@ -55,7 +53,7 @@ const DeliveryV2Router = () => {
         <Route path="/shop" element={<ProtectedRoute><ShopV2 /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><DeliveryHomeV2 tab="profile" /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><NotificationsV2 /></ProtectedRoute>} />
-        <Route path="/profile/details" element={<ProtectedRoute><ProfileDetailsV2 /></ProtectedRoute>} />
+        <Route path="/profile/details" element={<ProtectedRoute><EditDeliveryBoy /></ProtectedRoute>} />
         <Route path="/profile/reviews" element={<ProtectedRoute><ProfileReviewsV2 /></ProtectedRoute>} />
         <Route path="/profile/bank" element={<ProtectedRoute><ProfileBankV2 /></ProtectedRoute>} />
         <Route path="/profile/documents" element={<ProtectedRoute><ProfileDocsV2 /></ProtectedRoute>} />

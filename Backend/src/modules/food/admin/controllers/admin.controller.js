@@ -1285,6 +1285,19 @@ export async function getDeliveryPartners(req, res, next) {
     }
 }
 
+export async function getDeliveryPartnersPendingZoneChange(req, res, next) {
+    try {
+        const data = await adminService.getDeliveryPartnersPendingZoneChange(req.query, req.adminAuth || {});
+        res.status(200).json({
+            success: true,
+            message: 'Delivery partners pending zone change fetched successfully',
+            data
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
 export async function getDeliverymanReviews(req, res, next) {
     try {
         const data = await adminService.getDeliverymanReviews(req.query);
@@ -1382,6 +1395,45 @@ export async function updateDeliveryPartnerZone(req, res, next) {
         res.status(200).json({
             success: true,
             message: 'Delivery partner zone updated successfully',
+            data: { partner }
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function approveDeliveryPartnerZoneChange(req, res, next) {
+    try {
+        const partner = await adminService.approveDeliveryPartnerZoneChange(req.params.id);
+        if (!partner) {
+            return res.status(404).json({
+                success: false,
+                message: 'Delivery partner not found'
+            });
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Delivery partner zone change approved successfully',
+            data: { partner }
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function rejectDeliveryPartnerZoneChange(req, res, next) {
+    try {
+        const reason = req.body?.reason != null ? String(req.body.reason).trim() : '';
+        const partner = await adminService.rejectDeliveryPartnerZoneChange(req.params.id, reason);
+        if (!partner) {
+            return res.status(404).json({
+                success: false,
+                message: 'Delivery partner not found'
+            });
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Delivery partner zone change rejected successfully',
             data: { partner }
         });
     } catch (error) {
