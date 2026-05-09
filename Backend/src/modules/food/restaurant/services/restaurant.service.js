@@ -442,6 +442,17 @@ export const getCurrentRestaurantProfile = async (restaurantId) => {
                 'ownerEmail',
                 'ownerPhone',
                 'primaryContactNumber',
+                'panNumber',
+                'nameOnPan',
+                'panImage',
+                'gstRegistered',
+                'gstNumber',
+                'gstLegalName',
+                'gstAddress',
+                'gstImage',
+                'fssaiNumber',
+                'fssaiExpiry',
+                'fssaiImage',
                 'accountNumber',
                 'ifscCode',
                 'accountHolderName',
@@ -522,13 +533,34 @@ export const updateRestaurantAcceptingOrders = async (restaurantId, isAcceptingO
 };
 
 
-export const updateRestaurantProfile = async (restaurantId, body = {}) => {
+export const updateRestaurantProfile = async (restaurantId, body = {}, files = {}) => {
     if (!restaurantId) {
         throw new ValidationError('Invalid restaurant id');
     }
 
     const currentRestaurant = await FoodRestaurant.findById(restaurantId)
-        .select('restaurantName restaurantNameNormalized ownerPhone ownerPhoneDigits ownerPhoneLast10 primaryContactNumber status')
+        .select([
+            'restaurantName',
+            'restaurantNameNormalized',
+            'ownerPhone',
+            'ownerPhoneDigits',
+            'ownerPhoneLast10',
+            'primaryContactNumber',
+            'status',
+            'location',
+            'addressLine1',
+            'addressLine2',
+            'area',
+            'city',
+            'state',
+            'pincode',
+            'landmark',
+            'zoneId',
+            'fssaiNumber',
+            'fssaiExpiry',
+            'fssaiImage',
+            'menuImages'
+        ].join(' '))
         .lean();
 
     if (!currentRestaurant) {
@@ -614,6 +646,15 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
             throw new ValidationError('pureVegRestaurant must be a boolean');
         }
     }
+
+    const requiresReapproval = () => (
+        body.location !== undefined ||
+        body.zoneId !== undefined ||
+        body.fssaiNumber !== undefined ||
+        body.fssaiExpiry !== undefined ||
+        body.fssaiImage !== undefined ||
+        Boolean(files?.fssaiImage?.[0])
+    );
 
     if (body.zoneId !== undefined) {
         const zoneId = String(body.zoneId || '').trim();
@@ -738,7 +779,7 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
 
     if (body.menuImages !== undefined) {
         if (!Array.isArray(body.menuImages)) {
-            throw new ValidationError('menuImages must be an array');
+            body.menuImages = [body.menuImages];
         }
         const urls = body.menuImages
             .map((m) => toUrl(m))
@@ -818,23 +859,56 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
         update.fssaiImage = toUrl(body.fssaiImage) || '';
     }
 
+    if (files?.profileImage?.[0]) {
+        update.profileImage = await uploadImageBuffer(files.profileImage[0].buffer, 'food/restaurants/profile');
+    }
+    if (files?.panImage?.[0]) {
+        update.panImage = await uploadImageBuffer(files.panImage[0].buffer, 'food/restaurants/pan');
+    }
+    if (files?.gstImage?.[0]) {
+        update.gstImage = await uploadImageBuffer(files.gstImage[0].buffer, 'food/restaurants/gst');
+    }
+    if (files?.fssaiImage?.[0]) {
+        update.fssaiImage = await uploadImageBuffer(files.fssaiImage[0].buffer, 'food/restaurants/fssai');
+    }
+    if (Array.isArray(files?.menuImages) && files.menuImages.length) {
+        const uploadedMenuImages = await Promise.all(
+            files.menuImages.slice(0, 20).map((file) => uploadImageBuffer(file.buffer, 'food/restaurants/menu'))
+        );
+        const existingMenuImages = Array.isArray(update.menuImages)
+            ? update.menuImages
+            : (Array.isArray(currentRestaurant.menuImages)
+                ? currentRestaurant.menuImages.map((image) => toUrl(image)).filter(Boolean)
+                : []);
+        update.menuImages = [...existingMenuImages, ...uploadedMenuImages]
+            .filter(Boolean)
+            .slice(0, 20);
+    }
+
     if (!Object.keys(update).length) {
         return getCurrentRestaurantProfile(restaurantId);
     }
 
-    update.status = 'pending';
+    const shouldRequireReapproval = requiresReapproval();
+    if (shouldRequireReapproval) {
+        update.status = 'pending';
+    }
 
     try {
         const doc = await FoodRestaurant.findByIdAndUpdate(
             restaurantId,
-            {
-                $set: update,
-                $unset: {
-                    approvedAt: 1,
-                    rejectedAt: 1,
-                    rejectionReason: 1
+            shouldRequireReapproval
+                ? {
+                    $set: update,
+                    $unset: {
+                        approvedAt: 1,
+                        rejectedAt: 1,
+                        rejectionReason: 1
+                    }
                 }
-            },
+                : {
+                    $set: update
+                },
             {
                 new: true,
                 runValidators: true,
@@ -887,7 +961,7 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
             }
         ).lean();
 
-        if (currentRestaurant.status !== 'pending') {
+        if (shouldRequireReapproval && currentRestaurant.status !== 'pending') {
             const restaurantNameForNotification =
                 update.restaurantName || currentRestaurant.restaurantName || doc?.restaurantName;
             void notifyAdminsAboutRestaurantProfileReview(restaurantId, restaurantNameForNotification);

@@ -59,7 +59,7 @@ export const getCurrentRestaurantController = async (req, res, next) => {
 export const updateRestaurantProfileController = async (req, res, next) => {
     try {
         const restaurantId = req.user?.userId;
-        const restaurant = await updateRestaurantProfile(restaurantId, req.body || {});
+        const restaurant = await updateRestaurantProfile(restaurantId, req.body || {}, req.files || {});
         return sendResponse(res, 200, 'Restaurant updated successfully', { restaurant });
     } catch (error) {
         next(error);

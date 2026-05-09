@@ -92,7 +92,7 @@ router.get('/categories/public', cacheResponse(600, 'categories'), listCategorie
 
 // Restaurant dashboard/profile (Bearer token + RESTAURANT role)
 router.get('/current', authMiddleware, requireRestaurant, getCurrentRestaurantController);
-router.patch('/profile', authMiddleware, requireRestaurant, async (req, res, next) => {
+router.patch('/profile', authMiddleware, requireRestaurant, uploadFields, async (req, res, next) => {
     // Invalidate caches when profile is updated
     await invalidateCache('restaurants:*');
     await invalidateCache('restaurant_detail:*');
@@ -102,8 +102,6 @@ router.patch('/availability', authMiddleware, requireRestaurant, async (req, res
     await invalidateCache('restaurants:*');
     next();
 }, updateRestaurantAcceptingOrdersController);
-router.patch('/profile', authMiddleware, requireRestaurant, updateRestaurantProfileController);
-router.patch('/availability', authMiddleware, requireRestaurant, updateRestaurantAcceptingOrdersController);
 router.get('/outlet-timings', authMiddleware, requireRestaurant, getCurrentRestaurantOutletTimingsController);
 router.put('/outlet-timings', authMiddleware, requireRestaurant, upsertCurrentRestaurantOutletTimingsController);
 router.get('/finance', authMiddleware, requireRestaurant, getRestaurantFinanceController);
