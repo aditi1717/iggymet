@@ -175,18 +175,66 @@ export const openCamera = async ({ onSelectFile, fileNamePrefix = "camera-photo"
 /**
  * Open gallery via Flutter bridge or browser fallback
  */
-export const openGallery = async ({ onSelectFile, fileNamePrefix = "gallery-photo" }) => {
+export const openGallery = async ({ onSelectFile, fileNamePrefix = "gallery-photo", quality = 0.8 }) => {
   try {
-    // For Gallery, we use the standard browser input.
-    // Why? Because the browser's native file picker on Android/iOS
-    // is highly reliable and provides direct gallery access.
-    // The bridge "openCamera" seems to force camera even for gallery source.
+    if (!isFlutterBridgeAvailable()) {
+      openTransientImageInput({
+        onSelectFile,
+        accept: "image/*",
+      })
+      return
+    }
+
+    // Try using the bridge for gallery too
+    const result = await window.flutter_inappwebview.callHandler("openCamera", {
+      source: "gallery",
+      accept: "image/*",
+      multiple: false,
+      quality: quality,
+    })
+
+    const isSuccess = result?.success === true || Boolean(result?.base64 || result?.base64String || result?.data?.base64)
+    if (!result || !isSuccess) {
+      // Fallback if gallery bridge fails or returns nothing
+      openTransientImageInput({
+        onSelectFile,
+        accept: "image/*",
+      })
+      return
+    }
+
+    let selectedFile = null
+    const base64Value = result?.base64 || result?.base64String || result?.data?.base64
+    const mimeType = result?.mimeType || result?.type || result?.data?.mimeType || "image/jpeg"
+    const originalFileName = result?.fileName || result?.name || result?.data?.fileName || ""
+
+    if (base64Value) {
+      selectedFile = convertBase64ToFile(
+        base64Value,
+        mimeType,
+        fileNamePrefix,
+        originalFileName,
+      )
+    } else if (result.file instanceof File || result.file instanceof Blob) {
+      selectedFile = result.file
+    }
+
+    if (!selectedFile || !String(selectedFile.type || "").startsWith("image/")) {
+      // Fallback if bridge returns invalid data
+      openTransientImageInput({
+        onSelectFile,
+        accept: "image/*",
+      })
+      return
+    }
+
+    onSelectFile(selectedFile)
+  } catch (error) {
+    console.error("Gallery pick via bridge failed:", error)
+    // Fallback on bridge failure
     openTransientImageInput({
       onSelectFile,
       accept: "image/*",
     })
-  } catch (error) {
-    console.error("Gallery pick failed:", error)
-    toast.error("Failed to open gallery")
   }
 }

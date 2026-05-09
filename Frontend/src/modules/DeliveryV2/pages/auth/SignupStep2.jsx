@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { ArrowLeft, Upload, X, Check, Camera, Image as ImageIcon } from "lucide-react"
 import { deliveryAPI } from "@food/api"
 import { toast } from "sonner"
-import { isFlutterBridgeAvailable, openCamera } from "@food/utils/imageUploadUtils"
+import { isFlutterBridgeAvailable, openCamera, openGallery } from "@food/utils/imageUploadUtils"
 import useDeliveryBackNavigation from "../../hooks/useDeliveryBackNavigation"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -308,10 +308,6 @@ export default function SignupStep2() {
     return null
   }
 
-  const handleOpenUploadOptions = (docType) => {
-    fileInputRefs.current[docType]?.click()
-  }
-
   const handleFileSelect = async (docType, file) => {
     if (!file) return
 
@@ -327,16 +323,18 @@ export default function SignupStep2() {
     try {
       const dataUrl = await fileToDataUrl(file)
       setDocuments((prev) => ({ ...prev, [docType]: file }))
-      setUploadedDocs((prev) => ({
-        ...prev,
-        [docType]: {
-          dataUrl,
-          url: dataUrl,
-          fileName: file.name,
-          mimeType: file.type,
-          size: file.size
+      setUploadedDocs((prev) => {
+        return {
+          ...prev,
+          [docType]: {
+            dataUrl,
+            url: dataUrl,
+            fileName: file.name,
+            mimeType: file.type,
+            size: file.size
+          }
         }
-      }))
+      })
       toast.success(`${docType.replace(/([A-Z])/g, " $1").trim()} selected`)
     } catch (err) {
       debugError("Failed to process selected file:", err)
@@ -352,7 +350,10 @@ export default function SignupStep2() {
   }
 
   const handlePickFromGallery = (docType) => {
-    fileInputRefs.current[docType]?.click()
+    openGallery({
+      onSelectFile: (file) => handleFileSelect(docType, file),
+      fileNamePrefix: `signup-${docType}`
+    })
   }
 
   const handleRemove = (docType) => {

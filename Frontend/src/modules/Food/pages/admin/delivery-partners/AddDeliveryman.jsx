@@ -37,8 +37,13 @@ export default function AddDeliveryman() {
     if (!formData.lastName.trim()) errors.lastName = "Last name is required"
     if (!formData.email.trim()) {
       errors.email = "Email is required"
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    } else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(formData.email)) {
       errors.email = "Invalid email format"
+    }
+    if (formData.identityType === "Driving License" && !formData.drivingLicenseNumber.trim()) {
+      errors.drivingLicenseNumber = "Driving license number is required"
+    } else if (formData.identityType === "Driving License" && !/^[A-Z]{2}[0-9]{2}[0-9]{4}[0-9]{7}$/.test(formData.drivingLicenseNumber)) {
+      errors.drivingLicenseNumber = "Invalid DL format (e.g., MH1220110012345)"
     }
     if (!formData.deliverymanType) errors.deliverymanType = "Deliveryman type is required"
     if (!formData.zone) errors.zone = "Zone is required"
@@ -232,7 +237,7 @@ export default function AddDeliveryman() {
                     type="text"
                     value={formData.identityNumber}
                     onChange={(e) => handleInputChange("identityNumber", e.target.value)}
-                    placeholder="Ex: DH-23434-LS"
+                    placeholder={formData.identityType === "Driving License" ? "Ex: MH1220110012345" : "Ex: DH-23434-LS"}
                     className="w-full px-4 py-2.5 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
                   />
                 </div>

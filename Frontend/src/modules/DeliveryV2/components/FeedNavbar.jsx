@@ -147,10 +147,20 @@ export default function FeedNavbar({ className = "" }) {
     e?.stopPropagation?.();
 
     const next = !isOnline;
+
+    // Check approval status first
+    if (next && approvalStatus !== "approved") {
+      toast.error("Your account is pending approval. You can only go online after admin verification.", {
+        id: "approval-error",
+        style: { marginTop: '80px' }
+      });
+      return;
+    }
     
     // Update state immediately for better UX
     setIsOnline(next);
     showSingleToast(next);
+
 
     // Update backend with location if available
     try {
@@ -276,6 +286,8 @@ export default function FeedNavbar({ className = "" }) {
   const [showHelpPopup, setShowHelpPopup] = useState(false);
   const [profileImage, setProfileImage] = useState(null);
   const [imageError, setImageError] = useState(false);
+  const [approvalStatus, setApprovalStatus] = useState("pending");
+
 
   // Fetch emergency help numbers once per mount (no refetch loop)
   const emergencyHelpFetched = useRef(false);
@@ -373,8 +385,17 @@ export default function FeedNavbar({ className = "" }) {
         const response = await deliveryAPI.getProfile();
         if (response?.data?.success && response?.data?.data?.profile) {
           const profile = response.data.data.profile;
+          setApprovalStatus(profile.status || "pending");
+          
+          // If not approved, force offline if they were somehow online
+          if (profile.status !== "approved" && isOnline) {
+            setIsOnline(false);
+            localStorage.setItem(LS_KEY, JSON.stringify(false));
+          }
+
           // Use profileImage.url first, fallback to documents.photo
           const imageUrl = profile.profileImage?.url || profile.documents?.photo;
+
           if (imageUrl) {
             setProfileImage(imageUrl);
             setImageError(false);

@@ -144,8 +144,6 @@ export const updateDeliveryPartnerProfile = async (userId, payload, files) => {
         }
     }
 
-    let updatedDocsRequiringReapproval = false;
-
     if (files?.profilePhoto?.[0]) {
         partner.profilePhoto = await uploadImageBuffer(files.profilePhoto[0].buffer, 'food/delivery/profile');
     }
@@ -196,7 +194,6 @@ export const updateDeliveryPartnerProfilePhotoBase64 = async (userId, payload) =
     if (buffer.length > 8 * 1024 * 1024) {
         throw new ValidationError('Image too large (max 8MB)');
     }
-    // uploadImageBuffer expects raw bytes; mimeType is ignored by current implementation, but buffer is valid.
     partner.profilePhoto = await uploadImageBuffer(buffer, 'food/delivery/profile');
     await partner.save();
     return partner.toObject();
@@ -361,10 +358,18 @@ export const updateDeliveryAvailability = async (userId, payload) => {
     if (!partner) {
         throw new ValidationError('Delivery partner not found');
     }
+    
     const { status, latitude, longitude } = payload || {};
     let validStatus = 'offline';
-    if (status === 'online' || status === true) validStatus = 'online';
-    else if (status === 'offline' || status === false) validStatus = 'offline';
+    
+    if (status === 'online' || status === true) {
+        if (partner.status !== 'approved') {
+            throw new ValidationError('Your account is not approved yet. Please wait for admin verification.');
+        }
+        validStatus = 'online';
+    } else if (status === 'offline' || status === false) {
+        validStatus = 'offline';
+    }
     
     partner.availabilityStatus = validStatus;
     if (typeof latitude === 'number' && typeof longitude === 'number') {
@@ -1003,4 +1008,3 @@ export const getActiveEarningAddonsForPartner = async (deliveryPartnerId) => {
         offers
     };
 };
-

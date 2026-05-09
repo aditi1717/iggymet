@@ -106,8 +106,7 @@ export default function JoiningRequest() {
   // Get unique zones and business models for filter options
   const filterOptions = useMemo(() => {
     const zones = [...new Set(currentRequests.map(r => r.zone).filter(Boolean))]
-    const businessModels = [...new Set(currentRequests.map(r => r.businessModel).filter(Boolean))]
-    return { zones, businessModels }
+    return { zones }
   }, [currentRequests])
 
   const filteredRequests = useMemo(() => {
@@ -128,10 +127,6 @@ export default function JoiningRequest() {
       filtered = filtered.filter(request => request.zone === filters.zone)
     }
 
-    // Apply business model filter
-    if (filters.businessModel) {
-      filtered = filtered.filter(request => request.businessModel === filters.businessModel)
-    }
 
     // Apply date range filter
     if (filters.dateFrom || filters.dateTo) {
@@ -162,7 +157,7 @@ export default function JoiningRequest() {
     })
   }
 
-  const hasActiveFilters = filters.zone || filters.businessModel || filters.dateFrom || filters.dateTo
+  const hasActiveFilters = filters.zone || filters.dateFrom || filters.dateTo
 
   const handleApprove = async (request) => {
     if (window.confirm(`Are you sure you want to approve "${request.restaurantName}" restaurant request?`)) {
@@ -393,12 +388,7 @@ export default function JoiningRequest() {
                       <ArrowUpDown className="w-3 h-3 text-slate-400" />
                     </div>
                   </th>
-                  <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                    <div className="flex items-center gap-1">
-                      <span>Business Model</span>
-                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                    </div>
-                  </th>
+
                   <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
                     <div className="flex items-center gap-1">
                       <span>Status</span>
@@ -411,21 +401,21 @@ export default function JoiningRequest() {
               <tbody className="bg-white divide-y divide-slate-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-20 text-center">
+                    <td colSpan={6} className="px-6 py-20 text-center">
                       <Loader2 className="w-8 h-8 animate-spin text-brand-600 mx-auto mb-3" />
                       <p className="text-lg font-semibold text-slate-700">Loading restaurant requests...</p>
                     </td>
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-20 text-center">
+                    <td colSpan={6} className="px-6 py-20 text-center">
                       <p className="text-lg font-semibold text-red-600 mb-1">Error: {error}</p>
                       <p className="text-sm text-slate-500">Failed to load restaurant requests. Please try again.</p>
                     </td>
                   </tr>
                 ) : filteredRequests.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-20 text-center">
+                    <td colSpan={6} className="px-6 py-20 text-center">
                       <div className="flex flex-col items-center justify-center">
                         <p className="text-lg font-semibold text-slate-700 mb-1">No Data Found</p>
                         <p className="text-sm text-slate-500">No restaurant requests match your search</p>
@@ -476,9 +466,7 @@ export default function JoiningRequest() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm text-slate-700">{request.zone || "—"}</span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-slate-700">{request.businessModel || "—"}</span>
-                      </td>
+
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                           request.status === "Pending"
@@ -571,24 +559,6 @@ export default function JoiningRequest() {
                   </div>
                 )}
 
-                {/* Business Model Filter */}
-                {filterOptions.businessModels.length > 0 && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Business Model
-                    </label>
-                    <select
-                      value={filters.businessModel}
-                      onChange={(e) => setFilters({ ...filters, businessModel: e.target.value })}
-                      className="w-full px-4 py-2.5 text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                    >
-                      <option value="">All Business Models</option>
-                      {filterOptions.businessModels.map((model) => (
-                        <option key={model} value={model}>{model}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
 
                 {/* Date Range Filters */}
                 <div className="grid grid-cols-2 gap-3">

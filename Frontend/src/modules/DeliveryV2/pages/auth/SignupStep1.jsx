@@ -60,29 +60,8 @@ export default function SignupStep1() {
 
   const isValidEmailValue = (value) => {
     const normalizedValue = String(value || "").trim().toLowerCase()
-    if (!/^[a-z0-9._%+\-]+@(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,10}$/.test(normalizedValue)) {
-      return false
-    }
-
-    const tld = normalizedValue.split(".").pop()
-    if (!tld) return false
-    const allowedTlds = new Set([
-      "com",
-      "in",
-      "net",
-      "org",
-      "edu",
-      "gov",
-      "io",
-      "biz",
-      "info",
-      "me",
-      "ai",
-      "app",
-    ])
-    if (!allowedTlds.has(tld)) return false
-
-    return true
+    // Standard robust email regex
+    return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(normalizedValue)
   }
 
   const sanitizeEmailValue = (value) =>
@@ -292,7 +271,7 @@ export default function SignupStep1() {
               inputMode="email"
               className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2979fb] ${errors.email ? "border-red-500" : "border-gray-300"
                 }`}
-              placeholder="Enter your email"
+              placeholder="name@example.com"
             />
             {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
           </div>
@@ -409,11 +388,12 @@ export default function SignupStep1() {
               name="drivingLicenseNumber"
               value={formData.drivingLicenseNumber}
               onChange={handleChange}
-              maxLength={16}
+              maxLength={15}
               className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2979fb] uppercase ${errors.drivingLicenseNumber ? "border-red-500" : "border-gray-300"
                 }`}
               placeholder="e.g., MH1220110012345"
             />
+            <p className="text-xs text-gray-500 mt-1">Format: 15 characters (e.g., MH1220110012345)</p>
             {errors.drivingLicenseNumber && <p className="text-red-500 text-sm mt-1">{errors.drivingLicenseNumber}</p>}
           </div>
 
