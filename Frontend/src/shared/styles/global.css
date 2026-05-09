@@ -117,17 +117,17 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --color-brand-50: #eaf2ff;
-  --color-brand-100: #cce1d7;
-  --color-brand-200: #99c3af;
-  --color-brand-300: #66a587;
-  --color-brand-400: #33875f;
+  --color-brand-50: #f0f7ff;
+  --color-brand-100: #e0efff;
+  --color-brand-200: #b9daff;
+  --color-brand-300: #7cc0ff;
+  --color-brand-400: #36a1ff;
   --color-brand-500: #2979fb;
-  --color-brand-600: #004924;
-  --color-brand-700: #1e5fd1;
-  --color-brand-800: #003118;
-  --color-brand-900: #002512;
-  --color-brand-950: #00190c;
+  --color-brand-600: #1e5fd1;
+  --color-brand-700: #1d4ed8;
+  --color-brand-800: #1e40af;
+  --color-brand-900: #1e3a8a;
+  --color-brand-950: #172554;
 
   --color-success-50: #ecfdf3;
   --color-success-100: #dcfce7;

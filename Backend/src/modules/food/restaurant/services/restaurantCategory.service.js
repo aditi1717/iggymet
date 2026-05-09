@@ -62,6 +62,7 @@ export async function listRestaurantCategories(restaurantId, query = {}) {
 
     const search = typeof query.search === 'string' ? query.search.trim() : '';
     const includeInactive = query.includeInactive === 'true' || query.includeInactive === '1';
+    const privateOnly = query.privateOnly === 'true' || query.privateOnly === '1';
     const withCounts = query.withCounts === 'true' || query.withCounts === '1';
     const compact = query.compact === 'true' || query.compact === '1';
     const zoneIdRaw = typeof query.zoneId === 'string' ? query.zoneId.trim() : context.zoneId;
@@ -86,14 +87,14 @@ export async function listRestaurantCategories(restaurantId, query = {}) {
         }
         : {
             $or: [
-                {
+                ...(privateOnly ? [] : [{
                     $and: [
                         { $or: GLOBAL_CATEGORY_FILTER },
                         { $or: APPROVED_CATEGORY_FILTER }
                     ]
-                },
+                }]),
                 { restaurantId: context.restaurantId },
-                { createdByRestaurantId: context.restaurantId }
+                ...(privateOnly ? [] : [{ createdByRestaurantId: context.restaurantId }])
             ]
         };
 
@@ -248,7 +249,13 @@ export async function updateRestaurantCategory(restaurantId, id, body = {}) {
         throw new ValidationError('Invalid category id');
     }
 
-    const doc = await FoodCategory.findOne({ _id: id, restaurantId: context.restaurantId });
+    const doc = await FoodCategory.findOne({
+        _id: id,
+        $or: [
+            { restaurantId: context.restaurantId },
+            { createdByRestaurantId: context.restaurantId }
+        ]
+    });
     if (!doc) return null;
 
     const nextFoodTypeScope = body.foodTypeScope !== undefined
@@ -284,13 +291,19 @@ export async function updateRestaurantCategory(restaurantId, id, body = {}) {
         doc.foodTypeScope = nextFoodTypeScope;
     }
 
+    const criticalFields = ['name', 'image', 'type', 'foodTypeScope'];
+    const isCriticalUpdate = Object.keys(body).some(key => criticalFields.includes(key));
+
     doc.createdByRestaurantId = doc.createdByRestaurantId || context.restaurantId;
-    doc.approvalStatus = 'pending';
-    doc.isApproved = false;
-    doc.rejectionReason = '';
-    doc.requestedAt = new Date();
-    doc.approvedAt = undefined;
-    doc.rejectedAt = undefined;
+
+    if (isCriticalUpdate) {
+        doc.approvalStatus = 'pending';
+        doc.isApproved = false;
+        doc.rejectionReason = '';
+        doc.requestedAt = new Date();
+        doc.approvedAt = undefined;
+        doc.rejectedAt = undefined;
+    }
 
     await doc.save();
     return doc.toObject();

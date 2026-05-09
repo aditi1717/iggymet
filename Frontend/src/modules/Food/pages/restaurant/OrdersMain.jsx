@@ -1924,9 +1924,11 @@ export default function OrdersMain() {
   const handleNeedHelpClick = () => {
     const currentOrder = popupOrder || newOrder || null;
     const orderId =
-      currentOrder?.orderMongoId || currentOrder?.orderId || currentOrder?._id || "";
+      currentOrder?.mongoId || currentOrder?.orderMongoId || currentOrder?.orderId || currentOrder?._id || "";
     const qs = orderId ? `?orderId=${encodeURIComponent(String(orderId))}` : "";
-    navigate(`/food/restaurant/help-centre/support${qs}`);
+    navigate(`/food/restaurant/help-centre/support${qs}`, {
+      state: { backTo: "/food/restaurant" }
+    });
   };
 
   const handleRejectConfirm = async () => {

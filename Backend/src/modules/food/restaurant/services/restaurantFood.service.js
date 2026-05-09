@@ -54,28 +54,37 @@ const getUpdatedFoodPricing = (existing = {}, body = {}) => {
 
     if (variantsTouched) {
         const variants = normalizeFoodVariantsInput(extractRawFoodVariants(body));
-        update.variants = variants;
-
-        if (variants.length > 0) {
-            update.price = getFoodDisplayPrice({ variants });
+        
+        // Deep comparison for variants (using JSON stringify for simplicity here)
+        const variantsChanged = JSON.stringify(variants) !== JSON.stringify(existing.variants || []);
+        
+        if (variantsChanged) {
+            update.variants = variants;
+            if (variants.length > 0) {
+                update.price = getFoodDisplayPrice({ variants });
+                return update;
+            }
+            
+            const nextBasePrice = body.price !== undefined ? Number(body.price) : Number(existing.price);
+            if (!Number.isFinite(nextBasePrice) || nextBasePrice < 0) {
+                throw new ValidationError('Base price is required when variants are removed');
+            }
+            update.price = nextBasePrice;
             return update;
         }
-
-        const nextBasePrice = body.price !== undefined ? Number(body.price) : Number(existingHasVariants ? NaN : existing.price);
-        if (!Number.isFinite(nextBasePrice) || nextBasePrice < 0) {
-            throw new ValidationError('Base price is required when variants are removed');
-        }
-        update.price = nextBasePrice;
-        return update;
     }
 
     if (body.price !== undefined) {
-        if (existingHasVariants) {
-            throw new ValidationError('Update variants instead of base price for foods with variants');
+        if (existingHasVariants && !variantsTouched) {
+            // If it has variants and we aren't updating them, we shouldn't update base price directly
+            return update;
         }
         const price = Number(body.price);
         if (!Number.isFinite(price) || price < 0) throw new ValidationError('Price is invalid');
-        update.price = price;
+        
+        if (price !== existing.price) {
+            update.price = price;
+        }
     }
 
     return update;
@@ -242,16 +251,34 @@ export async function updateRestaurantFood(restaurantId, foodId, body = {}) {
         const name = toStr(body.name);
         if (!name) throw new ValidationError('Item name is required');
         if (name.length > 200) throw new ValidationError('Item name is too long');
-        update.name = name;
+        if (name !== existing.name) update.name = name;
     }
-    if (body.description !== undefined) update.description = toStr(body.description);
-    if (body.image !== undefined) update.image = toStr(body.image);
-    Object.assign(update, getUpdatedFoodPricing(existing, body));
-    if (body.isAvailable !== undefined) update.isAvailable = body.isAvailable !== false;
-    if (body.preparationTime !== undefined) update.preparationTime = toStr(body.preparationTime);
+    if (body.description !== undefined) {
+        const description = toStr(body.description);
+        if (description !== toStr(existing.description)) update.description = description;
+    }
+    if (body.image !== undefined) {
+        const image = toStr(body.image);
+        if (image !== toStr(existing.image)) update.image = image;
+    }
+
+    const pricingUpdate = getUpdatedFoodPricing(existing, body);
+    Object.keys(pricingUpdate).forEach(key => {
+        update[key] = pricingUpdate[key];
+    });
+
+    if (body.isAvailable !== undefined) {
+        if (body.isAvailable !== existing.isAvailable) update.isAvailable = body.isAvailable !== false;
+    }
+    if (body.preparationTime !== undefined) {
+        const prepTime = toStr(body.preparationTime);
+        if (prepTime !== toStr(existing.preparationTime)) update.preparationTime = prepTime;
+    }
 
     const targetFoodType = body.foodType !== undefined ? normalizeFoodType(body.foodType) : normalizeFoodType(existing.foodType);
-    if (body.foodType !== undefined) update.foodType = targetFoodType;
+    if (body.foodType !== undefined && targetFoodType !== existing.foodType) {
+        update.foodType = targetFoodType;
+    }
 
     if (
         body.categoryId !== undefined ||
@@ -263,11 +290,16 @@ export async function updateRestaurantFood(restaurantId, foodId, body = {}) {
             categoryName: body.categoryName !== undefined ? body.categoryName : existing.categoryName,
             foodType: targetFoodType
         });
-        update.categoryId = categoryObjectId;
-        update.categoryName = categoryName || '';
+        
+        if (String(categoryObjectId || '') !== String(existing.categoryId || '')) {
+            update.categoryId = categoryObjectId;
+            update.categoryName = categoryName || '';
+        }
     }
 
-    const shouldResubmitForApproval = Object.keys(update).length > 0;
+    const SENSITIVE_FIELDS = ['name', 'description', 'image', 'price', 'variants', 'foodType', 'categoryId', 'categoryName'];
+    const hasSensitiveChanges = Object.keys(update).some(key => SENSITIVE_FIELDS.includes(key));
+    const shouldResubmitForApproval = hasSensitiveChanges;
 
     if (shouldResubmitForApproval) {
         update.approvalStatus = 'pending';

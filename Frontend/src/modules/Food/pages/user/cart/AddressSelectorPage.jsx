@@ -700,8 +700,8 @@ export default function AddressSelectorPage() {
       toast.error("Landmark / area details are required")
       return
     }
-    if (!addressFormData.city?.trim() || !addressFormData.state?.trim()) {
-      toast.error("City and state are required")
+    if (!addressFormData.city?.trim() || !addressFormData.state?.trim() || !addressFormData.zipCode?.trim()) {
+      toast.error("City, state and pincode are required")
       return
     }
     setLoadingAddress(true)
@@ -953,7 +953,8 @@ export default function AddressSelectorPage() {
                   onChange={e => setAddressFormData({...addressFormData, city: e.target.value})} 
                   onFocus={() => scrollFieldIntoView("city")}
                   ref={(el) => { manualFieldRefs.current.city = el }}
-                  className="h-12 rounded-xl"
+                  className="h-12 rounded-xl bg-gray-50 cursor-not-allowed"
+                  readOnly
                   required 
                 />
               </div>
@@ -964,7 +965,8 @@ export default function AddressSelectorPage() {
                   onChange={e => setAddressFormData({...addressFormData, state: e.target.value})} 
                   onFocus={() => scrollFieldIntoView("state")}
                   ref={(el) => { manualFieldRefs.current.state = el }}
-                  className="h-12 rounded-xl"
+                  className="h-12 rounded-xl bg-gray-50 cursor-not-allowed"
+                  readOnly
                   required 
                 />
               </div>
@@ -978,7 +980,9 @@ export default function AddressSelectorPage() {
                 onChange={e => setAddressFormData({...addressFormData, zipCode: e.target.value})} 
                 onFocus={() => scrollFieldIntoView("zipCode")}
                 ref={(el) => { manualFieldRefs.current.zipCode = el }}
-                className="h-12 rounded-xl"
+                className="h-12 rounded-xl bg-gray-50 cursor-not-allowed"
+                readOnly
+                required
               />
             </div>
 

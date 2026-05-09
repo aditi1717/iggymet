@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@food/components/ui/select"
-import { supportAPI } from "@food/api"
+import { supportAPI, orderAPI } from "@food/api"
 import BRAND_THEME from "@/config/brandTheme"
 
 const COMPLAINT_TYPE_OPTIONS = [
@@ -39,6 +39,7 @@ export default function SubmitComplaint() {
   const routeOrderId = String(orderId || "").trim()
   const [form, setForm] = useState({ subject: "", description: "", orderId: routeOrderId })
   const [existingTicket, setExistingTicket] = useState(null)
+  const [readableOrderId, setReadableOrderId] = useState("")
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
@@ -83,6 +84,21 @@ export default function SubmitComplaint() {
     }
 
     loadExistingTicket()
+
+    const fetchOrderDetails = async () => {
+      if (!routeOrderId) return
+      try {
+        const response = await orderAPI.getOrderDetails(routeOrderId)
+        const order = response?.data?.data?.order || response?.data?.order
+        if (order && order.orderId) {
+          setReadableOrderId(order.orderId)
+        }
+      } catch (err) {
+        console.error("Failed to fetch order details:", err)
+      }
+    }
+    fetchOrderDetails()
+
     return () => {
       isMounted = false
     }
@@ -171,7 +187,7 @@ export default function SubmitComplaint() {
         <div className="space-y-4">
           <div className="space-y-2">
             <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Order ID</label>
-            <Input value={form.orderId} readOnly className="bg-slate-50" />
+            <Input value={readableOrderId || form.orderId} readOnly className="bg-slate-50" />
           </div>
 
           <div className="space-y-2">

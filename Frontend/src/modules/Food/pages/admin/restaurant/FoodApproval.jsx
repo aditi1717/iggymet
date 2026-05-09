@@ -240,9 +240,6 @@ export default function FoodApproval() {
                         Item Name
                       </th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                        Type
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                         Status
                       </th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
@@ -259,7 +256,7 @@ export default function FoodApproval() {
                   <tbody className="divide-y divide-gray-200 bg-white">
                     {filteredRequests.length === 0 ? (
                       <tr>
-                        <td colSpan="9" className="px-3 py-8 text-center text-sm text-gray-500">
+                        <td colSpan="8" className="px-3 py-8 text-center text-sm text-gray-500">
                           {loading ? "Loading..." : "No food or add-on records found."}
                         </td>
                       </tr>
@@ -281,11 +278,6 @@ export default function FoodApproval() {
                           <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700 font-semibold">
                             {request.itemName || '-'}
                           </td>
-                          <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700 capitalize text-center">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${request.entityType === 'addon' ? 'bg-purple-100 text-purple-700' : 'bg-brand-100 text-brand-700'}`}>
-                                {request.entityType || 'food'}
-                            </span>
-                          </td>
                           <td className="px-3 py-3 whitespace-nowrap text-sm">
                             <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
                               request.isActionable
@@ -298,7 +290,7 @@ export default function FoodApproval() {
                             </span>
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700 font-semibold">
-                            {request.price !== null && request.price !== undefined ? `Rs ${request.price}` : '-'}
+                            {request.price !== null && request.price !== undefined ? `₹${request.price}` : '-'}
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                             {request.requestedAt ? new Date(request.requestedAt).toLocaleDateString() : '-'}
@@ -402,6 +394,21 @@ export default function FoodApproval() {
                         </div>
                     )}
                 </div>
+
+                {/* Variants Section */}
+                {selectedRequest.variants && selectedRequest.variants.length > 0 && (
+                   <div className="col-span-full">
+                     <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Variants / Sizes</label>
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                       {selectedRequest.variants.map((variant, idx) => (
+                         <div key={idx} className="flex justify-between items-center p-3 rounded-xl border border-slate-100 bg-slate-50/50">
+                           <span className="text-sm font-medium text-gray-700">{variant.name}</span>
+                           <span className="text-sm font-bold text-brand-600">₹{variant.price}</span>
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                 )}
 
                 {selectedRequest.description && (
                   <div className="col-span-full">

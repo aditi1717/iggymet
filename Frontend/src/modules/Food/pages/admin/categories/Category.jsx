@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion } from "framer-motion"
 import {
@@ -25,50 +26,9 @@ const defaultFormData = {
   status: true,
   type: "",
   foodTypeScope: "Both",
-  visibilityStartHour: "",
-  visibilityStartMinute: "",
-  visibilityStartMeridiem: "AM",
-  visibilityEndHour: "",
-  visibilityEndMinute: "",
-  visibilityEndMeridiem: "AM",
+  sortOrder: 0,
 }
 
-const HOURS_12 = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
-const MINUTES_60 = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, "0"))
-
-const parse24To12 = (time24) => {
-  const value = String(time24 || "").trim()
-  const match = value.match(/^([01]\d|2[0-3]):([0-5]\d)$/)
-  if (!match) {
-    return { hour: "", minute: "", meridiem: "AM" }
-  }
-
-  const hour24 = Number(match[1])
-  const minute = match[2]
-  const meridiem = hour24 >= 12 ? "PM" : "AM"
-  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12
-  return { hour: String(hour12).padStart(2, "0"), minute, meridiem }
-}
-
-const to24From12 = (hour, minute, meridiem) => {
-  const hh = String(hour || "").trim()
-  const mm = String(minute || "").trim()
-  const ap = String(meridiem || "").trim().toUpperCase()
-
-  if (!hh && !mm) return ""
-  if (!HOURS_12.includes(hh) || !MINUTES_60.includes(mm) || !["AM", "PM"].includes(ap)) {
-    return null
-  }
-
-  let hour24 = Number(hh)
-  if (ap === "AM") {
-    if (hour24 === 12) hour24 = 0
-  } else if (hour24 !== 12) {
-    hour24 += 12
-  }
-
-  return `${String(hour24).padStart(2, "0")}:${mm}`
-}
 
 const approvalBadgeClass = (status) => {
   const value = String(status || "pending").toLowerCase()
@@ -86,17 +46,11 @@ const scopeBadgeClass = (scope) => {
 
 
 export default function Category() {
+  const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState("")
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
   const [showPendingOnly, setShowPendingOnly] = useState(false)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingCategory, setEditingCategory] = useState(null)
-  const [formData, setFormData] = useState(defaultFormData)
-  const [selectedImageFile, setSelectedImageFile] = useState(null)
-  const [imagePreview, setImagePreview] = useState(null)
-  const [uploadingImage, setUploadingImage] = useState(false)
-  const fileInputRef = useRef(null)
 
   useEffect(() => {
     const adminToken = localStorage.getItem("admin_accessToken")
@@ -159,49 +113,12 @@ export default function Category() {
     }
   }
 
-  const resetModal = () => {
-    setIsModalOpen(false)
-    setEditingCategory(null)
-    setFormData(defaultFormData)
-    setSelectedImageFile(null)
-    setImagePreview(null)
-    if (fileInputRef.current) fileInputRef.current.value = ""
-  }
-
   const handleAddNew = () => {
-    setEditingCategory(null)
-    setFormData(defaultFormData)
-    setSelectedImageFile(null)
-    setImagePreview(null)
-    setIsModalOpen(true)
+    navigate("/admin/food/categories/add")
   }
 
   const handleEdit = (category) => {
-    setEditingCategory(category)
-
-
-    setFormData({
-      name: category?.name || "",
-      image: category?.image || "",
-      status: category?.status !== false,
-      type: category?.type || "",
-      foodTypeScope: category?.foodTypeScope || "Both",
-      ...(() => {
-        const start = parse24To12(category?.visibilityStartTime || "")
-        const end = parse24To12(category?.visibilityEndTime || "")
-        return {
-          visibilityStartHour: start.hour,
-          visibilityStartMinute: start.minute,
-          visibilityStartMeridiem: start.meridiem,
-          visibilityEndHour: end.hour,
-          visibilityEndMinute: end.minute,
-          visibilityEndMeridiem: end.meridiem,
-        }
-      })(),
-    })
-    setSelectedImageFile(null)
-    setImagePreview(category?.image || null)
-    setIsModalOpen(true)
+    navigate(`/admin/food/categories/edit/${category.id || category._id}`)
   }
 
   const handleImageSelect = (event) => {
@@ -340,77 +257,15 @@ export default function Category() {
     }
   }
 
-  const handleSubmit = async (event) => {
-    event.preventDefault()
-
-    try {
-      setUploadingImage(true)
-      let imageUrl = String(formData.image || "").trim()
-
-      const startTime24 = to24From12(
-        formData.visibilityStartHour,
-        formData.visibilityStartMinute,
-        formData.visibilityStartMeridiem,
-      )
-      const endTime24 = to24From12(
-        formData.visibilityEndHour,
-        formData.visibilityEndMinute,
-        formData.visibilityEndMeridiem,
-      )
-
-      if (startTime24 === null || endTime24 === null) {
-        toast.error("Please select a valid 12-hour time with AM/PM")
-        setUploadingImage(false)
-        return
-      }
-
-      if (selectedImageFile) {
-        const uploadRes = await uploadAPI.uploadMedia(selectedImageFile, { folder: "appzeto/categories" })
-        const payload = uploadRes?.data?.data || uploadRes?.data
-        imageUrl = payload?.url || imageUrl
-      }
-
-      const payload = {
-        name: String(formData.name || "").trim(),
-        type: String(formData.type || "").trim(),
-        status: Boolean(formData.status),
-        image: imageUrl || undefined,
-        zoneId: "global",
-        foodTypeScope: formData.foodTypeScope,
-        visibilityStartTime: startTime24,
-        visibilityEndTime: endTime24,
-      }
-
-      if (editingCategory) {
-        const response = await adminAPI.updateCategory(editingCategory.id, payload)
-        if (response?.data?.success) toast.success("Category updated successfully")
-      } else {
-        const response = await adminAPI.createCategory(payload)
-        if (response?.data?.success) toast.success("Category created successfully")
-      }
-
-      resetModal()
-      fetchCategories()
-    } catch (error) {
-      if (error?.code === "ERR_NETWORK" || error?.message === "Network Error") {
-        toast.error("Cannot connect to server. Please check if backend is running on " + API_BASE_URL.replace("/api", ""))
-      } else {
-        toast.error(error?.response?.data?.message || "Failed to save category")
-      }
-    } finally {
-      setUploadingImage(false)
-    }
-  }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 lg:p-6">
-      <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="min-h-screen bg-white p-4 lg:p-6">
+      <div className="mb-6 rounded-3xl border border-slate-200 bg-slate-50/50 p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Categories</h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              Restaurant-created categories now move through approval, rejection, and optional globalization before every
-              restaurant can use them.
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Categories</h1>
+            <p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">
+              Review restaurant-created categories, approve them for use, or make them global to share across the entire platform.
             </p>
           </div>
 
@@ -472,8 +327,7 @@ export default function Category() {
                 <th className="w-[17%] px-4 py-4 text-left text-[11px] font-bold uppercase tracking-wider text-slate-600">Owner</th>
                 <th className="w-[10%] px-4 py-4 text-center text-[11px] font-bold uppercase tracking-wider text-slate-600">Diet</th>
                 <th className="w-[10%] px-4 py-4 text-center text-[11px] font-bold uppercase tracking-wider text-slate-600">Status</th>
-                {/* COMMENTED OUT: Approval column removed - categories are auto-approved */}
-                {/* <th className="w-[13%] px-4 py-4 text-left text-[11px] font-bold uppercase tracking-wider text-slate-600">Approval</th> */}
+                <th className="w-[13%] px-4 py-4 text-left text-[11px] font-bold uppercase tracking-wider text-slate-600">Approval</th>
                 <th className="w-[20%] px-5 py-4 text-right text-[11px] font-bold uppercase tracking-wider text-slate-600">Actions</th>
               </tr>
             </thead>
@@ -544,14 +398,13 @@ export default function Category() {
                       <td className="px-4 py-5 text-center">
                         <button
                           onClick={() => handleToggleStatus(category.id)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full ${category?.status ? "bg-brand-600" : "bg-slate-300"}`}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${category?.status ? "bg-brand-600" : "bg-slate-300"}`}
                           title={category?.status ? "Deactivate" : "Activate"}
                         >
                           <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${category?.status ? "translate-x-6" : "translate-x-1"}`} />
                         </button>
                       </td>
-                      {/* COMMENTED OUT: Approval column removed - categories are auto-approved */}
-                      {/* <td className="px-4 py-5">
+                      <td className="px-4 py-5">
                         <div className="space-y-2">
                           <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${approvalBadgeClass(approvalStatus)}`}>
                             {approvalStatus === "approved" && <BadgeCheck className="mr-1 h-3.5 w-3.5" />}
@@ -561,15 +414,14 @@ export default function Category() {
                             <p className="max-w-[180px] text-xs leading-5 text-rose-600">{category.rejectionReason}</p>
                           )}
                         </div>
-                      </td> */}
+                      </td>
                       <td className="px-5 py-5">
                         <div className="flex flex-col items-end gap-2">
                           <div className="flex flex-wrap justify-end gap-2">
-                            {/* COMMENTED OUT: Categories are auto-approved now */}
-                            {/* {approvalStatus !== "approved" && (
+                            {approvalStatus !== "approved" && (
                               <button
                                 onClick={() => handleApprove(category.id)}
-                                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
+                                className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-brand-700 transition-colors"
                               >
                                 Approve
                               </button>
@@ -581,12 +433,13 @@ export default function Category() {
                               >
                                 Reject
                               </button>
-                            )} */}
+                            )}
                             {isRestaurantCategory && !category?.isGlobal && approvalStatus === "approved" && (
                               <button
                                 onClick={() => handleMakeGlobal(category)}
-                                className="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
+                                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center gap-1.5"
                               >
+                                <Globe className="h-3.5 w-3.5" />
                                 Make Global
                               </button>
                             )}
@@ -618,215 +471,6 @@ export default function Category() {
         </div>
       </div>
 
-      {typeof window !== "undefined" &&
-        createPortal(
-          <AnimatePresence>
-            {isModalOpen && (
-              <div className="fixed inset-0 z-[200]">
-                <div className="absolute inset-0 bg-black/50" onClick={resetModal} />
-                <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-6">
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl max-h-[min(720px,calc(100vh-32px))]"
-                  >
-                    <div className="flex items-center justify-between border-b px-6 py-4">
-                      <div>
-                        <h2 className="text-xl font-bold text-slate-900">{editingCategory ? "Edit Category" : "Add Category"}</h2>
-                        <p className="text-xs text-slate-500">
-                          Admin categories are approved immediately. Restaurant-created categories can also be updated here.
-                        </p>
-                      </div>
-                      <button onClick={resetModal} className="rounded-lg p-1 hover:bg-slate-100">
-                        <X className="h-5 w-5 text-slate-500" />
-                      </button>
-                    </div>
-
-                    <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-                      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
-
-
-                        <div>
-                          <label className="mb-2 block text-sm font-medium text-slate-700">Diet Scope</label>
-                          <select
-                            value={formData.foodTypeScope}
-                            onChange={(event) => setFormData((prev) => ({ ...prev, foodTypeScope: event.target.value }))}
-                            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-slate-900"
-                          >
-                            <option value="Veg">Veg</option>
-                            <option value="Non-Veg">Non-Veg</option>
-                            <option value="Both">Both</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="mb-2 block text-sm font-medium text-slate-700">Category Type</label>
-                          <input
-                            type="text"
-                            value={formData.type}
-                            onChange={(event) => setFormData((prev) => ({ ...prev, type: event.target.value }))}
-                            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
-                            placeholder="Examples: Starters, Desserts, Drinks"
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          <div>
-                            <label className="mb-2 block text-sm font-medium text-slate-700">Show From (12-hour)</label>
-                            <div className="grid grid-cols-3 gap-2">
-                              <select
-                                value={formData.visibilityStartHour}
-                                onChange={(event) => setFormData((prev) => ({ ...prev, visibilityStartHour: event.target.value }))}
-                                className="rounded-xl border border-slate-300 bg-white px-3 py-3 outline-none focus:border-slate-900"
-                              >
-                                <option value="">HH</option>
-                                {HOURS_12.map((hour) => (
-                                  <option key={`start-hour-${hour}`} value={hour}>
-                                    {hour}
-                                  </option>
-                                ))}
-                              </select>
-                              <select
-                                value={formData.visibilityStartMinute}
-                                onChange={(event) => setFormData((prev) => ({ ...prev, visibilityStartMinute: event.target.value }))}
-                                className="rounded-xl border border-slate-300 bg-white px-3 py-3 outline-none focus:border-slate-900"
-                              >
-                                <option value="">MM</option>
-                                {MINUTES_60.map((minute) => (
-                                  <option key={`start-minute-${minute}`} value={minute}>
-                                    {minute}
-                                  </option>
-                                ))}
-                              </select>
-                              <select
-                                value={formData.visibilityStartMeridiem}
-                                onChange={(event) => setFormData((prev) => ({ ...prev, visibilityStartMeridiem: event.target.value }))}
-                                className="rounded-xl border border-slate-300 bg-white px-3 py-3 outline-none focus:border-slate-900"
-                              >
-                                <option value="AM">AM</option>
-                                <option value="PM">PM</option>
-                              </select>
-                            </div>
-                          </div>
-                          <div>
-                            <label className="mb-2 block text-sm font-medium text-slate-700">Show Till (12-hour)</label>
-                            <div className="grid grid-cols-3 gap-2">
-                              <select
-                                value={formData.visibilityEndHour}
-                                onChange={(event) => setFormData((prev) => ({ ...prev, visibilityEndHour: event.target.value }))}
-                                className="rounded-xl border border-slate-300 bg-white px-3 py-3 outline-none focus:border-slate-900"
-                              >
-                                <option value="">HH</option>
-                                {HOURS_12.map((hour) => (
-                                  <option key={`end-hour-${hour}`} value={hour}>
-                                    {hour}
-                                  </option>
-                                ))}
-                              </select>
-                              <select
-                                value={formData.visibilityEndMinute}
-                                onChange={(event) => setFormData((prev) => ({ ...prev, visibilityEndMinute: event.target.value }))}
-                                className="rounded-xl border border-slate-300 bg-white px-3 py-3 outline-none focus:border-slate-900"
-                              >
-                                <option value="">MM</option>
-                                {MINUTES_60.map((minute) => (
-                                  <option key={`end-minute-${minute}`} value={minute}>
-                                    {minute}
-                                  </option>
-                                ))}
-                              </select>
-                              <select
-                                value={formData.visibilityEndMeridiem}
-                                onChange={(event) => setFormData((prev) => ({ ...prev, visibilityEndMeridiem: event.target.value }))}
-                                className="rounded-xl border border-slate-300 bg-white px-3 py-3 outline-none focus:border-slate-900"
-                              >
-                                <option value="AM">AM</option>
-                                <option value="PM">PM</option>
-                              </select>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="mb-2 block text-sm font-medium text-slate-700">Category Name</label>
-                          <input
-                            type="text"
-                            required
-                            value={formData.name}
-                            onChange={(event) => setFormData((prev) => ({ ...prev, name: event.target.value }))}
-                            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
-                            placeholder="Enter category name"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="mb-2 block text-sm font-medium text-slate-700">Category Image</label>
-                          <div className="space-y-3">
-                            {(imagePreview || formData.image) && (
-                              <div className="relative h-32 w-32 overflow-hidden rounded-2xl border border-slate-300">
-                                <img
-                                  src={imagePreview || formData.image}
-                                  alt="Category preview"
-                                  className="h-full w-full object-cover"
-                                />
-                              </div>
-                            )}
-                            <div className="flex items-center gap-3">
-                              <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/png,image/jpeg,image/jpg,image/webp"
-                                onChange={handleImageSelect}
-                                className="hidden"
-                                id="category-image-upload"
-                              />
-                              <label
-                                htmlFor="category-image-upload"
-                                className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700"
-                              >
-                                <Upload className="h-4 w-4" />
-                                {imagePreview ? "Change Image" : "Upload Image"}
-                              </label>
-                              {uploadingImage && <Loader2 className="h-5 w-5 animate-spin text-brand-600" />}
-                            </div>
-                          </div>
-                        </div>
-
-                        <label className="flex items-center gap-3 text-sm font-medium text-slate-700">
-                          <input
-                            type="checkbox"
-                            checked={formData.status}
-                            onChange={(event) => setFormData((prev) => ({ ...prev, status: event.target.checked }))}
-                            className="h-4 w-4 rounded border-slate-300"
-                          />
-                          Active Status
-                        </label>
-                      </div>
-
-                      <div className="flex items-center gap-3 border-t bg-white px-6 py-4">
-                        <button
-                          type="button"
-                          onClick={resetModal}
-                          className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-slate-700"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          className="flex-1 rounded-xl bg-brand-600 px-4 py-3 text-white"
-                        >
-                          {editingCategory ? "Update" : "Create"}
-                        </button>
-                      </div>
-                    </form>
-                  </motion.div>
-                </div>
-              </div>
-            )}
-          </AnimatePresence>,
-          document.body,
-        )}
     </div>
   )
 }

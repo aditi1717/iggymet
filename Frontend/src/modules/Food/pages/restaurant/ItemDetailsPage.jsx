@@ -710,7 +710,7 @@ export default function ItemDetailsPage() {
       toast.success(
         isNewItem
           ? `Item created successfully with ${imageCount} image(s)`
-          : `Item updated and sent for approval again with ${imageCount} image(s)`
+          : `Item updated successfully with ${imageCount} image(s)`
       )
       await new Promise((resolve) => setTimeout(resolve, 200))
       navigate("/food/restaurant/inventory", { replace: true })

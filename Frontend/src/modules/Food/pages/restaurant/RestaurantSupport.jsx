@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { ChevronLeft, Loader2, Send } from "lucide-react"
 import { restaurantAPI } from "@food/api"
@@ -46,6 +46,8 @@ const getIssueLabel = (value) =>
 export default function RestaurantSupport() {
   const navigate = useNavigate()
   const goBack = useRestaurantBackNavigation()
+  const [searchParams] = useSearchParams()
+  const preSelectedOrderId = searchParams.get("orderId")
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -123,6 +125,22 @@ export default function RestaurantSupport() {
   useEffect(() => {
     loadOrders()
   }, [])
+
+  useEffect(() => {
+    if (preSelectedOrderId && orders.length > 0) {
+      const foundOrder = orders.find(o => 
+        String(o._id) === preSelectedOrderId || 
+        String(o.mongoId) === preSelectedOrderId ||
+        String(o.orderId) === preSelectedOrderId ||
+        String(o.displayOrderId) === preSelectedOrderId
+      )
+      
+      if (foundOrder) {
+        const code = getOrderCode(foundOrder)
+        setForm(prev => ({ ...prev, orderRef: String(code) }))
+      }
+    }
+  }, [preSelectedOrderId, orders])
 
   const handleSubmit = async (e) => {
     e.preventDefault()

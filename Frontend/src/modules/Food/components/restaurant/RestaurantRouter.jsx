@@ -31,8 +31,8 @@ const SettingsPage = lazy(() => import("@food/pages/restaurant/SettingsPage"))
 const PrivacyPolicyPage = lazy(() => import("@food/pages/restaurant/PrivacyPolicyPage"))
 const TermsAndConditionsPage = lazy(() => import("@food/pages/restaurant/TermsAndConditionsPage"))
 const RestaurantConfigPage = lazy(() => import("@food/pages/restaurant/RestaurantConfigPage"))
-const RestaurantCategoriesPage = lazy(() => import("@food/pages/restaurant/RestaurantCategoriesPage"))
 const MenuCategoriesPage = lazy(() => import("@food/pages/restaurant/MenuCategoriesPage"))
+const EditCategoryPage = lazy(() => import("@food/pages/shared/EditCategoryPage"))
 const RestaurantProfile = lazy(() => import("@food/pages/restaurant/RestaurantProfile"))
 const BusinessPlanPage = lazy(() => import("@food/pages/restaurant/BusinessPlanPage"))
 const ConversationListPage = lazy(() => import("@food/pages/restaurant/ConversationListPage"))
@@ -115,8 +115,9 @@ export default function RestaurantRouter() {
         <Route path="privacy" element={<PrivacyPolicyPage />} />
         <Route path="terms" element={<TermsAndConditionsPage />} />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><RestaurantConfigPage /></ProtectedRoute>} path="config" />
-        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><RestaurantCategoriesPage /></ProtectedRoute>} path="categories" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><MenuCategoriesPage /></ProtectedRoute>} path="menu-categories" />
+        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><EditCategoryPage /></ProtectedRoute>} path="menu-categories/new" />
+        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><EditCategoryPage /></ProtectedRoute>} path="menu-categories/:id/edit" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><RestaurantProfile /></ProtectedRoute>} path="profile" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><BusinessPlanPage /></ProtectedRoute>} path="business-plan" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><ConversationListPage /></ProtectedRoute>} path="conversation" />

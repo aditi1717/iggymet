@@ -346,7 +346,7 @@ export default function Feedback() {
             </button>
             <button
               type="button"
-              onClick={() => navigate("/food/restaurant/help-centre/support")}
+              onClick={() => navigate("/food/restaurant/help-centre/support", { state: { backTo: "/food/restaurant/feedback" } })}
               className="p-1 rounded-full hover:bg-gray-100 active:scale-95 transition-all"
               aria-label="Open support"
             >
