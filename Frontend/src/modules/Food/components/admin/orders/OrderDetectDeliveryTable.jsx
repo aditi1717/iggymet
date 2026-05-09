@@ -155,11 +155,11 @@ export default function OrderDetectDeliveryTable({
                     <div className="flex flex-col">
                       <div className="flex items-center gap-1.5 mb-1">
                         <User className="w-3.5 h-3.5 text-slate-500" />
-                        <span className="text-sm font-medium text-slate-700">{order.userName}</span>
+                        <span className="text-sm font-medium text-black">{order.userName}</span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <Phone className="w-3.5 h-3.5 text-slate-500" />
-                        <span className="text-xs text-slate-600">{order.userNumber}</span>
+                        <span className="text-xs text-black font-medium">{order.userNumber}</span>
                       </div>
                     </div>
                   </td>
@@ -175,11 +175,11 @@ export default function OrderDetectDeliveryTable({
                       <div className="flex flex-col">
                         <div className="flex items-center gap-1.5 mb-1">
                           <User className="w-3.5 h-3.5 text-slate-500" />
-                          <span className="text-sm font-medium text-slate-700">{order.deliveryBoyName}</span>
+                          <span className="text-sm font-medium text-black">{order.deliveryBoyName}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <Phone className="w-3.5 h-3.5 text-slate-500" />
-                          <span className="text-xs text-slate-600">{order.deliveryBoyNumber}</span>
+                          <span className="text-xs text-black font-medium">{order.deliveryBoyNumber}</span>
                         </div>
                       </div>
                     ) : (

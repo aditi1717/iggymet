@@ -20,7 +20,7 @@ export default function RestaurantFoodCard({
   showRecommended = false,
   foodImageFallback,
 }) {
-  const isVeg = item?.foodType === "Veg"
+  const isVeg = String(item?.foodType || "").toLowerCase() === "veg"
 
   return (
     <div

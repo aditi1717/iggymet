@@ -141,11 +141,24 @@ const resolveCustomerName = (order = {}) =>
     "Guest",
   );
 
+const resolveCustomerPhone = (order = {}) =>
+  pickFirstText(
+    order?.customerPhone,
+    order?.deliveryAddress?.phone,
+    order?.address?.phone,
+    order?.user?.phone,
+    order?.userId?.phone,
+    order?.customer?.phone,
+    order?.customerInfo?.phone,
+    "",
+  );
+
 const transformOrderForList = (order) => ({
   orderId: order.orderId || order._id,
   mongoId: order._id,
   status: order.status || "pending",
   customerName: resolveCustomerName(order),
+            customerPhone: resolveCustomerPhone(order),
   type: "Home Delivery",
   tableOrToken: null,
   timePlaced: formatOrderDateTime(order.createdAt),
@@ -193,6 +206,7 @@ function CompletedOrders({ onSelectOrder, refreshToken = 0 }) {
             mongoId: order._id,
             status: order.status || "delivered",
             customerName: resolveCustomerName(order),
+            customerPhone: resolveCustomerPhone(order),
             type: "Home Delivery",
             tableOrToken: null,
             timePlaced: formatOrderDateTime(order.createdAt),
@@ -399,6 +413,7 @@ function CancelledOrders({ onSelectOrder, refreshToken = 0 }) {
             mongoId: order._id,
             status: order.status || "cancelled",
             customerName: resolveCustomerName(order),
+            customerPhone: resolveCustomerPhone(order),
             type: "Home Delivery",
             tableOrToken: null,
             timePlaced: formatOrderDateTime(order.createdAt),
@@ -923,6 +938,11 @@ export default function OrdersMain() {
         source?.deliveryPartnerName ||
         previous?.deliveryPartnerName ||
         getDispatchPartnerName(source) ||
+        "",
+      customerPhone:
+        source?.customerPhone ||
+        resolveCustomerPhone(source) ||
+        previous?.customerPhone ||
         "",
     };
   };
@@ -2709,7 +2729,7 @@ export default function OrdersMain() {
                       {(popupOrder || newOrder)?.items?.[0]?.name ||
                         "New Order"}
                     </h4>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-black font-medium mt-1">
                       {(popupOrder || newOrder)?.createdAt
                         ? new Date(
                             (popupOrder || newOrder).createdAt,
@@ -3359,8 +3379,13 @@ export default function OrdersMain() {
                   <p className="text-sm font-semibold text-black">
                     Order #{selectedOrder.orderId}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-black font-medium mt-1">
                     {selectedOrder.customerName}
+                    {selectedOrder.customerPhone && (
+                      <span className="block text-[10px] text-black mt-0.5">
+                        {selectedOrder.customerPhone}
+                      </span>
+                    )}
                   </p>
                   <p className="text-[11px] text-gray-500 mt-1">
                     {selectedOrder.type}
@@ -3528,6 +3553,7 @@ function OrderCard({
   mongoId,
   status,
   customerName,
+  customerPhone,
   type,
   tableOrToken,
   timePlaced,
@@ -3608,6 +3634,7 @@ function OrderCard({
             mongoId,
             status,
             customerName,
+            customerPhone,
             type,
             tableOrToken,
             timePlaced,
@@ -3644,7 +3671,10 @@ function OrderCard({
               <p className="text-sm font-semibold text-black leading-tight">
                 Order #{orderId}
               </p>
-              <p className="text-[11px] text-gray-500 mt-1">{customerName}</p>
+              <p className="text-[11px] text-black font-medium mt-1">{customerName}</p>
+              {customerPhone && (
+                <p className="text-[10px] text-black mt-0.5">{customerPhone}</p>
+              )}
             </div>
 
             <div className="flex flex-col items-end gap-1" style={{ paddingRight: isPreparing && onCancel ? '32px' : '0' }}>
@@ -3767,6 +3797,7 @@ function PreparingOrders({
               mongoId: order._id,
               status: order.status || "preparing",
               customerName: resolveCustomerName(order),
+            customerPhone: resolveCustomerPhone(order),
               type:
                 order.deliveryFleet === "standard"
                   ? "Home Delivery"
@@ -3927,7 +3958,7 @@ function PreparingOrders({
     }
   }, [orders]);
 
-  const handleMarkReady = async ({ orderId, mongoId, customerName }) => {
+  const handleMarkReady = async ({ orderId, mongoId, customerName, customerPhone }) => {
     const orderKey = mongoId || orderId;
     if (!orderKey || markingReadyOrderIds[orderKey]) return;
 
@@ -3938,7 +3969,7 @@ function PreparingOrders({
         prev.filter((order) => (order.mongoId || order.orderId) !== orderKey),
       );
       toast.success(
-        `Order ${orderId} marked ready${customerName ? ` for ${customerName}` : ""}`,
+        `Order ${orderId} marked ready${customerName ? ` for ${customerName}` : ""}${customerPhone ? ` (${customerPhone})` : ""}`,
       );
       onStatusChanged?.();
     } catch (error) {
@@ -4078,6 +4109,7 @@ function ReadyOrders({ onSelectOrder, refreshToken = 0 }) {
             mongoId: order._id,
             status: order.status || "ready",
             customerName: resolveCustomerName(order),
+            customerPhone: resolveCustomerPhone(order),
             type:
               order.deliveryFleet === "standard"
                 ? "Home Delivery"
@@ -4201,6 +4233,7 @@ const OutForDeliveryOrders = ({ onSelectOrder, refreshToken = 0 }) => {
             mongoId: order._id,
             status: order.status || "picked_up",
             customerName: resolveCustomerName(order),
+            customerPhone: resolveCustomerPhone(order),
             type:
               order.deliveryFleet === "standard"
                 ? "Home Delivery"

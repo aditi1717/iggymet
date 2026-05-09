@@ -30,8 +30,7 @@ export default function RestaurantCommission() {
     defaultCommission: {
       type: "percentage",
       value: "10"
-    },
-    notes: ""
+    }
   })
   const [formErrors, setFormErrors] = useState({})
   const [visibleColumns, setVisibleColumns] = useState({
@@ -181,8 +180,7 @@ export default function RestaurantCommission() {
       defaultCommission: {
         type: "percentage",
         value: "10"
-      },
-      notes: ""
+      }
     })
     setFormErrors({})
     setIsRestaurantSelectOpen(true)
@@ -236,8 +234,7 @@ export default function RestaurantCommission() {
           defaultCommission: {
             type: commissionData.defaultCommission?.type || "percentage",
             value: commissionData.defaultCommission?.value?.toString() || "10"
-          },
-          notes: commissionData.notes || ""
+          }
         })
         setFormErrors({})
         setIsAddEditOpen(true)
@@ -307,8 +304,7 @@ export default function RestaurantCommission() {
         defaultCommission: {
           type: formData.defaultCommission.type,
           value: parseFloat(formData.defaultCommission.value)
-        },
-        notes: formData.notes
+        }
       }
 
       if (selectedCommission) {
@@ -602,19 +598,6 @@ export default function RestaurantCommission() {
               </div>
             </div>
 
-            {/* Notes */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Notes <span className="text-slate-400 font-normal">(Optional)</span>
-              </label>
-              <textarea
-                value={formData.notes}
-                onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 resize-none"
-                rows="2"
-                placeholder="Add any notes or remarks..."
-              />
-            </div>
           </div>
           <DialogFooter className="px-6 py-4 border-t border-slate-200 bg-slate-50">
             <button

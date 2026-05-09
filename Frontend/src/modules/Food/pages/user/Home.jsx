@@ -2719,6 +2719,45 @@ export default function Home() {
                               <div className={`absolute bottom-2 left-2 px-2 py-0.5 rounded-lg ${Number(restaurant.rating) > 0 ? "bg-black/80 backdrop-blur-md text-white font-medium" : "bg-gray-200/90 text-gray-600 font-medium"} text-[10px] shadow-lg border border-white/10`}>
                                 {Number(restaurant.rating) > 0 ? Number(restaurant.rating).toFixed(1) : "NEW"}
                               </div>
+                              {/* Favorite Icon for Recommended */}
+                              <div className="absolute top-2 right-2 z-10">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const favorite = isFavorite(restaurantSlug);
+                                    if (favorite) {
+                                      setSelectedRestaurantSlug(restaurantSlug);
+                                      setShowManageCollections(true);
+                                    } else {
+                                      addFavorite({
+                                        slug: restaurantSlug,
+                                        name: restaurant.name,
+                                        cuisine: restaurant.cuisine,
+                                        rating: restaurant.rating,
+                                        deliveryTime: restaurant.deliveryTime,
+                                        distance: restaurant.distance,
+                                        priceRange: restaurant.priceRange,
+                                        image: restaurant.image,
+                                      });
+                                      setShowToast(true);
+                                      setTimeout(() => setShowToast(false), 3000);
+                                    }
+                                  }}
+                                  className={`h-8 w-8 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 ${
+                                    isFavorite(restaurantSlug)
+                                      ? "bg-red-500 text-white"
+                                      : "bg-white/80 backdrop-blur-md text-gray-600 hover:bg-white"
+                                  }`}>
+                                  <Heart
+                                    className={`h-4 w-4 transition-all duration-300 ${
+                                      isFavorite(restaurantSlug) ? "fill-white" : ""
+                                    }`}
+                                  />
+                                </Button>
+                              </div>
                             </div>
                             <div className="p-2.5">
                               <p className={`text-sm font-semibold ${BRAND_THEME.tokens.homepage.shared.title} truncate tracking-tight`}>
@@ -2956,7 +2995,7 @@ export default function Home() {
                                       ? BRAND_THEME.tokens.homepage.home.restaurantCard.bookmarkActive
                                       : BRAND_THEME.tokens.homepage.home.restaurantCard.bookmarkIdle
                                   }`}>
-                                  <Bookmark
+                                  <Heart
                                     className={`h-5 w-5 transition-all duration-300 ${
                                       favorite ? "fill-white" : ""
                                     }`}

@@ -99,6 +99,19 @@ export default function AdminProfile() {
   };
 
   const handleInputChange = (field, value) => {
+    if (field === "name") {
+      // Strictly allow only alphabets and spaces
+      const filteredValue = value.replace(/[^a-zA-Z\s]/g, "");
+      setFormData((prev) => ({ ...prev, [field]: filteredValue }));
+      return;
+    }
+
+    if (field === "phone") {
+      const filteredValue = value.replace(/\D/g, "").slice(0, 10);
+      setFormData((prev) => ({ ...prev, [field]: filteredValue }));
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -157,6 +170,26 @@ export default function AdminProfile() {
     e.preventDefault();
     
     try {
+      // Validation
+      if (!/^[a-zA-Z\s]+$/.test(formData.name)) {
+        toast.error("Full Name should only contain alphabets.");
+        return;
+      }
+
+      const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
+      if (!emailRegex.test(formData.email)) {
+        toast.error("Email should be in proper format (e.g., user@example.com)");
+        return;
+      }
+
+      if (formData.phone) {
+        const phoneRegex = /^\d{10}$/;
+        if (!phoneRegex.test(formData.phone)) {
+          toast.error("Phone number should be exactly 10 digits.");
+          return;
+        }
+      }
+
       const currentPassword = String(passwordData.currentPassword || "").trim();
       const newPassword = String(passwordData.newPassword || "").trim();
       const confirmPassword = String(passwordData.confirmPassword || "").trim();
@@ -438,6 +471,7 @@ export default function AdminProfile() {
                   onChange={(e) => handleInputChange("name", e.target.value)}
                   placeholder="Enter your full name"
                   required
+                  maxLength={50}
                   disabled={!isEditMode || saving || uploading}
                   className={`h-11 ${!isEditMode ? "bg-neutral-50 cursor-not-allowed" : ""}`}
                 />
@@ -472,6 +506,7 @@ export default function AdminProfile() {
                   value={formData.phone}
                   onChange={(e) => handleInputChange("phone", e.target.value)}
                   placeholder="Enter phone number (optional)"
+                  maxLength={10}
                   disabled={!isEditMode || saving || uploading}
                   className={`h-11 ${!isEditMode ? "bg-neutral-50 cursor-not-allowed" : ""}`}
                 />

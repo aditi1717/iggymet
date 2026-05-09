@@ -228,6 +228,41 @@ function RestaurantDetailsContent() {
     setSelectedMenuCategory("all")
   }, [slug])
 
+  // Lock body scroll when any modal/sheet is open
+  useEffect(() => {
+    const isAnySheetOpen = 
+      showFilterSheet || 
+      showMenuSheet || 
+      showLocationSheet || 
+      showScheduleSheet || 
+      showOffersSheet || 
+      showItemDetail || 
+      showMenuOptionsSheet || 
+      showShareModal
+
+    if (isAnySheetOpen) {
+      document.body.style.overflow = "hidden"
+      document.documentElement.style.overflow = "hidden"
+    } else {
+      document.body.style.overflow = "unset"
+      document.documentElement.style.overflow = "unset"
+    }
+
+    return () => {
+      document.body.style.overflow = "unset"
+      document.documentElement.style.overflow = "unset"
+    }
+  }, [
+    showFilterSheet, 
+    showMenuSheet, 
+    showLocationSheet, 
+    showScheduleSheet, 
+    showOffersSheet, 
+    showItemDetail, 
+    showMenuOptionsSheet, 
+    showShareModal
+  ])
+
   // Fetch restaurant data from API
   useEffect(() => {
     const fetchRestaurant = async () => {
@@ -2197,7 +2232,6 @@ function RestaurantDetailsContent() {
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{restaurant?.name || "Unknown Restaurant"}</h1>
-              <Info className="h-5 w-5 text-gray-400" />
             </div>
             <div className="flex flex-col items-end">
               <Badge className="bg-green-600 text-white mb-1 flex items-center gap-1 px-2 py-1">
@@ -2221,7 +2255,6 @@ function RestaurantDetailsContent() {
           >
             <MapPin className="h-4 w-4" />
             <span>{restaurant?.distance || "1.2 km"} • {restaurant?.location || "Location"}</span>
-            <ChevronDown className="h-4 w-4 text-gray-500" />
           </div>
 
           {/* Delivery Time */}
@@ -2318,151 +2351,151 @@ function RestaurantDetailsContent() {
                     <X className="h-3 w-3 text-gray-600" />
                   )}
                 </Button>
-              </div>
 
-              {/* Inline restaurant offers just below filters */}
-              {restaurantItemOffers.length > 0 && (
-                <div className="w-full flex flex-col gap-3">
-                  {restaurantItemOffers.map((offer, idx) => (
-                    <div
-                      key={`rest-offer-banner-${idx}-${offer?._id || offer?.id || offer?.title || "offer"}`}
-                      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                    >
-                      {(() => {
-                        const offerProducts =
-                          Array.isArray(offer?.products) && offer.products.length > 0
-                            ? offer.products.map(p => ({
-                                ...p,
-                                originalPrice: p.price,
-                                discountAmount: offer?.discountValue ?? 0,
-                                discountType: offer?.discountType === "flat-price" ? "Fixed" : "Percent",
-                              }))
-                            : [
-                                {
-                                  id: offer?.productId?._id || offer?.productId || `${idx}-product`,
-                                  name: offer?.productName || offer?.productId?.name || "Offer item",
-                                  image: offer?.productImage || offer?.productId?.image || FOOD_IMAGE_FALLBACK,
-                                  foodType: offer?.productId?.foodType || "Veg",
-                                  preparationTime: offer?.productId?.preparationTime || "",
-                                  description: offer?.productId?.description || "",
-                                  price: offer?.productId?.price ?? null,
-                                  discountedPrice: offer?.productId?.discountedPrice ?? null,
-                                  originalPrice: offer?.productId?.price ?? null,
-                                  discountAmount: offer?.discountValue ?? 0,
-                                  discountType: offer?.discountType === "flat-price" ? "Fixed" : "Percent",
-                                },
-                              ]
-
-                        return (
-                          <div className="space-y-3">
-                            <div>
-                              <p className="text-lg font-bold text-slate-900">
-                                {offer?.title || "Special offer"}
-                              </p>
-                              <p className="mt-1 text-sm text-slate-600">
-                                {offer?.discountType === "flat-price"
-                                  ? `Flat \u20B9${offer?.discountValue || 0} OFF`
-                                  : `${offer?.discountValue || 0}% OFF${offer?.maxDiscount ? ` up to \u20B9${offer.maxDiscount}` : ""}`}
-                              </p>
-                            </div>
-
-                            <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white">
-                              {offerProducts.map((product, productIndex) => (
-                                <RestaurantFoodCard
-                                  key={`${product?.id || product?.name || "offer-product"}-${productIndex}`}
-                                  item={product}
-                                  cardRef={(node) => {
-                                    const productId = product?.id || product?._id
-                                    if (!productId) return
-                                    if (node) {
-                                      dishCardRefs.current[productId] = node
-                                    } else {
-                                      delete dishCardRefs.current[productId]
-                                    }
-                                  }}
-                                  onClick={() => handleItemClick(product)}
-                                  highlighted={highlightedDishId === (product?.id || product?._id)}
-                                  highlightStyle={
-                                    highlightedDishId === (product?.id || product?._id)
-                                      ? {
-                                          boxShadow: `0 0 0 2px ${BRAND_THEME.colors.brand.primary}`,
-                                          borderColor: BRAND_THEME.colors.brand.primary,
-                                        }
-                                      : undefined
-                                  }
-                                  quantity={getDishQuantity(product)}
-                                  formattedPrice={product?.price != null ? getFoodPriceLabel(product) : ""}
-                                  onBookmark={handleBookmarkClick}
-                                  isFavorite={isDishFavorite(product?.id || product?._id, restaurant?.restaurantId || restaurant?._id || restaurant?.id)}
-                                  onShare={handleShareClick}
-                                  onUpdateQuantity={handleCardQuantityUpdate}
-                                  disabled={shouldShowGrayscale}
-                                  showRecommended={isRecommendedItem(product)}
-                                  foodImageFallback={FOOD_IMAGE_FALLBACK}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        )
-                      })()}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {menuCategories.length > 0 && (
-                <div className="flex items-center gap-2 w-max">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMenuCategory("all")}
-                    className={`flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
-                      selectedMenuCategory === "all"
-                        ? "text-white"
-                        : "border-gray-300 bg-white text-gray-700"
-                    }`}
-                    style={selectedMenuCategory === "all" ? { background: BRAND_THEME.gradients.primary, borderColor: BRAND_THEME.colors.brand.primary } : undefined}
-                  >
-                    All
-                  </button>
-                  {menuCategories.map((category) => (
+                {menuCategories.length > 0 && (
+                  <div className="flex items-center gap-2 w-max">
                     <button
-                      key={category.id}
                       type="button"
-                      onClick={() => setSelectedMenuCategory(category.id)}
+                      onClick={() => setSelectedMenuCategory("all")}
                       className={`flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
-                        selectedMenuCategory === category.id
+                        selectedMenuCategory === "all"
                           ? "text-white"
                           : "border-gray-300 bg-white text-gray-700"
                       }`}
-                      style={
-                        selectedMenuCategory === category.id
-                          ? { background: BRAND_THEME.gradients.primary, borderColor: BRAND_THEME.colors.brand.primary }
-                          : undefined
-                      }
+                      style={selectedMenuCategory === "all" ? { background: BRAND_THEME.gradients.primary, borderColor: BRAND_THEME.colors.brand.primary } : undefined}
                     >
-                      {category.image ? (
-                        <img
-                          src={category.image}
-                          alt={category.name}
-                          className="h-6 w-6 rounded-full object-cover border border-white/70 shadow-sm"
-                          onError={(event) => {
-                            event.currentTarget.style.display = "none"
-                          }}
-                        />
-                      ) : (
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-[10px] font-bold uppercase text-gray-500">
-                          {category.name?.charAt(0) || "C"}
-                        </span>
-                      )}
-                      {category.name}
+                      All
                     </button>
-                  ))}
-                </div>
-              )}
-
+                    {menuCategories.map((category) => (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => setSelectedMenuCategory(category.id)}
+                        className={`flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                          selectedMenuCategory === category.id
+                            ? "text-white"
+                            : "border-gray-300 bg-white text-gray-700"
+                        }`}
+                        style={
+                          selectedMenuCategory === category.id
+                            ? { background: BRAND_THEME.gradients.primary, borderColor: BRAND_THEME.colors.brand.primary }
+                            : undefined
+                        }
+                      >
+                        {category.image ? (
+                          <img
+                            src={category.image}
+                            alt={category.name}
+                            className="h-6 w-6 rounded-full object-cover border border-white/70 shadow-sm"
+                            onError={(event) => {
+                              event.currentTarget.style.display = "none"
+                            }}
+                          />
+                        ) : (
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-[10px] font-bold uppercase text-gray-500">
+                            {category.name?.charAt(0) || "C"}
+                          </span>
+                        )}
+                        {category.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+
+          {/* Inline restaurant offers just below filters (outside scroll container) */}
+          {restaurantItemOffers.length > 0 && (
+            <div className="w-full flex flex-col gap-3 px-0">
+              {restaurantItemOffers.map((offer, idx) => (
+                <div
+                  key={`rest-offer-banner-${idx}-${offer?._id || offer?.id || offer?.title || "offer"}`}
+                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                >
+                  {(() => {
+                    const offerProducts =
+                      Array.isArray(offer?.products) && offer.products.length > 0
+                        ? offer.products.map(p => ({
+                            ...p,
+                            foodType: p.foodType || p.productId?.foodType || "Veg",
+                            originalPrice: p.price,
+                            discountAmount: offer?.discountValue ?? 0,
+                            discountType: offer?.discountType === "flat-price" ? "Fixed" : "Percent",
+                          }))
+                        : [
+                            {
+                              id: offer?.productId?._id || offer?.productId || `${idx}-product`,
+                              name: offer?.productName || offer?.productId?.name || "Offer item",
+                              image: offer?.productImage || offer?.productId?.image || FOOD_IMAGE_FALLBACK,
+                              foodType: offer?.productId?.foodType || "Veg",
+                              preparationTime: offer?.productId?.preparationTime || "",
+                              description: offer?.productId?.description || "",
+                              price: offer?.productId?.price ?? null,
+                              discountedPrice: offer?.productId?.discountedPrice ?? null,
+                              originalPrice: offer?.productId?.price ?? null,
+                              discountAmount: offer?.discountValue ?? 0,
+                              discountType: offer?.discountType === "flat-price" ? "Fixed" : "Percent",
+                            },
+                          ]
+
+                    return (
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-lg font-bold text-slate-900">
+                            {offer?.title || "Special offer"}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            {offer?.discountType === "flat-price"
+                              ? `Flat \u20B9${offer?.discountValue || 0} OFF`
+                              : `${offer?.discountValue || 0}% OFF${offer?.maxDiscount ? ` up to \u20B9${offer.maxDiscount}` : ""}`}
+                          </p>
+                        </div>
+
+                        <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white">
+                          {offerProducts.map((product, productIndex) => (
+                            <RestaurantFoodCard
+                              key={`${product?.id || product?.name || "offer-product"}-${productIndex}`}
+                              item={product}
+                              cardRef={(node) => {
+                                const productId = product?.id || product?._id
+                                if (!productId) return
+                                if (node) {
+                                  dishCardRefs.current[productId] = node
+                                } else {
+                                  delete dishCardRefs.current[productId]
+                                }
+                              }}
+                              onClick={() => handleItemClick(product)}
+                              highlighted={highlightedDishId === (product?.id || product?._id)}
+                              highlightStyle={
+                                highlightedDishId === (product?.id || product?._id)
+                                  ? {
+                                      boxShadow: `0 0 0 2px ${BRAND_THEME.colors.brand.primary}`,
+                                      borderColor: BRAND_THEME.colors.brand.primary,
+                                    }
+                                  : undefined
+                              }
+                              quantity={getDishQuantity(product)}
+                              formattedPrice={product?.price != null ? getFoodPriceLabel(product) : ""}
+                              onBookmark={handleBookmarkClick}
+                              isFavorite={isDishFavorite(product?.id || product?._id, restaurant?.restaurantId || restaurant?._id || restaurant?.id)}
+                              onShare={handleShareClick}
+                              onUpdateQuantity={handleCardQuantityUpdate}
+                              disabled={shouldShowGrayscale}
+                              showRecommended={isRecommendedItem(product)}
+                              foodImageFallback={FOOD_IMAGE_FALLBACK}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              ))}
+            </div>
+          )}
+
 
         {/* Menu Items Section */}
         {restaurant?.menuSections && Array.isArray(restaurant.menuSections) && restaurant.menuSections.length > 0 && (
@@ -2714,6 +2747,7 @@ function RestaurantDetailsContent() {
             })}
           </div>
         )}
+        </div>
       </div>
 
       {/* FSSAI License Information - Bottom of page */}
@@ -2986,26 +3020,6 @@ function RestaurantDetailsContent() {
                         <span className="font-medium">Highly reordered</span>
                       </button>
                     </div>
-
-                    {/* Dietary preference */}
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Dietary preference:</h3>
-                      <button
-                        onClick={() =>
-                          setFilters((prev) => ({
-                            ...prev,
-                            spicy: !prev.spicy,
-                          }))
-                        }
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 transition-all w-full ${filters.spicy
-                          ? "border-red-500 dark:border-red-400 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400"
-                          : "border-gray-200 dark:border-gray-700 bg-white dark:bg-[#2a2a2a] text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
-                          }`}
-                      >
-                        <Flame className="h-4 w-4" />
-                        <span className="font-medium">Spicy</span>
-                      </button>
-                    </div>
                   </div>
 
                   {/* Bottom Action Bar */}
@@ -3016,7 +3030,6 @@ function RestaurantDetailsContent() {
                           sortBy: null,
                           vegNonVeg: null,
                           highlyReordered: false,
-                          spicy: false,
                         })
                       }}
                       className="text-red-600 dark:text-red-400 font-medium text-sm hover:text-red-700 dark:hover:text-red-500"

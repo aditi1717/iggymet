@@ -1,7 +1,10 @@
 import { useNavigate, useParams, Link } from "react-router-dom"
 
-import { Download, ArrowLeft, FileText, Printer } from "lucide-react"
+import { Download, ArrowLeft, FileText } from "lucide-react"
 import { useRef, useState, useEffect } from "react"
+import html2canvas from "html2canvas"
+import { jsPDF } from "jspdf"
+import { toast } from "sonner"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import ScrollReveal from "@food/components/user/ScrollReveal"
 import { Card, CardContent } from "@food/components/ui/card"
@@ -9,7 +12,7 @@ import { Button } from "@food/components/ui/button"
 import { Badge } from "@food/components/ui/badge"
 import { orderAPI } from "@food/api"
 import { useOrders } from "@food/context/OrdersContext"
-import { useCompanyName } from "@food/hooks/useCompanyName"
+import { useBusinessSettings } from "@food/hooks/useBusinessSettings"
 import BRAND_THEME from "@/config/brandTheme"
 
 const toMoneyNumber = (value) => {
@@ -135,7 +138,7 @@ const getInvoiceSubtotal = (order) => {
 }
 
 export default function OrderInvoice() {
-  const companyName = useCompanyName()
+  const { companyName, logo } = useBusinessSettings()
   const navigate = useNavigate()
   const { orderId } = useParams()
   const { getOrderById } = useOrders()
@@ -203,91 +206,41 @@ export default function OrderInvoice() {
     })
   }
 
-  const handlePrint = () => {
-    const printWindow = window.open('', '_blank')
-    const printContent = invoiceRef.current.innerHTML
-    const displayOrderId = getOrderDisplayId(order, orderId)
+  const displayOrderId = getOrderDisplayId(order, orderId)
+  
+  const handleDownloadPDF = async () => {
+    if (!invoiceRef.current) return
+    
+    const loadingToast = toast.loading("Generating PDF...")
+    try {
+      // Scroll to top to ensure clean capture
+      window.scrollTo(0, 0)
+      
+      // Wait a tiny bit for any layout shifts
+      await new Promise(resolve => setTimeout(resolve, 100))
 
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Invoice - ${displayOrderId}</title>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              padding: 40px;
-              color: #333;
-            }
-            .invoice-header {
-              border-bottom: 2px solid #EB590E;
-              padding-bottom: 20px;
-              margin-bottom: 30px;
-            }
-            .invoice-title {
-              font-size: 32px;
-              font-weight: bold;
-              color: #EB590E;
-              margin-bottom: 10px;
-            }
-            .invoice-details {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 20px;
-              margin: 30px 0;
-            }
-            .invoice-items {
-              margin: 30px 0;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              margin: 20px 0;
-            }
-            th, td {
-              padding: 12px;
-              text-align: left;
-              border-bottom: 1px solid #ddd;
-            }
-            th {
-              background-color: #fed7aa;
-              font-weight: bold;
-            }
-            .total-section {
-              margin-top: 30px;
-              text-align: right;
-            }
-            .total-row {
-              padding: 10px 0;
-              font-size: 18px;
-            }
-            .grand-total {
-              font-size: 24px;
-              font-weight: bold;
-              color: #EB590E;
-              border-top: 2px solid #EB590E;
-              padding-top: 10px;
-            }
-            @media print {
-              body { margin: 0; padding: 20px; }
-              .no-print { display: none; }
-            }
-          </style>
-        </head>
-        <body>
-          ${printContent}
-        </body>
-      </html>
-    `)
-    printWindow.document.close()
-    printWindow.focus()
-    setTimeout(() => {
-      printWindow.print()
-    }, 250)
-  }
-
-  const handleDownloadPDF = () => {
-    handlePrint()
+      const element = invoiceRef.current
+      const canvas = await html2canvas(element, {
+        scale: 1.5, // Slightly lower scale for better performance/reliability
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+        windowWidth: 1200 // Ensure desktop layout for PDF
+      })
+      
+      const imgData = canvas.toDataURL("image/png")
+      const pdf = new jsPDF("p", "mm", "a4")
+      const imgProps = pdf.getImageProperties(imgData)
+      const pdfWidth = pdf.internal.pageSize.getWidth()
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width
+      
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight)
+      pdf.save(`Invoice-${displayOrderId}.pdf`)
+      toast.success("PDF downloaded successfully", { id: loadingToast })
+    } catch (err) {
+      console.error("PDF generation error:", err)
+      toast.error("Failed to generate PDF. Please try again.", { id: loadingToast })
+    }
   }
 
   const invoiceItems = getInvoiceItems(order)
@@ -346,14 +299,6 @@ export default function OrderInvoice() {
             </div>
             <div className="flex gap-2 no-print">
               <Button
-                variant="outline"
-                onClick={handlePrint}
-                className="flex items-center gap-2 text-xs sm:text-sm h-9 sm:h-10"
-              >
-                <Printer className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Print</span>
-              </Button>
-              <Button
                 onClick={handleDownloadPDF}
                 className="flex items-center gap-2 text-xs sm:text-sm h-9 sm:h-10 text-white"
                 style={{ background: BRAND_THEME.gradients.primary }}
@@ -371,9 +316,18 @@ export default function OrderInvoice() {
             <CardContent className="p-4 sm:p-6 md:p-8 lg:p-10">
               {/* Invoice Header */}
               <div className="invoice-header">
-                <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                  <FileText className="h-6 w-6 sm:h-8 sm:w-8" style={{ color: BRAND_THEME.colors.brand.primary }} />
-                  <h2 className="invoice-title text-xl sm:text-2xl md:text-3xl font-bold" style={{ color: BRAND_THEME.colors.brand.primary }}>INVOICE</h2>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
+                  <div className="flex items-center gap-3">
+                    {logo?.url ? (
+                      <img src={logo.url} alt={companyName} className="h-10 sm:h-12 md:h-16 w-auto object-contain" />
+                    ) : (
+                      <FileText className="h-8 w-8 sm:h-10 sm:w-10" style={{ color: BRAND_THEME.colors.brand.primary }} />
+                    )}
+                    <div>
+                      <h2 className="invoice-title text-xl sm:text-2xl md:text-3xl font-bold leading-tight" style={{ color: BRAND_THEME.colors.brand.primary }}>INVOICE</h2>
+                      <p className="text-xs sm:text-sm text-muted-foreground font-medium uppercase tracking-wider">{companyName}</p>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
                   <div>
@@ -531,14 +485,6 @@ export default function OrderInvoice() {
 
         <ScrollReveal delay={0.2}>
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 no-print">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate(`/food/orders/${encodeURIComponent(String(orderId))}`)}
-              className="flex-1 w-full text-sm sm:text-base h-10 sm:h-11"
-            >
-              Track Order
-            </Button>
             <Button
               type="button"
               variant="outline"
