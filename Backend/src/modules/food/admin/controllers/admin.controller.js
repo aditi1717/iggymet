@@ -373,6 +373,22 @@ export async function updateRestaurantLocation(req, res, next) {
     }
 }
 
+export async function deleteRestaurant(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid restaurant id' });
+        }
+        const result = await adminService.deleteRestaurant(id);
+        if (!result) {
+            return res.status(404).json({ success: false, message: 'Restaurant not found' });
+        }
+        res.status(200).json({ success: true, message: 'Restaurant deleted successfully', data: result });
+    } catch (error) {
+        next(error);
+    }
+}
+
 // ----- Foods -----
 export async function getFoods(req, res, next) {
     try {

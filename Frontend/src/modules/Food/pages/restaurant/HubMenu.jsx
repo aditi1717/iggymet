@@ -1683,7 +1683,7 @@ export default function HubMenu() {
                       <span className="text-sm font-medium text-gray-900">I will turn it on myself</span>
                     </label>
                     <p className="text-xs text-gray-500 ml-8">
-                      This item will not be visible to customers on the Zomato app till you switch it on.
+                      This item will not be visible to customers on the Iggymet app till you switch it on.
                     </p>
                   </div>
                 </div>

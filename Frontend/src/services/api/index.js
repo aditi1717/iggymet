@@ -469,6 +469,10 @@ export const adminAPI = {
       body ?? {},
       { contextModule: "admin" },
     ),
+  deleteRestaurant: (id) =>
+    apiClient.delete(`/food/admin/restaurants/${String(id)}`, {
+      contextModule: "admin",
+    }),
   /** Restaurant menu (admin) */
   getRestaurantMenuById: (id, config = {}) =>
     apiClient.get(`/food/admin/restaurants/${id}/menu`, {

@@ -266,7 +266,7 @@ export const useDeliveryNotifications = () => {
       }
 
       // Get current selected sound preference from localStorage
-      const selectedSound = localStorage.getItem('delivery_alert_sound') || 'zomato_tone';
+      const selectedSound = localStorage.getItem('delivery_alert_sound') || 'iggymet_tone';
       const soundFile = selectedSound === 'original'
         ? resolveAudioSource(originalSound, 'delivery-original')
         : resolveAudioSource(alertSound, 'delivery-alert');
@@ -280,7 +280,7 @@ export const useDeliveryNotifications = () => {
           audioRef.current.pause();
           audioRef.current.src = newSrc;
           audioRef.current.load();
-          debugLog('?? Audio source updated to:', selectedSound === 'original' ? 'Original' : 'Zomato Tone');
+          debugLog('?? Audio source updated to:', selectedSound === 'original' ? 'Original' : 'Iggymet Tone');
         }
       } else {
         // Initialize audio if not exists
@@ -289,7 +289,7 @@ export const useDeliveryNotifications = () => {
         audioRef.current.preload = 'auto';
         audioRef.current.volume = 0.9;
         audioRef.current.load();
-        debugLog('?? Audio initialized with:', selectedSound === 'original' ? 'Original' : 'Zomato Tone', 'Source:', soundFile);
+        debugLog('?? Audio initialized with:', selectedSound === 'original' ? 'Original' : 'Iggymet Tone', 'Source:', soundFile);
       }
       
       if (audioRef.current) {
@@ -539,7 +539,7 @@ export const useDeliveryNotifications = () => {
     const handleUserInteraction = async () => {
       userInteractedRef.current = true;
 
-      const selectedSound = localStorage.getItem('delivery_alert_sound') || 'zomato_tone';
+      const selectedSound = localStorage.getItem('delivery_alert_sound') || 'iggymet_tone';
       const soundFile = selectedSound === 'original'
         ? resolveAudioSource(originalSound, 'delivery-original')
         : resolveAudioSource(alertSound, 'delivery-alert');
@@ -556,7 +556,7 @@ export const useDeliveryNotifications = () => {
           audioRef.current.muted = true;
           // Ensure src is set even if it was just initialized
           if (!audioRef.current.src || audioRef.current.src === window.location.href) {
-             const selectedSound = localStorage.getItem('delivery_alert_sound') || 'zomato_tone';
+             const selectedSound = localStorage.getItem('delivery_alert_sound') || 'iggymet_tone';
              const soundFile = selectedSound === 'original'
                 ? resolveAudioSource(originalSound)
                 : resolveAudioSource(alertSound);
@@ -604,7 +604,7 @@ export const useDeliveryNotifications = () => {
   // Initialize audio on mount - use selected preference from localStorage
   useEffect(() => {
     // Get selected alert sound preference from localStorage
-    const selectedSound = localStorage.getItem('delivery_alert_sound') || 'zomato_tone';
+    const selectedSound = localStorage.getItem('delivery_alert_sound') || 'iggymet_tone';
     const soundFile = selectedSound === 'original'
       ? resolveAudioSource(originalSound, 'delivery-original')
       : resolveAudioSource(alertSound, 'delivery-alert');
@@ -613,7 +613,7 @@ export const useDeliveryNotifications = () => {
       audioRef.current = new Audio(soundFile);
       audioRef.current.preload = 'auto';
       audioRef.current.volume = 0.7;
-      debugLog('?? Audio initialized with:', selectedSound === 'original' ? 'Original' : 'Zomato Tone');
+      debugLog('?? Audio initialized with:', selectedSound === 'original' ? 'Original' : 'Iggymet Tone');
     } else {
       // Update audio source if preference changed
       const currentSrc = audioRef.current.src;
@@ -622,7 +622,7 @@ export const useDeliveryNotifications = () => {
         audioRef.current.pause();
         audioRef.current.src = newSrc;
         audioRef.current.load();
-        debugLog('?? Audio updated to:', selectedSound === 'original' ? 'Original' : 'Zomato Tone');
+        debugLog('?? Audio updated to:', selectedSound === 'original' ? 'Original' : 'Iggymet Tone');
       }
     }
     

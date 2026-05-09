@@ -22,7 +22,7 @@ import { toast } from "sonner"
 import { getCompanyNameAsync } from "@food/utils/businessSettings"
 import { useCompanyName } from "@food/hooks/useCompanyName"
 import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
-import zoopSound from "@food/assets/audio/zomato_sms.mp3"
+import iggymetSound from "@food/assets/audio/iggymet_sms.mp3"
 import BRAND_THEME from "@/config/brandTheme"
 const debugLog = (...args) => { }
 const debugWarn = (...args) => { }
@@ -247,7 +247,7 @@ export default function Cart() {
   })
 
   useEffect(() => {
-    const audio = new Audio(zoopSound)
+    const audio = new Audio(iggymetSound)
     audio.preload = "auto"
     audio.volume = 0.8
     orderSuccessAudioRef.current = audio

@@ -3072,6 +3072,37 @@ export async function updateRestaurantLocation(id, body = {}, adminScope = {}) {
 }
 
 // ----- Categories -----
+export async function deleteRestaurant(id) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+        throw new ValidationError('Invalid restaurant ID');
+    }
+    const deleted = await FoodRestaurant.findByIdAndDelete(id).lean();
+    if (!deleted) return null;
+
+    // Cleanup related data
+    try {
+        await Promise.all([
+            // Delete menu items
+            FoodItem.deleteMany({ restaurantId: id }),
+            // Delete addons
+            FoodAddon.deleteMany({ restaurantId: id }),
+            // Delete timings (if they are in a separate collection, check outletTimings.service.js)
+            // Looking at the code, timings are managed via outletTimings.service.js which uses FoodRestaurantOutletTiming model
+        ]);
+        
+        // Let's check the timing model name to be sure
+        const TimingModel = mongoose.model('FoodRestaurantOutletTiming');
+        if (TimingModel) {
+            await TimingModel.deleteMany({ restaurantId: id });
+        }
+    } catch (error) {
+        console.error('Error cleaning up restaurant data:', error);
+        // We still return the deleted restaurant ID as the main document is gone
+    }
+
+    return { id };
+}
+
 export async function getCategories(query) {
     const limit = Math.min(Math.max(parseInt(query.limit, 10) || 100, 1), 1000);
     const page = Math.max(parseInt(query.page, 10) || 1, 1);
