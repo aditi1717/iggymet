@@ -315,6 +315,7 @@ const orderSchema = new mongoose.Schema(
         },
         note: { type: String, default: '', trim: true },
         restaurantNote: { type: String, default: '', trim: true },
+        cancellationReason: { type: String, default: '', trim: true },
         sendCutlery: { type: Boolean, default: true },
         deliveryFleet: { type: String, default: 'standard', trim: true },
         scheduledAt: { type: Date, default: null },

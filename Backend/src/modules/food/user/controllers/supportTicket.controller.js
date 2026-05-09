@@ -29,17 +29,17 @@ export async function createSupportTicketController(req, res, next) {
             const { FoodOrder } = await import('../../orders/models/order.model.js');
             const order = mongoose.Types.ObjectId.isValid(rawOrderId)
                 ? await FoodOrder.findOne({
-                      _id: new mongoose.Types.ObjectId(rawOrderId),
-                      userId: new mongoose.Types.ObjectId(userId)
-                  })
-                      .select('_id restaurantId')
-                      .lean()
+                    _id: new mongoose.Types.ObjectId(rawOrderId),
+                    userId: new mongoose.Types.ObjectId(userId)
+                })
+                    .select('_id restaurantId')
+                    .lean()
                 : await FoodOrder.findOne({
-                      orderId: rawOrderId,
-                      userId: new mongoose.Types.ObjectId(userId)
-                  })
-                      .select('_id restaurantId')
-                      .lean();
+                    orderId: rawOrderId,
+                    userId: new mongoose.Types.ObjectId(userId)
+                })
+                    .select('_id restaurantId')
+                    .lean();
 
             if (!order?._id) {
                 return sendError(res, 400, 'orderId required');

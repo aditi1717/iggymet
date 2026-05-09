@@ -3307,27 +3307,6 @@ function RestaurantDetailsContent() {
                         <span className="text-sm text-gray-400">No image available</span>
                       </div>
                     )}
-                    {/* Bookmark and Share Icons Overlay */}
-                    <div className="absolute bottom-4 right-4 flex items-center gap-3">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleBookmarkClick(selectedItem)
-                        }}
-                        className={`h-10 w-10 rounded-full border flex items-center justify-center transition-all duration-300 ${isDishFavorite(selectedItem.id, restaurant?.restaurantId || restaurant?._id || restaurant?.id)
-                          ? "border-red-500 dark:border-red-400 bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-400"
-                          : "border-white dark:border-gray-800 bg-white/90 dark:bg-[#1a1a1a]/90 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-[#2a2a2a]"
-                          }`}
-                      >
-                        <Bookmark
-                          className={`h-5 w-5 transition-all duration-300 ${isDishFavorite(selectedItem.id, restaurant?.restaurantId || restaurant?._id || restaurant?.id) ? "fill-red-500 dark:fill-red-400" : ""
-                            }`}
-                        />
-                      </button>
-                      <button className="h-10 w-10 rounded-full border border-white dark:border-gray-800 bg-white/90 dark:bg-[#1a1a1a]/90 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-[#2a2a2a] flex items-center justify-center transition-colors">
-                        <Share2 className="h-5 w-5" />
-                      </button>
-                    </div>
                   </div>
 
                   {/* Content Section */}
@@ -3335,9 +3314,15 @@ function RestaurantDetailsContent() {
                     {/* Item Name and Indicator */}
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2 flex-1">
-                        <div className="h-5 w-5 rounded border-2 border-red-600 dark:border-red-500 bg-red-50 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
-                          <div className="h-2.5 w-2.5 rounded-full bg-red-600 dark:bg-red-500" />
-                        </div>
+                        {isItemVeg(selectedItem) ? (
+                          <div className="h-5 w-5 rounded border-2 border-green-600 dark:border-green-500 bg-green-50 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+                            <div className="h-2.5 w-2.5 rounded-full bg-green-600 dark:bg-green-500" />
+                          </div>
+                        ) : (
+                          <div className="h-5 w-5 rounded border-2 border-red-600 dark:border-red-500 bg-red-50 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
+                            <div className="h-2.5 w-2.5 rounded-full bg-red-600 dark:bg-red-500" />
+                          </div>
+                        )}
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                           {selectedItem.name}
                         </h2>

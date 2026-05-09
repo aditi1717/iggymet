@@ -406,6 +406,11 @@ export default function UserOrderDetails() {
                 ? "Order was delivered"
                 : "Order status: " + (order.status || "Processing")}
             </h2>
+            {order.status && String(order.status).toLowerCase().includes("cancel") && order.cancellationReason && (
+              <p className="text-red-600 text-xs mt-1 font-medium italic">
+                Reason: {order.cancellationReason}
+              </p>
+            )}
           </div>
         </div>
 

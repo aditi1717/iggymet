@@ -407,7 +407,8 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
         }
       }
       return merged
-    })()
+    })(),
+    cancellationReason: apiOrder?.cancellationReason || previousOrder?.cancellationReason || null
   }
 }
 
@@ -1292,7 +1293,7 @@ export default function OrderTracking() {
     },
     cancelled: {
       title: "Order cancelled",
-      subtitle: "This order has been cancelled",
+      subtitle: order?.cancellationReason ? `Reason: ${order.cancellationReason}` : "This order has been cancelled",
       color: "bg-red-600",
       iconType: 'cancelled'
     }
@@ -1488,20 +1489,22 @@ export default function OrderTracking() {
         )}
 
         {/* Delivery Partner Safety */}
-        <motion.button
-          onClick={() => navigate("/food/profile/delivery-safety")}
-          className="w-full bg-white rounded-xl p-4 shadow-sm flex items-center gap-3"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          whileTap={{ scale: 0.99 }}
-        >
-          <Shield className="w-6 h-6 text-gray-600" />
-          <span className="flex-1 text-left font-medium text-gray-900">
-            Learn about delivery partner safety
-          </span>
-          <ChevronRight className="w-5 h-5 text-gray-400" />
-        </motion.button>
+        {!isDeliveredOrder && orderStatus !== "cancelled" && (
+          <motion.button
+            onClick={() => navigate("/food/profile/delivery-safety")}
+            className="w-full bg-white rounded-xl p-4 shadow-sm flex items-center gap-3"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            whileTap={{ scale: 0.99 }}
+          >
+            <Shield className="w-6 h-6 text-gray-600" />
+            <span className="flex-1 text-left font-medium text-gray-900">
+              Learn about delivery partner safety
+            </span>
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          </motion.button>
+        )}
 
         {/* Delivery Details Banner */}
         <motion.div
@@ -1984,4 +1987,3 @@ export default function OrderTracking() {
     </div>
   )
 }
-

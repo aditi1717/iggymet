@@ -1798,6 +1798,7 @@ export async function cancelOrder(orderId, userId, reason) {
 
   const from = order.orderStatus;
   order.orderStatus = "cancelled_by_user";
+  order.cancellationReason = reason || "";
   pushStatusHistory(order, {
     byRole: "USER",
     byId: userId,
@@ -2085,11 +2086,11 @@ export async function listOrdersRestaurant(restaurantId, query) {
   return buildPaginatedResult({ docs: docsWithMeta, total, page, limit });
 }
 
-export async function updateOrderStatusRestaurant(
-  orderId,
-  restaurantId,
-  orderStatus,
-) {
+export async function updateOrderStatusRestaurant(orderId, restaurantId, orderStatus, reason = "") {
+
+
+
+
   let order = await FoodOrder.findOne({
     _id: new mongoose.Types.ObjectId(orderId),
     restaurantId: new mongoose.Types.ObjectId(restaurantId),
@@ -2097,11 +2098,15 @@ export async function updateOrderStatusRestaurant(
   if (!order) throw new NotFoundError("Order not found");
   const from = order.orderStatus;
   order.orderStatus = orderStatus;
+  if (String(orderStatus).includes("cancel")) {
+    order.cancellationReason = reason || "";
+  }
   pushStatusHistory(order, {
     byRole: "RESTAURANT",
     byId: restaurantId,
     from,
     to: orderStatus,
+    note: reason || "",
   });
   await order.save();
 
@@ -2383,6 +2388,9 @@ export async function updateOrderStatusAdmin(
   if (from === normalizedStatus) return order.toObject();
 
   order.orderStatus = normalizedStatus;
+  if (normalizedStatus.includes("cancel")) {
+    order.cancellationReason = reason || "";
+  }
   if (normalizedStatus === "cancelled_by_user_unavailable") {
     order.payment.status = "paid";
     order.deliveryState = {
