@@ -42,7 +42,7 @@ export default function RestaurantFoodCard({
               <div className="w-2 h-2 bg-red-600 rounded-full" />
             </div>
           )}
-          {item?.isSpicy && <span className="text-xs font-semibold text-red-500">Spicy</span>}
+
         </div>
 
         <h3 className="font-bold text-gray-800 dark:text-white text-lg leading-tight">

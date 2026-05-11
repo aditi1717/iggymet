@@ -1121,7 +1121,7 @@ export default function ExploreMore() {
                 damping: 30,
                 stiffness: 300
               }}
-              className="fixed top-0 left-0 right-0 bg-white shadow-lg z-50 h-screen"
+              className="fixed inset-0 bg-white z-[100] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Search Header */}
@@ -1139,12 +1139,13 @@ export default function ExploreMore() {
                 <div className="flex-1 relative">
                   <input
                     type="text"
-                    placeholder="Search features..."
+                    placeholder="Search..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     autoFocus
-                    className="w-full px-4 py-2 pr-10 bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-gray-900 placeholder-gray-500"
+                    className="w-full pl-9 pr-10 py-2.5 bg-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 text-gray-900 placeholder-gray-500 text-base tracking-tight"
                   />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   {searchQuery && (
                     <button
                       onClick={() => setSearchQuery("")}
@@ -1158,7 +1159,7 @@ export default function ExploreMore() {
               </div>
 
               {/* Search Results */}
-              <div className="max-h-[70vh] overflow-y-auto">
+              <div className="flex-1 overflow-y-auto pb-32">
                 {searchQuery.trim() ? (
                   getFilteredSections().length > 0 ? (
                     <div className="px-4 py-4">

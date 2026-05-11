@@ -18,7 +18,7 @@ export default function StickyCartCard() {
       if (window.innerWidth >= 768) {
         setBottomPosition("bottom-6") // Desktop: fixed position
       } else {
-        setBottomPosition("bottom-[70px]") // Mobile: above bottom nav (fixed, doesn't move with scroll)
+        setBottomPosition("bottom-[100px]") // Mobile: above bottom nav (fixed, doesn't move with scroll)
       }
     }
 
@@ -28,7 +28,7 @@ export default function StickyCartCard() {
       if (window.innerWidth >= 768) {
         setBottomPosition("bottom-6") // Desktop: always fixed
       } else {
-        setBottomPosition("bottom-[70px]") // Mobile: above bottom nav (fixed)
+        setBottomPosition("bottom-[100px]") // Mobile: above bottom nav (fixed)
       }
     }
 

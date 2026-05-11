@@ -175,7 +175,6 @@ function RestaurantDetailsContent() {
         sortBy: null,
         vegNonVeg: null,
         highlyReordered: false,
-        spicy: false,
       }
     }
     try {
@@ -194,7 +193,6 @@ function RestaurantDetailsContent() {
                 ? savedFilters.vegNonVeg
                 : null,
             highlyReordered: savedFilters.highlyReordered === true,
-            spicy: savedFilters.spicy === true,
           }
         }
       }
@@ -205,7 +203,6 @@ function RestaurantDetailsContent() {
       sortBy: null,
       vegNonVeg: null,
       highlyReordered: false,
-      spicy: false,
     }
   })
 
@@ -850,7 +847,6 @@ function RestaurantDetailsContent() {
                       variations: getFoodVariants(item),
                       isAvailable: item.isAvailable !== false,
                       isRecommended,
-                      isSpicy,
                      description: typeof item.description === "string" ? item.description : "",
                    }
                  }
@@ -1295,6 +1291,7 @@ function RestaurantDetailsContent() {
       restaurantId: validRestaurantId, // Use validated restaurantId
       description: item.description,
       originalPrice: item.originalPrice,
+      foodType: item.foodType, // Pass foodType property
       isVeg: isItemVeg(item), // Add isVeg property
       preparationTime: item.preparationTime // Add preparationTime property
     }
@@ -1473,7 +1470,6 @@ function RestaurantDetailsContent() {
     if (filters.sortBy) count++
     if (filters.vegNonVeg) count++
     if (filters.highlyReordered) count++
-    if (filters.spicy) count++
     return count
   }
 
@@ -1534,7 +1530,6 @@ function RestaurantDetailsContent() {
         restaurantName: restaurant?.name || "",
         restaurantSlug: restaurant?.slug || slug || "",
         foodType: item.foodType,
-        isSpicy: item.isSpicy,
         customisable: item.customisable,
       }
       addDishFavorite(dishData)
@@ -1802,8 +1797,6 @@ function RestaurantDetailsContent() {
       }
 
       if (filters.highlyReordered && !isRecommendedItem(item)) return false
-      if (filters.spicy && item.isSpicy !== true) return false
-
       return true
     })
   }
@@ -1981,8 +1974,7 @@ function RestaurantDetailsContent() {
     vegMode === true ||
     filters.sortBy ||
     filters.vegNonVeg ||
-    filters.highlyReordered ||
-    filters.spicy
+    filters.highlyReordered
   )
 
   const filteredSections = useMemo(

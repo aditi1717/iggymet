@@ -167,7 +167,7 @@ export default function HomeHeader({
   return (
     <motion.div
       className={`relative overflow-hidden transition-all duration-700 ${
-        isFood ? (compact ? "min-h-[96px]" : "min-h-[450px]") : "min-h-[90px]"
+        isFood ? (compact || !bannerContent ? "min-h-[110px]" : "min-h-[450px]") : "min-h-[90px]"
       }`}
       style={{
         background: isFood ? stickyFoodBackground : theme.topBg,

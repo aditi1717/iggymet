@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom"
-import { useMemo } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import {
   FileText,
@@ -63,19 +63,52 @@ export default function BottomNavOrders() {
     ? "/food/restaurant"
     : "/restaurant"
 
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false)
+
+  useEffect(() => {
+    const handleResize = () => {
+      // Threshold to detect keyboard: if height decreases by more than 150px
+      const isVisible = window.innerHeight < window.screen.height - 150
+      setIsKeyboardVisible(isVisible)
+    }
+
+    // Better detection for some mobile browsers
+    const handleFocus = (e) => {
+      const tagName = e.target.tagName.toLowerCase()
+      if (tagName === 'input' || tagName === 'textarea' || e.target.isContentEditable) {
+        setIsKeyboardVisible(true)
+      }
+    }
+    const handleBlur = () => {
+      setIsKeyboardVisible(false)
+    }
+
+    window.addEventListener("resize", handleResize)
+    window.addEventListener("focusin", handleFocus)
+    window.addEventListener("focusout", handleBlur)
+    
+    return () => {
+      window.removeEventListener("resize", handleResize)
+      window.removeEventListener("focusin", handleFocus)
+      window.removeEventListener("focusout", handleBlur)
+    }
+  }, [])
+
   const tabs = useMemo(() => getOrdersTabs(basePath), [basePath])
 
   const isInternalPage = pathname.includes("/create-offers")
-  if (isInternalPage) {
-    return null
-  }
-
   const activeTab = useMemo(() => {
     const match = findActiveTab(tabs, pathname)
     if (match?.id) return match.id
     if (isExploreContextPath(pathname, state)) return "explore"
     return "orders"
   }, [tabs, pathname, state])
+
+  const isExplorePage = pathname.includes("/explore")
+
+  if (isInternalPage || (isKeyboardVisible && !isExplorePage)) {
+    return null
+  }
 
   const handleTabClick = (tab) => {
     if (tab.route && tab.route !== pathname) {

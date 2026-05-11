@@ -19,6 +19,7 @@ import { restaurantAPI, adminAPI } from "@food/api"
 import { isModuleAuthenticated } from "@food/utils/auth"
 import { flattenMenuItems, getMenuFromResponse } from "@food/utils/menuItems"
 import { calculateDistance, formatDistance } from "@food/utils/common"
+import { hasFoodVariants, getFoodVariants, buildCartLineId } from "@food/utils/foodVariants"
 import BRAND_THEME from "@/config/brandTheme"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -96,11 +97,11 @@ export default function Under250() {
   const [under30MinsFilter, setUnder30MinsFilter] = useState(initialFiltersRef.current.under30MinsFilter)
   const [showItemDetail, setShowItemDetail] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
+  const [selectedVariantId, setSelectedVariantId] = useState(null)
   const [itemDetailQuantity, setItemDetailQuantity] = useState(1)
   const [showShareOptions, setShowShareOptions] = useState(false)
   const [quantities, setQuantities] = useState({})
   const [bookmarkedItems, setBookmarkedItems] = useState(new Set())
-  const [viewCartButtonBottom, setViewCartButtonBottom] = useState("bottom-20")
   const lastScrollY = useRef(0)
   const scrollLockYRef = useRef(0)
   const itemDetailContentRef = useRef(null)
@@ -200,12 +201,15 @@ export default function Under250() {
 
     if (isAnyModalOpen) {
       document.body.style.overflow = "hidden"
+      document.documentElement.style.overflow = "hidden"
     } else {
       document.body.style.overflow = ""
+      document.documentElement.style.overflow = ""
     }
 
     return () => {
       document.body.style.overflow = ""
+      document.documentElement.style.overflow = ""
     }
   }, [
     showSortPopup,
@@ -214,6 +218,20 @@ export default function Under250() {
     showVegModePopup,
     showSwitchOffPopup,
   ])
+
+  const shouldShowGrayscale = isOutOfService
+
+  const getVariantForDish = (item, preferredVariantId = "") => {
+    const variants = getFoodVariants(item)
+    if (variants.length === 0) return null
+    return variants.find((variant) => String(variant.id) === String(preferredVariantId || "")) || variants[0]
+  }
+
+  const getDishQuantity = (item, preferredVariantId = "") => {
+    const variant = getVariantForDish(item, preferredVariantId)
+    const lineItemId = variant ? buildCartLineId(item.id, variant.id) : item.id
+    return quantities[lineItemId] || 0
+  }
 
   // Helper function to parse delivery time (e.g., "12-15 mins" -> 12 or average)
   const parseDeliveryTime = (deliveryTime) => {
@@ -267,9 +285,9 @@ export default function Under250() {
         const catNameLower = selectedCat.name.toLowerCase()
         filtered = filtered.map(restaurant => {
           const matches = restaurant.menuItems.filter(item => 
-            (item.category || "").toLowerCase() === catNameLower ||
-            (item.sectionName || "").toLowerCase() === catNameLower ||
-            (item.subsectionName || "").toLowerCase() === catNameLower
+            (item.category || "").toLowerCase().includes(catNameLower) ||
+            (item.sectionName || "").toLowerCase().includes(catNameLower) ||
+            (item.subsectionName || "").toLowerCase().includes(catNameLower)
           )
           if (matches.length > 0) {
             return { ...restaurant, menuItems: matches }
@@ -669,32 +687,6 @@ export default function Under250() {
     )
   }, [selectedSort, activeCategory, under30MinsFilter])
 
-  // Scroll detection for view cart button positioning
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY
-      const scrollDifference = Math.abs(currentScrollY - lastScrollY.current)
-
-      // Only update if scroll difference is significant (avoid flickering)
-      if (scrollDifference < 5) {
-        return
-      }
-
-      // Scroll down -> bottom-0, Scroll up -> bottom-20
-      if (currentScrollY > lastScrollY.current) {
-        // Scrolling down
-        setViewCartButtonBottom("bottom-0")
-      } else if (currentScrollY < lastScrollY.current) {
-        // Scrolling up
-        setViewCartButtonBottom("bottom-20")
-      }
-
-      lastScrollY.current = currentScrollY
-    }
-
-    window.addEventListener("scroll", handleScroll, { passive: true })
-    return () => window.removeEventListener("scroll", handleScroll)
-  }, [])
 
   useEffect(() => {
     const handleBannerScroll = () => {
@@ -730,7 +722,7 @@ export default function Under250() {
   }, [])
 
   // Helper function to update item quantity in bothlocal state and cart
-  const updateItemQuantity = (item, newQuantity, event = null, restaurantName = null) => {
+  const updateItemQuantity = (item, newQuantity, event = null, variant = null, restaurantName = null) => {
     // Check authentication
     if (!isModuleAuthenticated('user')) {
       toast.error("Please login to add items to cart")
@@ -755,14 +747,20 @@ export default function Under250() {
 
     // Prepare cart item with all required properties
     const cartItem = {
-      id: item.id,
-      name: item.name,
-      price: item.price,
+      id: variant ? buildCartLineId(item.id, variant.id) : item.id,
+      itemId: item.id,
+      name: variant ? `${item.name} (${variant.name})` : item.name,
+      price: variant ? variant.price : item.price,
       image: item.image,
       restaurant: restaurant,
       description: item.description || "",
-      originalPrice: item.originalPrice || item.price,
+      originalPrice: item.originalPrice || (variant ? variant.price : item.price),
+      foodType: item.foodType,
+      isVeg: item.isVeg,
+      variant: variant ? { id: variant.id, name: variant.name, price: variant.price } : null,
     }
+
+    const cartLineId = cartItem.id
 
     // Get source position for animation from event target
     let sourcePosition = null
@@ -790,17 +788,17 @@ export default function Under250() {
     // Update cart context
     if (newQuantity <= 0) {
       const productInfo = {
-        id: item.id,
-        name: item.name,
+        id: cartLineId,
+        name: cartItem.name,
         imageUrl: item.image,
       }
-      removeFromCart(item.id, sourcePosition, productInfo)
+      removeFromCart(cartLineId, sourcePosition, productInfo)
     } else {
-      const existingCartItem = getCartItem(item.id)
+      const existingCartItem = getCartItem(cartLineId)
       if (existingCartItem) {
         const productInfo = {
-          id: item.id,
-          name: item.name,
+          id: cartLineId,
+          name: cartItem.name,
           imageUrl: item.image,
         }
 
@@ -811,12 +809,12 @@ export default function Under250() {
             return
           }
           if (newQuantity > existingCartItem.quantity + 1) {
-            updateQuantity(item.id, newQuantity)
+            updateQuantity(cartLineId, newQuantity)
           }
         } else if (newQuantity < existingCartItem.quantity && sourcePosition) {
-          updateQuantity(item.id, newQuantity, sourcePosition, productInfo)
+          updateQuantity(cartLineId, newQuantity, sourcePosition, productInfo)
         } else {
-          updateQuantity(item.id, newQuantity)
+          updateQuantity(cartLineId, newQuantity)
         }
       } else {
         const result = addToCart(cartItem, sourcePosition)
@@ -825,7 +823,7 @@ export default function Under250() {
           return
         }
         if (newQuantity > 1) {
-          updateQuantity(item.id, newQuantity)
+          updateQuantity(cartLineId, newQuantity)
         }
       }
     }
@@ -843,11 +841,17 @@ export default function Under250() {
       restaurant: restaurant.name,
       restaurantSlug: restaurant.slug || restaurant.restaurantId || "",
       description: item.description || `${item.name} from ${restaurant.name}`,
-      customisable: item.customisable || false,
+      customisable: item.customisable || hasFoodVariants(item),
       notEligibleForCoupons: item.notEligibleForCoupons || false,
     }
-    const existingQuantity = quantities[item.id] || 0
-    setItemDetailQuantity(existingQuantity > 0 ? existingQuantity : 1)
+    
+    const variants = getFoodVariants(item)
+    const initialVariantId = variants.length > 0 ? variants[0].id : null
+    setSelectedVariantId(initialVariantId)
+    
+    const qty = getDishQuantity(item, initialVariantId)
+    setItemDetailQuantity(qty > 0 ? qty : 1)
+    
     setSelectedItem(itemWithRestaurant)
     setShowShareOptions(false)
     setShowItemDetail(true)
@@ -952,7 +956,6 @@ export default function Under250() {
   }
 
   // Check if should show grayscale (only when user is out of service)
-  const shouldShowGrayscale = isOutOfService
 
   return (
 
@@ -1002,7 +1005,7 @@ export default function Under250() {
       />
 
       {/* Content Section */}
-      <div className="relative max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 space-y-0 pt-2 sm:pt-3 md:pt-4 lg:pt-6 pb-6 md:pb-8 lg:pb-10">
+      <div className="relative max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 space-y-0 pt-0 pb-24">
 
         <section className="space-y-1 sm:space-y-1.5">
           <div
@@ -1159,7 +1162,10 @@ export default function Under250() {
                       }}
                     >
                       {restaurant.menuItems.map((item, itemIndex) => {
-                        const quantity = quantities[item.id] || 0
+                        const variants = getFoodVariants(item)
+                        const totalQuantity = variants.length > 0 
+                          ? variants.reduce((sum, v) => sum + (quantities[buildCartLineId(item.id, v.id)] || 0), 0)
+                          : (quantities[item.id] || 0)
                         return (
                           <motion.div
                             key={item.id}
@@ -1229,7 +1235,7 @@ export default function Under250() {
                                     <p className="text-xs md:text-sm lg:text-base text-gray-500 dark:text-gray-400">Best price</p>
                                   )}
                                 </div>
-                                {quantity > 0 ? (
+                                {totalQuantity > 0 ? (
                                   <Link to="/food/user/cart" onClick={(e) => e.stopPropagation()}>
                                     <Button
                                       variant={"outline"}
@@ -1429,34 +1435,8 @@ export default function Under250() {
                   priority={true}
                   placeholder="blur"
                 />
-                {/* Bookmark and Share Icons Overlay */}
-                <div className="absolute bottom-4 right-4 flex items-center gap-3">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleBookmarkClick(selectedItem.id)
-                    }}
-                    className={`h-10 w-10 rounded-full border flex items-center justify-center transition-all duration-300 ${bookmarkedItems.has(selectedItem.id)
-                      ? "border-red-500 bg-red-50 text-red-500"
-                      : "border-white bg-white/90 text-gray-600 hover:bg-white"
-                      }`}
-                  >
-                    <Bookmark
-                      className={`h-5 w-5 transition-all duration-300 ${bookmarkedItems.has(selectedItem.id) ? "fill-red-500" : ""
-                        }`}
-                    />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleShareItem(selectedItem)
-                    }}
-                    className="h-10 w-10 rounded-full border border-white bg-white/90 text-gray-600 hover:bg-white flex items-center justify-center transition-colors"
-                  >
-                    <Share2 className="h-5 w-5" />
-                  </button>
+                 {/* Bookmark and Share Icons Overlay */}
                 </div>
-              </div>
 
               {/* Content Section */}
               <div
@@ -1474,33 +1454,6 @@ export default function Under250() {
                     <h2 className="text-xl md:text-2xl lg:text-3xl xl:text-4xl font-bold text-gray-900 dark:text-white">
                       {selectedItem.name}
                     </h2>
-                  </div>
-                  {/* Bookmark and Share Icons (Desktop) */}
-                  <div className="hidden md:flex items-center gap-2 lg:gap-3">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleBookmarkClick(selectedItem.id)
-                      }}
-                      className={`h-8 w-8 lg:h-10 lg:w-10 rounded-full border flex items-center justify-center transition-all duration-300 ${bookmarkedItems.has(selectedItem.id)
-                        ? "border-red-500 bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400"
-                        : "border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
-                        }`}
-                    >
-                      <Bookmark
-                        className={`h-4 w-4 lg:h-5 lg:w-5 transition-all duration-300 ${bookmarkedItems.has(selectedItem.id) ? "fill-red-500 dark:fill-red-400" : ""
-                          }`}
-                      />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleShareItem(selectedItem)
-                      }}
-                      className="h-8 w-8 lg:h-10 lg:w-10 rounded-full border border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 flex items-center justify-center transition-colors"
-                    >
-                      <Share2 className="h-4 w-4 lg:h-5 lg:w-5" />
-                    </button>
                   </div>
                 </div>
 
@@ -1526,6 +1479,38 @@ export default function Under250() {
                   <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-4">
                     NOT ELIGIBLE FOR COUPONS
                   </p>
+                )}
+
+                {/* Variants Selection */}
+                {hasFoodVariants(selectedItem) && (
+                  <div className="mb-6">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Choose a variant</p>
+                    <div className="flex flex-wrap gap-2">
+                      {getFoodVariants(selectedItem).map((variant) => (
+                        <button
+                          key={variant.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedVariantId(variant.id)
+                            const qty = getDishQuantity(selectedItem, variant.id)
+                            setItemDetailQuantity(qty > 0 ? qty : 1)
+                          }}
+                          className={`rounded-full border px-4 py-2 text-sm font-medium transition-all ${
+                            String(selectedVariantId || "") === String(variant.id)
+                              ? "shadow-sm"
+                              : "border-gray-200 bg-white text-gray-700 dark:border-gray-700 dark:bg-[#2a2a2a] dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
+                          }`}
+                          style={
+                            String(selectedVariantId || "") === String(variant.id)
+                              ? { borderColor: BRAND_THEME.colors.brand.primary, backgroundColor: `${BRAND_THEME.colors.brand.primary}14`, color: BRAND_THEME.colors.brand.primary }
+                              : undefined
+                          }
+                        >
+                          {variant.name} · {RUPEE_SYMBOL}{Math.round(variant.price)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -1577,13 +1562,19 @@ export default function Under250() {
 
                   {/* Add Item Button */}
                   <Button
-                    className={`flex-1 h-[44px] md:h-[50px] lg:h-[56px] rounded-lg md:rounded-xl font-semibold flex items-center justify-center gap-2 text-sm md:text-base lg:text-lg ${shouldShowGrayscale
+                    className={`flex-1 h-[44px] md:h-[50px] lg:h-[56px] rounded-lg md:rounded-xl font-semibold flex items-center justify-center gap-2 text-sm md:text-base lg:text-lg transition-all ${shouldShowGrayscale
                       ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-600 cursor-not-allowed opacity-50'
-                      : 'bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700 text-white'
+                      : 'text-white shadow-lg active:scale-[0.98]'
                       }`}
+                    style={
+                      shouldShowGrayscale
+                        ? undefined
+                        : { background: BRAND_THEME.gradients.primary }
+                    }
                     onClick={(e) => {
                       if (!shouldShowGrayscale) {
-                        updateItemQuantity(selectedItem, itemDetailQuantity, e)
+                        const variant = getVariantForDish(selectedItem, selectedVariantId)
+                        updateItemQuantity(selectedItem, itemDetailQuantity, e, variant)
                         closeItemDetail()
                       }
                     }}
@@ -1591,14 +1582,24 @@ export default function Under250() {
                   >
                     <span>Add item</span>
                     <div className="flex items-center gap-1 md:gap-2">
-                      {selectedItem.originalPrice && selectedItem.originalPrice > selectedItem.price && (
-                        <span className="text-sm md:text-base lg:text-lg line-through text-red-200">
-                          {RUPEE_SYMBOL}{Math.round(selectedItem.originalPrice)}
-                        </span>
-                      )}
-                      <span className="text-base md:text-lg lg:text-xl font-bold">
-                        {RUPEE_SYMBOL}{Math.round(selectedItem.price)}
-                      </span>
+                      {(() => {
+                        const variant = getVariantForDish(selectedItem, selectedVariantId)
+                        const displayPrice = variant ? variant.price : selectedItem.price
+                        const originalPrice = selectedItem.originalPrice || displayPrice
+                        
+                        return (
+                          <>
+                            {originalPrice > displayPrice && (
+                              <span className="text-sm md:text-base lg:text-lg line-through text-red-200">
+                                {RUPEE_SYMBOL}{Math.round(originalPrice)}
+                              </span>
+                            )}
+                            <span className="text-base md:text-lg lg:text-xl font-bold">
+                              {variant ? variant.name + " · " : ""}{RUPEE_SYMBOL}{Math.round(displayPrice)}
+                            </span>
+                          </>
+                        )
+                      })()}
                     </div>
                   </Button>
                 </div>
@@ -1841,7 +1842,7 @@ export default function Under250() {
       </AnimatePresence>
 
       {/* Add to Cart Animation */}
-      <AddToCartAnimation dynamicBottom={viewCartButtonBottom} />
+      <AddToCartAnimation />
     </div>
   )
 }
