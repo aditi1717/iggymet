@@ -11,7 +11,7 @@ import {
 } from "lucide-react"
 import { restaurantAPI, adminAPI, uploadAPI } from "@food/api"
 import { toast } from "sonner"
-import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
+import DocumentUploadActions from "@food/components/DocumentUploadActions"
 import BRAND_THEME from "@/config/brandTheme"
 import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 
@@ -112,6 +112,11 @@ export default function EditCategoryPage() {
       return
     }
 
+    if (!imagePreview && !imageFile && !formData.image) {
+      toast.error("Category image is mandatory")
+      return
+    }
+
     try {
       setIsSubmitting(true)
       let imageUrl = formData.image
@@ -205,28 +210,45 @@ export default function EditCategoryPage() {
         >
           <form onSubmit={handleSubmit} className="p-6 space-y-8">
             {/* Image Upload Section */}
-            <div className="flex flex-col items-center">
-              <div
-                onClick={() => setIsImagePickerOpen(true)}
-                className="relative h-32 w-32 rounded-3xl bg-slate-50 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center cursor-pointer overflow-hidden group hover:border-brand-500 transition-all"
-              >
-                {imagePreview ? (
-                  <>
-                    <img src={imagePreview} className="h-full w-full object-cover" />
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Camera className="h-8 w-8 text-white" />
+            <div className="space-y-3">
+              <label className="text-sm font-bold text-slate-700 ml-1">Category Image *</label>
+              
+              <div className="flex flex-col items-center">
+                <div
+                  className="relative h-40 w-full sm:w-64 rounded-3xl bg-slate-50 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center overflow-hidden transition-all"
+                >
+                  {imagePreview ? (
+                    <>
+                      <img src={imagePreview} className="h-full w-full object-cover" />
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setImagePreview("")
+                          setImageFile(null)
+                          setFormData({ ...formData, image: "" })
+                        }}
+                        className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full shadow-md hover:bg-red-600 transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center text-slate-400">
+                      <ImageIcon className="h-10 w-10 mb-2 opacity-20" />
+                      <span className="text-xs font-medium">No image selected</span>
                     </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="p-3 bg-white rounded-2xl shadow-sm mb-2 group-hover:scale-110 transition-transform">
-                      <Upload className="h-6 w-6 text-brand-600" />
-                    </div>
-                    <span className="text-xs text-slate-500 font-medium">Add Image</span>
-                  </>
-                )}
+                  )}
+                </div>
               </div>
-              <p className="text-xs text-slate-400 mt-3 font-medium">Resolution: 512x512px works best</p>
+
+              <DocumentUploadActions
+                onFileSelect={handleImageSelect}
+                fileNamePrefix="category-image"
+                galleryInputRef={null} // Component will handle its own gallery input
+              />
+              <p className="text-[10px] text-slate-400 text-center font-medium">
+                High quality square image (512x512) recommended
+              </p>
             </div>
 
             <div className="grid gap-6">
@@ -336,12 +358,6 @@ export default function EditCategoryPage() {
         </motion.div>
       </div>
 
-      <ImageSourcePicker
-        isOpen={isImagePickerOpen}
-        onClose={() => setIsImagePickerOpen(false)}
-        onFileSelect={handleImageSelect}
-        aspectRatio={1}
-      />
     </div>
   )
 }

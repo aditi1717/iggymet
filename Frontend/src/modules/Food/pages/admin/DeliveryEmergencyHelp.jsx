@@ -48,20 +48,20 @@ export default function DeliveryEmergencyHelp() {
 
   const validateForm = () => {
     const errors = {}
-    const phoneRegex = /^\d{3,15}$/
-    const normalizeDigits = (value) => String(value || "").replace(/[^\d]/g, "")
+    const phoneRegex = /^[0-9+\-\s()]{3,20}$/
+    const normalizeDigits = (value) => String(value || "")
 
-    if (formData.medicalEmergency && !phoneRegex.test(normalizeDigits(formData.medicalEmergency))) {
-      errors.medicalEmergency = "Phone number must be 3 to 15 digits"
+    if (formData.medicalEmergency && !phoneRegex.test(formData.medicalEmergency)) {
+      errors.medicalEmergency = "Invalid format. Use numbers and standard symbols (+, -, space, ())"
     }
-    if (formData.accidentHelpline && !phoneRegex.test(normalizeDigits(formData.accidentHelpline))) {
-      errors.accidentHelpline = "Phone number must be 3 to 15 digits"
+    if (formData.accidentHelpline && !phoneRegex.test(formData.accidentHelpline)) {
+      errors.accidentHelpline = "Invalid format. Use numbers and standard symbols (+, -, space, ())"
     }
-    if (formData.contactPolice && !phoneRegex.test(normalizeDigits(formData.contactPolice))) {
-      errors.contactPolice = "Phone number must be 3 to 15 digits"
+    if (formData.contactPolice && !phoneRegex.test(formData.contactPolice)) {
+      errors.contactPolice = "Invalid format. Use numbers and standard symbols (+, -, space, ())"
     }
-    if (formData.insurance && !phoneRegex.test(normalizeDigits(formData.insurance))) {
-      errors.insurance = "Phone number must be 3 to 15 digits"
+    if (formData.insurance && !phoneRegex.test(formData.insurance)) {
+      errors.insurance = "Invalid format. Use numbers and standard symbols (+, -, space, ())"
     }
 
     setFormErrors(errors)
@@ -69,7 +69,7 @@ export default function DeliveryEmergencyHelp() {
   }
 
   const handleInputChange = (field, value) => {
-    const sanitizedValue = String(value || "").replace(/[^\d]/g, "").slice(0, 15)
+    const sanitizedValue = String(value || "").replace(/[^0-9+\-\s()]/g, "").slice(0, 20)
     setFormData(prev => ({
       ...prev,
       [field]: sanitizedValue
@@ -120,29 +120,29 @@ export default function DeliveryEmergencyHelp() {
     {
       id: "medicalEmergency",
       label: "Medical Emergency",
-      placeholder: "Enter medical emergency phone number",
-      icon: "??",
+      placeholder: "Ex: +91-XXXXX-XXXXX or 108",
+      icon: "",
       description: "Phone number for medical emergencies (e.g., 108, +91-XXX-XXX-XXXX)"
     },
     {
       id: "accidentHelpline",
       label: "Accident Helpline",
-      placeholder: "Enter accident helpline phone number",
-      icon: "??",
+      placeholder: "Ex: +91-XXXXX-XXXXX",
+      icon: "",
       description: "Phone number for accident helpline"
     },
     {
       id: "contactPolice",
       label: "Contact Police",
-      placeholder: "Enter police emergency phone number",
-      icon: "??",
+      placeholder: "Ex: 100 or +91-XXXXX-XXXXX",
+      icon: "",
       description: "Phone number for police emergency (e.g., 100)"
     },
     {
       id: "insurance",
       label: "Insurance",
-      placeholder: "Enter insurance helpline phone number",
-      icon: "???",
+      placeholder: "Ex: +91-XXXXX-XXXXX",
+      icon: "",
       description: "Phone number for insurance claims and policy help"
     }
   ]

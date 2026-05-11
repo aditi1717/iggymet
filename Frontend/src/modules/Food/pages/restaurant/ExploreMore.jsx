@@ -779,8 +779,8 @@ export default function ExploreMore() {
 
   const ordersItems = [
     { id: 1, label: "Order history", icon: FileText, route: "/restaurant/orders/all" },
-    { id: 2, label: "Complaints", icon: Star, route: "/restaurant/feedback?tab=complaints" },
-    { id: 3, label: "Reviews", icon: MessageSquare, route: "/restaurant/feedback" },
+    { id: 2, label: "Complaints", icon: Star, route: "/restaurant/feedback?tab=complaints&single=true" },
+    { id: 3, label: "Reviews", icon: MessageSquare, route: "/restaurant/feedback?tab=reviews&single=true" },
   ]
 
   const helpItems = [
@@ -1121,7 +1121,7 @@ export default function ExploreMore() {
                 damping: 30,
                 stiffness: 300
               }}
-              className="fixed inset-0 bg-white z-[100] flex flex-col"
+              className="fixed top-0 left-0 right-0 bottom-[72px] bg-white z-[100] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Search Header */}
@@ -1748,7 +1748,9 @@ export default function ExploreMore() {
           </>
         )}
       </AnimatePresence>
-      <BottomNavOrders />
+      <div className="fixed bottom-0 left-0 right-0 z-[101]">
+        <BottomNavOrders />
+      </div>
     </motion.div>
   )
 }

@@ -1,15 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { AnimatePresence, motion } from "framer-motion"
-import { Bell, HelpCircle, Loader2, Menu, Search, SlidersHorizontal, Star, X } from "lucide-react"
+import { ArrowLeft, Bell, HelpCircle, Loader2, Menu, Search, SlidersHorizontal, Star, X } from "lucide-react"
 import BottomNavOrders from "@food/components/restaurant/BottomNavOrders"
 import { restaurantAPI } from "@food/api"
 import BRAND_THEME from "@/config/brandTheme"
 
-const tabs = [
-  { id: "complaints", label: "Complaints" },
-  { id: "reviews", label: "Reviews" },
-]
 
 const REVIEW_SORT_OPTIONS = [
   { id: "newest", label: "Newest" },
@@ -62,7 +58,7 @@ export default function Feedback() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const tabFromUrl = searchParams.get("tab")
-  const [activeTab, setActiveTab] = useState(tabFromUrl === "complaints" ? "complaints" : "reviews")
+  const activeTab = tabFromUrl === "complaints" ? "complaints" : "reviews"
 
   const [restaurantData, setRestaurantData] = useState(null)
   const [isLoadingRestaurant, setIsLoadingRestaurant] = useState(true)
@@ -92,13 +88,6 @@ export default function Feedback() {
   const touchStartY = useRef(0)
   const isSwiping = useRef(false)
 
-  useEffect(() => {
-    if (tabFromUrl === "complaints") {
-      setActiveTab("complaints")
-    } else {
-      setActiveTab("reviews")
-    }
-  }, [tabFromUrl])
 
   useEffect(() => {
     const fetchRestaurantData = async () => {
@@ -310,16 +299,7 @@ export default function Feedback() {
   }
 
   const handleTouchEnd = () => {
-    if (!isSwiping.current) return
-
-    const swipeDistance = touchStartX.current - touchEndX.current
-    if (Math.abs(swipeDistance) <= 50) return
-
-    if (swipeDistance > 0) {
-      handleTabChange("reviews")
-    } else {
-      handleTabChange("complaints")
-    }
+    // Touch navigation disabled as tabs are now separate
   }
 
   return (
@@ -331,9 +311,19 @@ export default function Feedback() {
     >
       <div className="sticky bg-white top-0 z-40 px-4 py-3 border-b border-gray-200">
         <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[10px] tracking-wider text-gray-500 uppercase">Showing data for</p>
-            <p className="text-md font-bold text-gray-900">{restaurantData?.name || "Restaurant"}</p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate("/food/restaurant/explore")}
+              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-6 h-6 text-gray-900" />
+            </button>
+            <div>
+              <p className="text-[10px] tracking-wider text-gray-500 uppercase">
+                {activeTab === "complaints" ? "Customer Complaints" : "Customer Reviews"}
+              </p>
+              <p className="text-md font-bold text-gray-900">{restaurantData?.name || "Restaurant"}</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -362,21 +352,7 @@ export default function Feedback() {
             </button>
           </div>
         </div>
-
-        <div className="flex gap-2 mt-4">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => handleTabChange(tab.id)}
-              className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${
-                activeTab === tab.id ? "text-white" : "bg-white text-gray-600 border border-gray-200"
-              }`}
-              style={activeTab === tab.id ? { background: BRAND_THEME.gradients.primary } : undefined}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {/* Tab switcher removed as per request for separate views */}
       </div>
 
       <div className="flex-1 p-3">

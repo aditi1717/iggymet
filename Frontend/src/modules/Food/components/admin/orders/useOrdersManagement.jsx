@@ -50,21 +50,54 @@ const imageUrlToDataUrl = async (url) => {
   }
 }
 
+// Helper to load filters from localStorage
+const loadFiltersFromStorage = () => {
+  try {
+    const stored = localStorage.getItem("admin_orders_filters")
+    return stored ? JSON.parse(stored) : {}
+  } catch {
+    return {}
+  }
+}
+
+// Global filter cache to persist filters per statusKey
+const globalFiltersCache = loadFiltersFromStorage()
+
+// Helper to save filters to localStorage
+const saveFiltersToStorage = () => {
+  try {
+    localStorage.setItem("admin_orders_filters", JSON.stringify(globalFiltersCache))
+  } catch (e) {
+    console.error("Failed to save filters to storage", e)
+  }
+}
+
 export function useOrdersManagement(orders, statusKey, title) {
   const [searchQuery, setSearchQuery] = useState("")
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isViewOrderOpen, setIsViewOrderOpen] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState(null)
-  const [filters, setFilters] = useState({
+  
+  // Initialize from cache or default
+  const [filters, setFiltersState] = useState(globalFiltersCache[statusKey] || {
     paymentStatus: "",
-    deliveryType: "",
     minAmount: "",
     maxAmount: "",
     fromDate: "",
     toDate: "",
     restaurant: "",
   })
+
+  const setFilters = (updater) => {
+    setFiltersState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      globalFiltersCache[statusKey] = next
+      saveFiltersToStorage()
+      return next
+    })
+  }
+
   const [visibleColumns, setVisibleColumns] = useState({
     si: true,
     orderId: true,
@@ -122,12 +155,6 @@ export function useOrdersManagement(orders, statusKey, title) {
         const collectionStatus = String(order.paymentCollectionStatus || "").toLowerCase()
         return paymentStatus === wanted || collectionStatus === wanted
       })
-    }
-
-    if (filters.deliveryType) {
-      result = result.filter(
-        (order) => String(order.deliveryType || "").toLowerCase() === filters.deliveryType.toLowerCase(),
-      )
     }
 
     if (filters.minAmount) {
@@ -208,7 +235,6 @@ export function useOrdersManagement(orders, statusKey, title) {
   const handleResetFilters = () => {
     setFilters({
       paymentStatus: "",
-      deliveryType: "",
       minAmount: "",
       maxAmount: "",
       fromDate: "",
@@ -592,4 +618,3 @@ export function useOrdersManagement(orders, statusKey, title) {
     resetColumns,
   }
 }
-

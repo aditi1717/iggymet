@@ -14,6 +14,22 @@ import {
   ChevronRight,
   X,
   ThumbsUp,
+import { useState, useEffect, useRef, useMemo, useCallback } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import {
+  Search,
+  SlidersHorizontal,
+  ChevronUp,
+  ChevronDown,
+  Loader2,
+  Utensils,
+  Minus,
+  Plus,
+  Upload,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  ThumbsUp,
   Pencil
 } from "lucide-react"
 import RestaurantNavbar from "@food/components/restaurant/RestaurantNavbar"
@@ -22,6 +38,7 @@ import { Switch } from "@food/components/ui/switch"
 import { useNavigate } from "react-router-dom"
 import { restaurantAPI, uploadAPI } from "@food/api"
 import { toast } from "sonner"
+import DocumentUploadActions from "@food/components/DocumentUploadActions"
 import BRAND_THEME from "@/config/brandTheme"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -1183,27 +1200,14 @@ export default function Inventory() {
     localStorage.removeItem(INVENTORY_ADDON_FORM_KEY)
   }
 
-  const handleAddonImageSelect = (e) => {
-    const file = e.target.files?.[0]
+  const handleAddonDocumentSelect = (file) => {
     if (!file) return
-    const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/heic", "image/heif"]
-    if (!allowed.includes(file.type)) {
-      toast.error("Invalid image type. Please use PNG, JPG, JPEG, WEBP, HEIC, or HEIF.")
-      e.target.value = ""
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image must be under 5MB.")
-      e.target.value = ""
-      return
-    }
     if (addonImagePreview && addonImagePreview.startsWith("blob:")) {
       URL.revokeObjectURL(addonImagePreview)
     }
     const preview = URL.createObjectURL(file)
     setAddonImageFile(file)
     setAddonImagePreview(preview)
-    e.target.value = ""
   }
 
   const handleSaveAddon = async () => {
@@ -1211,6 +1215,11 @@ export default function Inventory() {
       toast.error("Please enter add-on name")
       return
     }
+    if (!addonImageFile && !addonImagePreview) {
+      toast.error("Add-on image is mandatory")
+      return
+    }
+
     const parsedPrice = parseFloat(addonPrice)
     if (Number.isNaN(parsedPrice) || parsedPrice < 0) {
       toast.error("Please enter a valid price")
@@ -2086,129 +2095,6 @@ export default function Inventory() {
                   onClick={() => setIsAddAddonOpen((v) => !v)}
                   className="h-12 rounded-[20px] px-4 text-sm font-semibold text-white shadow-[0_18px_32px_-24px_rgba(41,121,251,0.45)] transition-colors"
                   style={{ background: BRAND_THEME.gradients.primary, minWidth: "128px" }}
-                >
-                  {isAddAddonOpen ? "Close" : "Add Add-on"}
-                </button>
-              )}
-            </div>
-
-            <div className="mt-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-              {activeFilterOptions.map((option) => {
-                const count = activeTab === "add-ons"
-                  ? (addonFilterCounts[option.value] || 0)
-                  : (menuFilterCounts[option.value] || 0)
-
-                const isActive = selectedFilter === option.value
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setSelectedFilter(option.value)}
-                    className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold transition-colors ${
-                      isActive
-                        ? "text-white shadow-[0_14px_28px_-24px_rgba(41,121,251,0.4)]"
-                        : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white"
-                    }`}
-                    style={
-                      isActive
-                        ? {
-                            background: BRAND_THEME.gradients.primary,
-                            borderColor: BRAND_THEME.colors.brand.primary,
-                          }
-                        : undefined
-                    }
-                  >
-                    <span>{option.label}</span>
-                    <span className={`ml-2 inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] ${
-                      isActive ? "bg-white/15 text-white" : "bg-white text-slate-500"
-                    }`}>
-                      {count}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Categories Accordions */}
-        <div className="space-y-4 mb-6">
-          {activeTab === "add-ons" && (
-            <>
-              {isAddAddonOpen && (
-                <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4 shadow-sm">
-                  <div className="grid grid-cols-1 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Add-on Name *</label>
-                      <input
-                        type="text"
-                        value={addonName}
-                        onChange={(e) => setAddonName(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:outline-none"
-                        placeholder="e.g., Coke, Chips"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                      <textarea
-                        value={addonDescription}
-                        onChange={(e) => setAddonDescription(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:outline-none resize-none"
-                        rows={3}
-                        placeholder="Describe the add-on..."
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Price (₹) *</label>
-                      <input
-                        type="number"
-                        value={addonPrice}
-                        onChange={(e) => setAddonPrice(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:outline-none"
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Image (1 only)</label>
-                      {addonImagePreview && (
-                        <div className="mb-2">
-                          <img
-                            src={addonImagePreview}
-                            alt="Preview"
-                            className="w-24 h-24 object-cover rounded border"
-                            onError={(e) => (e.target.style.display = "none")}
-                          />
-                        </div>
-                      )}
-                      <input
-                        ref={addonImageInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleAddonImageSelect}
-                        className="hidden"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => addonImageInputRef.current?.click()}
-                        className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-3 text-left transition-colors hover:bg-gray-100"
-                      >
-                        <span className="flex items-center gap-2 text-sm font-medium text-gray-900">
-                          <Upload className="h-4 w-4 text-gray-500" />
-                          {addonImageFile?.name || "Upload image"}
-                        </span>
-                        <span className="mt-1 block text-xs text-gray-500">
-                          {addonImageFile ? "Image selected successfully" : "Tap to choose 1 image from your device"}
-                        </span>
-                      </button>
-                      <p className="text-xs text-gray-500 mt-1">PNG, JPG, WEBP, HEIC up to 5MB.</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          resetAddonForm()
                           setIsAddAddonOpen(false)
                         }}
                         className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"

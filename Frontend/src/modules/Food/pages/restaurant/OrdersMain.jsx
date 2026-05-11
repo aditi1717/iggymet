@@ -38,46 +38,6 @@ const debugError = (...args) => {};
 
 const STORAGE_KEY = "restaurant_online_status";
 
-import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  checkOnboardingStatus,
-  isRestaurantOnboardingComplete,
-} from "@food/utils/onboardingUtils";
-import { motion, AnimatePresence } from "framer-motion";
-import Lenis from "lenis";
-import {
-  Printer,
-  Volume2,
-  VolumeX,
-  ChevronDown,
-  ChevronUp,
-  Minus,
-  Plus,
-  X,
-  AlertCircle,
-  Loader2,
-  Calendar,
-  Clock,
-  Users,
-  MessageSquare,
-} from "lucide-react";
-import { toast } from "sonner";
-import BottomNavOrders from "@food/components/restaurant/BottomNavOrders";
-import RestaurantNavbar from "@food/components/restaurant/RestaurantNavbar";
-import notificationSound from "@food/assets/audio/alert.mp3";
-import { restaurantAPI } from "@food/api";
-import { useRestaurantNotifications } from "@food/hooks/useRestaurantNotifications";
-import { formatOrderAddressWithLabels } from "@food/utils/orderAddressFormatter";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
-import BRAND_THEME from "@/config/brandTheme";
-const debugLog = (...args) => {};
-const debugWarn = (...args) => {};
-const debugError = (...args) => {};
-
-const STORAGE_KEY = "restaurant_online_status";
-
 // Top filter tabs
 const filterTabs = [
   { id: "all", label: "All" },
@@ -96,6 +56,7 @@ const allOrdersStatusPriority = {
   picked_up: 4,
   out_for_delivery: 4,
   reached_drop: 5,
+  scheduled: 5,
   // delivered, completed, cancelled — no fixed priority, sorted by date only
 };
 
@@ -1159,6 +1120,1269 @@ export default function OrdersMain() {
       commission,
       total,
       restaurantEarning,
+    };
+  };
+
+  const getPopupItemVariantText = (item = {}) => {
+    const variantParts = [
+      item?.variantName,
+      item?.selectedVariant?.name,
+      item?.variant?.name,
+      typeof item?.size === "string" ? item.size : item?.size?.name,
+      item?.portion,
+    ]
+      .map((value) => (value == null ? "" : String(value).trim()))
+      .filter(Boolean);
+
+    const addons = Array.isArray(item?.addons)
+      ? item.addons
+          .map((addon) => {
+            const addonName =
+              addon?.name || addon?.title || addon?.addonName || "Add-on";
+            const addonQty = Math.max(1, Number(addon?.quantity || 1));
+            return addonQty > 1 ? `${addonName} x${addonQty}` : addonName;
+          })
+          .filter(Boolean)
+      : [];
+
+    if (addons.length > 0) {
+      variantParts.push(`Add-ons: ${addons.join(", ")}`);
+    }
+
+    return variantParts.join(" | ");
+  };
+
+  // Restaurant notifications hook for real-time orders
+  const {
+    newOrder,
+    clearNewOrder,
+    cancelledOrderId,
+    cancelledOrderInfo,
+    clearCancelledOrderId,
+    isConnected
+  } = useRestaurantNotifications();
+
+  const rejectReasons = [
+    "Restaurant is too busy",
+    "Item not available",
+    "Outside delivery area",
+    "Kitchen closing soon",
+    "Technical issue",
+    "Other reason",
+  ];
+
+  // Fetch restaurant verification status
+  useEffect(() => {
+    const fetchRestaurantStatus = async () => {
+      try {
+        const response = await restaurantAPI.getCurrentRestaurant();
+        const restaurant =
+          response?.data?.data?.restaurant || response?.data?.restaurant;
+        if (restaurant) {
+          setRestaurantStatus({
+            isActive: restaurant.isActive,
+            rejectionReason: restaurant.rejectionReason || null,
+            onboarding: restaurant.onboarding || null,
+            isLoading: false,
+          });
+
+          // Check if onboarding is incomplete and redirect if needed
+          if (!isRestaurantOnboardingComplete(restaurant)) {
+            // Onboarding is incomplete, redirect to onboarding page
+            const incompleteStep = await checkOnboardingStatus();
+            if (incompleteStep) {
+              navigate(`/restaurant/onboarding?step=${incompleteStep}`, {
+                replace: true,
+              });
+              return;
+            }
+          }
+        }
+      } catch (error) {
+        // Only log error if it's not a network/timeout error (backend might be down/slow)
+        if (
+          error.code !== "ERR_NETWORK" &&
+          error.code !== "ECONNABORTED" &&
+          !error.message?.includes("timeout")
+        ) {
+          debugError("Error fetching restaurant status:", error);
+        }
+        // Set loading to false so UI doesn't stay in loading state
+        setRestaurantStatus((prev) => ({ ...prev, isLoading: false }));
+      }
+    };
+
+    fetchRestaurantStatus();
+
+    // Listen for restaurant profile updates
+    const handleProfileRefresh = () => {
+      fetchRestaurantStatus();
+    };
+
+    window.addEventListener("restaurantProfileRefresh", handleProfileRefresh);
+
+    return () => {
+      window.removeEventListener(
+        "restaurantProfileRefresh",
+        handleProfileRefresh,
+      );
+    };
+  }, [navigate]);
+
+  // Handle reverify (resubmit for approval)
+  const handleReverify = async () => {
+    try {
+      setIsReverifying(true);
+      await restaurantAPI.reverify();
+
+      // Refresh restaurant status
+      const response = await restaurantAPI.getCurrentRestaurant();
+      const restaurant =
+        response?.data?.data?.restaurant || response?.data?.restaurant;
+      if (restaurant) {
+        setRestaurantStatus({
+          isActive: restaurant.isActive,
+          rejectionReason: restaurant.rejectionReason || null,
+          onboarding: restaurant.onboarding || null,
+          isLoading: false,
+        });
+      }
+
+      // Trigger profile refresh event
+      window.dispatchEvent(new Event("restaurantProfileRefresh"));
+
+      alert(
+        "Restaurant reverified successfully! Verification will be done in 24 hours.",
+      );
+    } catch (error) {
+      // Don't log network/timeout errors (backend might be down)
+      if (
+        error.code !== "ERR_NETWORK" &&
+        error.code !== "ECONNABORTED" &&
+        !error.message?.includes("timeout")
+      ) {
+        debugError("Error reverifying restaurant:", error);
+      }
+
+      // Handle 401 Unauthorized errors (token expired/invalid)
+      if (error.response?.status === 401) {
+        const errorMessage =
+          error.response?.data?.message ||
+          "Your session has expired. Please login again.";
+        alert(errorMessage);
+        // The axios interceptor should handle redirecting to login
+        // But if it doesn't, we can manually redirect
+        if (!error.response?.data?.message?.includes("inactive")) {
+          // Only redirect if it's not an "inactive" error (which we handle differently)
+          setTimeout(() => {
+            window.location.href = "/restaurant/login";
+          }, 1500);
+        }
+      } else {
+        // Other errors (400, 500, etc.)
+        const errorMessage =
+          error.response?.data?.message ||
+          "Failed to reverify restaurant. Please try again.";
+        alert(errorMessage);
+      }
+    } finally {
+      setIsReverifying(false);
+    }
+  };
+
+  // Lenis smooth scrolling
+  useEffect(() => {
+    const lenis = new Lenis({
+      duration: 1.2,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      smoothWheel: true,
+    });
+
+    function raf(time) {
+      lenis.raf(time);
+      requestAnimationFrame(raf);
+    }
+
+    requestAnimationFrame(raf);
+
+    return () => {
+      lenis.destroy();
+    };
+  }, []);
+
+  // Show new order popup when real order notification arrives from Socket.IO
+  useEffect(() => {
+    if (newOrder) {
+      debugLog("?? New order received via Socket.IO:", newOrder);
+
+      const scheduledAt = newOrder.scheduledAt
+        ? new Date(newOrder.scheduledAt).getTime()
+        : null;
+      const isFutureScheduled =
+        scheduledAt && scheduledAt > Date.now() + 30 * 60000;
+
+      if (isFutureScheduled) {
+        toast.info(
+          `New scheduled order received for ${new Date(scheduledAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`,
+        );
+        requestOrdersRefresh();
+        return; // Do not show the immediate popup
+      }
+
+      if (!hasOrderBeenShown(newOrder)) {
+        markOrderAsShown(newOrder);
+        setPopupOrder((prev) => normalizePopupOrderForModal(newOrder, prev));
+        setShowNewOrderPopup(true);
+        setCountdown(240); // Reset countdown to 4 minutes
+        requestOrdersRefresh();
+      }
+    }
+  }, [newOrder]);
+
+  // Keep refs in sync to avoid stale state inside one-time event handlers.
+  useEffect(() => {
+    showNewOrderPopupRef.current = showNewOrderPopup;
+  }, [showNewOrderPopup]);
+
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
+
+  useEffect(() => {
+    newOrderRef.current = newOrder;
+  }, [newOrder]);
+
+  useEffect(() => {
+    popupOrderRef.current = popupOrder;
+  }, [popupOrder]);
+
+  // Hydrate popup with latest backend order details so fields stay linked
+  // with tracking/report data (items variants, payment snapshot, pricing, earnings).
+  useEffect(() => {
+    if (!showNewOrderPopup) return;
+    const orderForModal = popupOrder || newOrder;
+    if (!orderForModal) return;
+
+    const lookupIdRaw =
+      orderForModal?.orderMongoId ||
+      orderForModal?._id ||
+      orderForModal?.orderId ||
+      orderForModal?.id ||
+      "";
+    const lookupId = String(lookupIdRaw).trim();
+    if (!lookupId) return;
+
+    if (popupHydrationRef.current === lookupId) return;
+    popupHydrationRef.current = lookupId;
+
+    let active = true;
+    (async () => {
+      try {
+        const response = await restaurantAPI.getOrderById(lookupId);
+        const apiOrder =
+          response?.data?.data?.order ||
+          response?.data?.order ||
+          response?.data?.data ||
+          null;
+        if (!active || !apiOrder) return;
+
+        setPopupOrder((prev) =>
+          normalizePopupOrderForModal(apiOrder, prev || orderForModal),
+        );
+      } catch (error) {
+        debugError("Error hydrating popup order details:", error);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [showNewOrderPopup, popupOrder, newOrder]);
+
+  // Real-time: close popup if the order currently shown gets cancelled by user
+  useEffect(() => {
+    if (!cancelledOrderId || !showNewOrderPopup) return;
+
+    const eventKeys = Array.from(
+      new Set(
+        [
+          ...(Array.isArray(cancelledOrderInfo?.orderKeys)
+            ? cancelledOrderInfo.orderKeys
+            : []),
+          cancelledOrderId,
+        ]
+          .filter(Boolean)
+          .map((value) => String(value).trim())
+          .filter(Boolean),
+      ),
+    );
+    const matchesPopupOrder =
+      hasMatchingOrderKey(eventKeys, popupOrder) ||
+      hasMatchingOrderKey(eventKeys, newOrder);
+
+    if (matchesPopupOrder) {
+      // Stop audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      setShowNewOrderPopup(false);
+      setPopupOrder(null);
+      clearNewOrder();
+      clearCancelledOrderId();
+      requestOrdersRefresh();
+      const cancelledBy = String(cancelledOrderInfo?.cancelledBy || "").toLowerCase();
+      const customMessage = String(cancelledOrderInfo?.message || "").trim();
+      const messageFromPayload =
+        customMessage && /cancel/i.test(customMessage)
+          ? customMessage
+          : cancelledBy === "restaurant"
+            ? "Order was cancelled by the restaurant."
+            : cancelledBy === "admin"
+              ? "Order was cancelled by admin."
+              : "Order was cancelled by the customer.";
+      toast.error(messageFromPayload);
+    }
+  }, [cancelledOrderId, cancelledOrderInfo]);
+
+  // Close open order details sheet if that order gets cancelled by user/admin.
+  useEffect(() => {
+    if (!cancelledOrderId || !isSheetOpen || !selectedOrder) return;
+
+    const eventKeys = Array.from(
+      new Set(
+        [
+          ...(Array.isArray(cancelledOrderInfo?.orderKeys)
+            ? cancelledOrderInfo.orderKeys
+            : []),
+          cancelledOrderId,
+        ]
+          .filter(Boolean)
+          .map((value) => String(value).trim())
+          .filter(Boolean),
+      ),
+    );
+
+    if (!hasMatchingOrderKey(eventKeys, selectedOrder)) return;
+
+    setIsSheetOpen(false);
+    setSelectedOrder(null);
+    setShowCancelPopup(false);
+    setOrderToCancel(null);
+    requestOrdersRefresh();
+    clearCancelledOrderId();
+  }, [
+    cancelledOrderId,
+    cancelledOrderInfo,
+    isSheetOpen,
+    selectedOrder,
+    clearCancelledOrderId,
+  ]);
+
+  // Hydrate selected order with latest backend payload when details sheet opens.
+  useEffect(() => {
+    if (!isSheetOpen || !selectedOrder) return;
+
+    const lookupIdRaw =
+      selectedOrder?.mongoId ||
+      selectedOrder?.orderMongoId ||
+      selectedOrder?.orderId ||
+      selectedOrder?.id ||
+      "";
+    const lookupId = String(lookupIdRaw).trim();
+    if (!lookupId) return;
+
+    if (selectedOrderHydrationRef.current === lookupId) return;
+    selectedOrderHydrationRef.current = lookupId;
+
+    let active = true;
+
+    (async () => {
+      try {
+        const response = await restaurantAPI.getOrderById(lookupId);
+        const apiOrder =
+          response?.data?.data?.order ||
+          response?.data?.order ||
+          response?.data?.data ||
+          null;
+        if (!active || !apiOrder) return;
+
+        setSelectedOrder((prev) =>
+          normalizeSelectedOrderForSheet(
+            {
+              ...apiOrder,
+              orderId: prev?.orderId || apiOrder?.orderId || apiOrder?._id,
+              mongoId: prev?.mongoId || apiOrder?._id || null,
+              customerName:
+                prev?.customerName ||
+                apiOrder?.userId?.name ||
+                apiOrder?.user?.name ||
+                apiOrder?.customerName ||
+                apiOrder?.userId?.phone ||
+                "Guest",
+              type:
+                prev?.type ||
+                (apiOrder?.deliveryFleet === "standard"
+                  ? "Home Delivery"
+                  : "Express Delivery"),
+              tableOrToken: prev?.tableOrToken || null,
+              timePlaced: prev?.timePlaced || formatOrderDateTime(apiOrder?.createdAt),
+            },
+            prev,
+          ),
+        );
+      } catch (error) {
+        debugError("Error hydrating selected order details:", error);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [isSheetOpen, selectedOrder]);
+
+  // Best-effort unlock for popup buzzer so it can keep playing when tab is backgrounded.
+  useEffect(() => {
+    const unlockAudio = async () => {
+      if (audioUnlockedRef.current || !audioRef.current) return;
+      try {
+        audioRef.current.muted = true;
+        await audioRef.current.play();
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        audioRef.current.muted = false;
+        audioRef.current.volume = 1;
+        audioUnlockedRef.current = true;
+
+        // If an order popup is already open, start buzzing immediately after unlock.
+        if (showNewOrderPopupRef.current && !isMutedRef.current) {
+          audioRef.current.loop = true;
+          audioRef.current.currentTime = 0;
+          audioRef.current.play().catch(() => {});
+        }
+      } catch (_) {
+        audioRef.current.muted = false;
+      }
+    };
+
+    window.addEventListener("pointerdown", unlockAudio, {
+      once: true,
+      passive: true,
+    });
+    window.addEventListener("keydown", unlockAudio, { once: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+    };
+  }, []);
+
+  const [ordersRefreshToken, setOrdersRefreshToken] = useState(0);
+  const requestOrdersRefresh = () => setOrdersRefreshToken((t) => t + 1);
+
+  useEffect(() => {
+    const handleRestaurantOrderStatusUpdated = (event) => {
+      const payload = event?.detail || {};
+      const hasDispatchUpdate =
+        payload?.dispatchStatus != null ||
+        payload?.dispatch_status != null;
+      const hasOrderStatusUpdate =
+        payload?.orderStatus != null || payload?.status != null;
+
+      if (hasDispatchUpdate || hasOrderStatusUpdate) {
+        requestOrdersRefresh();
+      }
+
+      const statusLower = String(
+        payload?.orderStatus || payload?.status || "",
+      ).toLowerCase();
+      const isPendingReviewStatus =
+        statusLower === "created" || statusLower === "confirmed";
+      if (!statusLower || isPendingReviewStatus || !showNewOrderPopupRef.current) {
+        return;
+      }
+
+      const eventKeys = Array.from(
+        new Set(
+          [
+            payload?.orderMongoId,
+            payload?.order_mongo_id,
+            payload?.orderId,
+            payload?.order_id,
+            payload?._id,
+            payload?.id,
+          ]
+            .filter(Boolean)
+            .map((value) => String(value).trim())
+            .filter(Boolean),
+        ),
+      );
+      if (eventKeys.length === 0) return;
+
+      const matchesPopupOrder =
+        hasMatchingOrderKey(eventKeys, popupOrderRef.current) ||
+        hasMatchingOrderKey(eventKeys, newOrderRef.current);
+
+      if (!matchesPopupOrder) return;
+
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      setShowNewOrderPopup(false);
+      setPopupOrder(null);
+      clearNewOrder();
+    };
+
+    window.addEventListener(
+      "restaurantOrderStatusUpdated",
+      handleRestaurantOrderStatusUpdated,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "restaurantOrderStatusUpdated",
+        handleRestaurantOrderStatusUpdated,
+      );
+    };
+  }, []);
+
+  // Check for confirmed orders that haven't been shown in popup yet, or scheduled orders whose time has come
+  useEffect(() => {
+    const checkOrdersToPopup = async () => {
+      // Skip if popup is already showing or Socket.IO order exists
+      if (showNewOrderPopupRef.current || newOrderRef.current) return;
+
+      try {
+        const response = await restaurantAPI.getOrders();
+        if (response.data?.success && response.data.data?.orders) {
+          const now = Date.now();
+
+          // Find orders that should trigger the popup
+          const targetOrders = response.data.data.orders.filter((order) => {
+            if (hasOrderBeenShown(order)) return false;
+
+            const statusLower = String(order.status || "").toLowerCase();
+            const isPendingReview =
+              statusLower === "created" || statusLower === "confirmed";
+
+            if (isPendingReview && !order.scheduledAt) return true; // ordinary new-order fallback
+
+            if (
+              order.scheduledAt &&
+              (order.status === "created" || order.status === "confirmed")
+            ) {
+              const scheduledTime = new Date(order.scheduledAt).getTime();
+              // Show popup if scheduled time is <= 30 mins from now
+              if (scheduledTime <= now + 30 * 60000) return true;
+            }
+
+            return false;
+          });
+
+          // Show the most recent matching order in popup
+          if (
+            targetOrders.length > 0 &&
+            !showNewOrderPopupRef.current &&
+            !newOrderRef.current
+          ) {
+            const orderToPopup = targetOrders[0];
+            const orderId = orderToPopup.orderId || orderToPopup._id;
+
+            // Transform order to match newOrder format (include payment so COD shows correctly)
+            const orderForPopup = {
+              orderId: orderToPopup.orderId,
+              orderMongoId: orderToPopup._id,
+              restaurantId: orderToPopup.restaurantId,
+              restaurantName: orderToPopup.restaurantName,
+              items: orderToPopup.items || [],
+              total: orderToPopup.pricing?.total || 0,
+              customerAddress: orderToPopup.address,
+              status: orderToPopup.status,
+              createdAt: orderToPopup.createdAt,
+              scheduledAt: orderToPopup.scheduledAt,
+              estimatedDeliveryTime: orderToPopup.estimatedDeliveryTime || 30,
+              note: orderToPopup.note || "",
+              restaurantNote: orderToPopup.restaurantNote || "",
+              customerNote: orderToPopup.customerNote || "",
+              sendCutlery: orderToPopup.sendCutlery,
+              paymentMethod:
+                orderToPopup.paymentMethod ||
+                orderToPopup.payment?.method ||
+                null,
+              payment: orderToPopup.payment,
+            };
+
+            debugLog("?? Found order ready for popup:", orderForPopup);
+            markOrderAsShown({ orderId, _id: orderToPopup._id });
+            setPopupOrder((prev) =>
+              normalizePopupOrderForModal(orderForPopup, prev),
+            );
+            setShowNewOrderPopup(true);
+            setCountdown(240);
+          }
+        }
+      } catch (error) {
+        if (error.response?.status !== 401) {
+          debugError("Error checking orders to popup:", error);
+        }
+      }
+    };
+
+    // Check once on mount, and then every minute
+    checkOrdersToPopup();
+    const intervalId = setInterval(checkOrdersToPopup, 60000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  // Play audio when popup opens
+  useEffect(() => {
+    if (showNewOrderPopup && !isMuted) {
+      if (audioRef.current) {
+        audioRef.current.loop = true;
+        audioRef.current.muted = false;
+        audioRef.current.volume = 1;
+        audioRef.current.currentTime = 0;
+        audioRef.current
+          .play()
+          .catch((err) => debugLog("Audio play failed:", err));
+      }
+    } else if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+  }, [showNewOrderPopup, isMuted]);
+
+  // Countdown timer
+  useEffect(() => {
+    if (showNewOrderPopup && countdown > 0) {
+      const timer = setInterval(() => {
+        setCountdown((prev) => prev - 1);
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [showNewOrderPopup, countdown]);
+
+  useEffect(() => {
+    if (!showNewOrderPopup) {
+      popupHydrationRef.current = "";
+      setAcceptSwipeProgress(0);
+      setIsAcceptingOrder(false);
+      acceptSwipeActiveRef.current = false;
+      acceptSwipeStartXRef.current = 0;
+    }
+  }, [showNewOrderPopup]);
+
+  useEffect(() => {
+    const handleMouseMove = (event) => {
+      if (acceptSwipeActiveRef.current) {
+        handleAcceptSwipeMove(event.clientX);
+      }
+    };
+
+    const handleTouchMove = (event) => {
+      if (acceptSwipeActiveRef.current && event.touches[0]) {
+        // Prevent page scroll while swiping the slider
+        if (typeof event.preventDefault === "function") event.preventDefault();
+        handleAcceptSwipeMove(event.touches[0].clientX);
+      }
+    };
+
+    const handlePointerEnd = () => {
+      if (acceptSwipeActiveRef.current) {
+        handleAcceptSwipeEnd();
+      }
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handlePointerEnd);
+    // passive: false is required to allow preventDefault() during swipe
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+    window.addEventListener("touchend", handlePointerEnd);
+    window.addEventListener("touchcancel", handlePointerEnd);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handlePointerEnd);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handlePointerEnd);
+      window.removeEventListener("touchcancel", handlePointerEnd);
+    };
+  }, [isAcceptingOrder]);
+
+  // Format countdown time
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const getOrderNoteForRestaurant = (order) => {
+    if (!order) return "";
+    const noteCandidate =
+      order?.notes?.restaurant ||
+      order?.notes?.customer ||
+      order.restaurantNote ||
+      order.customerNote ||
+      order.note ||
+      order.specialInstructions ||
+      order.instructions ||
+      "";
+    return String(noteCandidate || "").trim();
+  };
+
+  const getAcceptSliderMetrics = () => {
+    const sliderWidth = acceptSliderRef.current?.offsetWidth || 320;
+    const handleWidth = 56;
+    const horizontalPadding = 8;
+    const maxTravel = Math.max(
+      sliderWidth - handleWidth - horizontalPadding * 2,
+      1,
+    );
+    return { maxTravel };
+  };
+
+  const triggerSwipeAccept = () => {
+    if (isAcceptingOrder) return;
+    setAcceptSwipeProgress(1);
+    setTimeout(() => {
+      handleAcceptOrder();
+    }, 160);
+  };
+
+  const handleAcceptSwipeStart = (clientX) => {
+    if (isAcceptingOrder) return;
+    acceptSwipeStartXRef.current = clientX;
+    acceptSwipeActiveRef.current = true;
+  };
+
+  const handleAcceptSwipeMove = (clientX) => {
+    if (!acceptSwipeActiveRef.current || isAcceptingOrder) return;
+    const deltaX = Math.max(clientX - acceptSwipeStartXRef.current, 0);
+    const { maxTravel } = getAcceptSliderMetrics();
+    setAcceptSwipeProgress(Math.min(deltaX / maxTravel, 1));
+  };
+
+  const handleAcceptSwipeEnd = () => {
+    if (!acceptSwipeActiveRef.current || isAcceptingOrder) return;
+    acceptSwipeActiveRef.current = false;
+
+    if (acceptSwipeProgress >= 0.45) {
+      triggerSwipeAccept();
+      return;
+    }
+
+    setAcceptSwipeProgress(0);
+  };
+
+  // Handle accept order
+  const handleAcceptOrder = async () => {
+    if (isAcceptingOrder) return;
+    setIsAcceptingOrder(true);
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+
+    // Use popupOrder (from Socket.IO or API fallback) or newOrder (from hook)
+    const orderToAccept = popupOrder || newOrder;
+
+    // Ensure this order can't re-trigger fallback popup by using a different id key.
+    markOrderAsShown(orderToAccept);
+
+    // Accept order via API if we have a real order
+    if (orderToAccept?.orderMongoId || orderToAccept?.orderId) {
+      try {
+        const orderId = orderToAccept.orderMongoId || orderToAccept.orderId;
+        const response = await restaurantAPI.acceptOrder(orderId, prepTime);
+        debugLog("? Order accepted:", orderId);
+        toast.success("Order accepted successfully");
+        requestOrdersRefresh();
+      } catch (error) {
+        debugError("? Error accepting order:", error);
+        const errorMessage =
+          error.response?.data?.message ||
+          error.message ||
+          "Failed to accept order. Please try again.";
+
+        // Show specific error message
+        if (error.response?.status === 400) {
+          toast.error(errorMessage);
+        } else if (error.response?.status === 404) {
+          toast.error(
+            "Order not found. It may have been cancelled or already processed.",
+          );
+        } else {
+          toast.error(errorMessage);
+        }
+        setIsAcceptingOrder(false);
+        setAcceptSwipeProgress(0);
+        return;
+      }
+    }
+
+    setShowNewOrderPopup(false);
+    setPopupOrder(null);
+    clearNewOrder();
+    setCountdown(240);
+    setPrepTime(11);
+    setAcceptSwipeProgress(0);
+    setIsAcceptingOrder(false);
+
+    // Note: PreparingOrders component will automatically refresh orders via its own useEffect
+    // No need to manually refresh here as the component polls every 10 seconds
+  };
+
+  const handleCancelOrderClick = () => {
+    setShowRejectPopup(true);
+  };
+
+  // Help CTA from new-order modal
+  const handleNeedHelpClick = () => {
+    const currentOrder = popupOrder || newOrder || null;
+    const orderId =
+      currentOrder?.mongoId || currentOrder?.orderMongoId || currentOrder?.orderId || currentOrder?._id || "";
+    const qs = orderId ? `?orderId=${encodeURIComponent(String(orderId))}` : "";
+    navigate(`/food/restaurant/help-centre/support${qs}`, {
+      state: { backTo: "/food/restaurant" }
+    });
+  };
+
+  const handleRejectConfirm = async () => {
+    if (!rejectReason) return;
+
+    // Use popupOrder (from Socket.IO or API fallback) or newOrder (from hook)
+    const orderToReject = popupOrder || newOrder;
+
+    // Reject order via API if we have a real order
+    if (orderToReject?.orderMongoId || orderToReject?.orderId) {
+      try {
+        const orderId = orderToReject.orderMongoId || orderToReject.orderId;
+        await restaurantAPI.rejectOrder(orderId, rejectReason);
+        debugLog("? Order rejected:", orderId);
+        requestOrdersRefresh();
+      } catch (error) {
+        debugError("? Error rejecting order:", error);
+        alert("Failed to reject order. Please try again.");
+        return;
+      }
+    }
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setShowRejectPopup(false);
+    setShowNewOrderPopup(false);
+    setPopupOrder(null);
+    clearNewOrder();
+    setRejectReason("");
+    setCountdown(240);
+    setPrepTime(11);
+  };
+
+  const handleRejectCancel = () => {
+    setShowRejectPopup(false);
+    setShowNewOrderPopup(false);
+    setPopupOrder(null);
+    clearNewOrder();
+    setRejectReason("");
+    setCountdown(240);
+  };
+
+  // Handle cancel order (for preparing orders)
+  const handleCancelClick = (order) => {
+    setOrderToCancel(order);
+    setShowCancelPopup(true);
+  };
+
+  const handleCancelConfirm = async () => {
+    if (!cancelReason.trim() || !orderToCancel) return;
+
+    try {
+      const orderId = orderToCancel.mongoId || orderToCancel.orderId;
+      await restaurantAPI.rejectOrder(orderId, cancelReason.trim());
+      toast.success("Order cancelled successfully");
+      requestOrdersRefresh();
+      setShowCancelPopup(false);
+      setOrderToCancel(null);
+      setCancelReason("");
+    } catch (error) {
+      debugError("? Error cancelling order:", error);
+      toast.error(error.response?.data?.message || "Failed to cancel order");
+    }
+  };
+
+  const handleCancelPopupClose = () => {
+    setShowCancelPopup(false);
+    setOrderToCancel(null);
+    setCancelReason("");
+  };
+
+  // Toggle mute
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+    if (audioRef.current) {
+      if (!isMuted) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.muted = false;
+        audioRef.current.volume = 1;
+        audioRef.current.currentTime = 0;
+        audioRef.current
+          .play()
+          .catch((err) => debugLog("Audio play failed:", err));
+      }
+    }
+  };
+
+  // Handle PDF download
+  const handlePrint = async () => {
+    const orderToPrint = popupOrder || newOrder;
+    if (!orderToPrint) {
+      debugWarn("No order data available for PDF generation");
+      return;
+    }
+
+    try {
+      const doc = new jsPDF();
+
+      const formatMoney = (value) => {
+        const numberValue = Number(value);
+        return `Rs. ${(Number.isFinite(numberValue) ? numberValue : 0).toFixed(2)}`;
+      };
+
+      const orderDate = orderToPrint.createdAt
+        ? new Date(orderToPrint.createdAt).toLocaleString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : new Date().toLocaleString("en-GB");
+
+      const items = Array.isArray(orderToPrint.items) ? orderToPrint.items : [];
+      const lineItems = items.map((item) => {
+        const qty = Number(item?.quantity ?? item?.qty ?? 1);
+        const safeQty = Number.isFinite(qty) && qty > 0 ? qty : 1;
+        const unitPrice = Number(
+          item?.price ?? item?.unitPrice ?? item?.itemPrice ?? item?.food?.price ?? 0,
+        );
+        const safePrice = Number.isFinite(unitPrice) ? unitPrice : 0;
+        const variantLabel = getPopupItemVariantText(item);
+        const itemName = item?.name || item?.food?.name || "Item";
+        return {
+          name: variantLabel ? `${itemName} (${variantLabel})` : itemName,
+          qty: safeQty,
+          price: safePrice,
+          total: safePrice * safeQty,
+        };
+      });
+
+      const bill = getPopupBillBreakdown(orderToPrint);
+      const computedItemsTotal = lineItems.reduce((sum, item) => sum + item.total, 0);
+      const fallbackTotal = getPopupOrderTotal(orderToPrint);
+      const grandTotal =
+        bill.total > 0
+          ? bill.total
+          : fallbackTotal > 0
+            ? fallbackTotal
+            : computedItemsTotal;
+
+      const rawPaymentMethod =
+        orderToPrint?.paymentMethod || orderToPrint?.payment?.method || "";
+      const normalizedPaymentMethod = String(rawPaymentMethod).toLowerCase().trim();
+      const paymentLabel =
+        normalizedPaymentMethod === "cod" || normalizedPaymentMethod === "cash"
+          ? "Cash on Delivery"
+          : "Online";
+
+      const addressText = formatOrderAddressWithLabels(
+        orderToPrint.customerAddress || orderToPrint.deliveryAddress || orderToPrint.address || null,
+      );
+
+      doc.setFillColor(15, 23, 42);
+      doc.rect(0, 0, 210, 28, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.text("Order Receipt", 14, 17);
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.text(orderToPrint.restaurantName || "Restaurant", 14, 24);
+
+      doc.setTextColor(17, 24, 39);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text(`Order ID: ${orderToPrint.orderId || "N/A"}`, 14, 38);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Date: ${orderDate}`, 14, 45);
+      doc.text(`Payment: ${paymentLabel}`, 14, 52);
+
+      let yPos = 62;
+      if (addressText && addressText !== "Address not available") {
+        doc.setFont("helvetica", "bold");
+        doc.text("Delivery address", 14, yPos);
+        doc.setFont("helvetica", "normal");
+        const addressLines = doc.splitTextToSize(addressText, 180);
+        doc.text(addressLines, 14, yPos + 6);
+        yPos += 6 + addressLines.length * 5 + 5;
+      }
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [["Item", "Qty", "Unit Price", "Line Total"]],
+        body:
+          lineItems.length > 0
+            ? lineItems.map((item) => [
+                item.name,
+                String(item.qty),
+                formatMoney(item.price),
+                formatMoney(item.total),
+              ])
+            : [["No items", "-", "-", "-"]],
+        theme: "grid",
+        headStyles: {
+          fillColor: [15, 23, 42],
+          textColor: 255,
+          fontStyle: "bold",
+          halign: "left",
+        },
+        bodyStyles: {
+          textColor: [31, 41, 55],
+        },
+        styles: { fontSize: 9, cellPadding: 2.5 },
+        columnStyles: {
+          0: { cellWidth: 95 },
+          1: { cellWidth: 20, halign: "center" },
+          2: { cellWidth: 35, halign: "right" },
+          3: { cellWidth: 40, halign: "right" },
+        },
+      });
+
+      yPos = (doc.lastAutoTable?.finalY || yPos) + 8;
+      doc.setDrawColor(229, 231, 235);
+      doc.line(14, yPos, 196, yPos);
+      yPos += 8;
+
+      const summaryRows = [
+        ["Subtotal", bill.itemTotal],
+        ...(bill.packagingFee > 0 ? [["Packaging Fee", bill.packagingFee]] : []),
+        ...(bill.deliveryFee > 0 ? [["Delivery Fee", bill.deliveryFee]] : []),
+        ...(bill.platformFee > 0 ? [["Platform Fee", bill.platformFee]] : []),
+        ...(bill.taxes > 0 ? [["Tax", bill.taxes]] : []),
+        ...(bill.discount > 0 ? [["Discount", -Math.abs(bill.discount)]] : []),
+      ];
+
+      if (summaryRows.length > 0) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        summaryRows.forEach(([label, amount]) => {
+          const amountValue = Number(amount || 0);
+          doc.text(String(label), 120, yPos);
+          doc.text(formatMoney(amountValue), 196, yPos, { align: "right" });
+          yPos += 6;
+        });
+        yPos += 2;
+        doc.setDrawColor(209, 213, 219);
+        doc.line(120, yPos, 196, yPos);
+        yPos += 7;
+      }
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text("Grand Total", 14, yPos);
+      doc.text(formatMoney(grandTotal), 196, yPos, { align: "right" });
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      yPos += 9;
+      const cutleryLabel =
+        orderToPrint.sendCutlery === false
+          ? "Cutlery preference: Do not send cutlery"
+          : "Cutlery preference: Send cutlery";
+      doc.text(cutleryLabel, 14, yPos);
+
+      const orderNote = getOrderNoteForRestaurant(orderToPrint);
+      if (orderNote) {
+        yPos += 8;
+        doc.setFont("helvetica", "bold");
+        doc.text("Restaurant note", 14, yPos);
+        doc.setFont("helvetica", "normal");
+        const noteLines = doc.splitTextToSize(orderNote, 180);
+        doc.text(noteLines, 14, yPos + 6);
+      }
+
+      const pageHeight = doc.internal.pageSize.height;
+      doc.setFontSize(8.5);
+      doc.setTextColor(107, 114, 128);
+      doc.text(
+        `Generated on ${new Date().toLocaleString("en-GB")}`,
+        196,
+        pageHeight - 10,
+        { align: "right" },
+      );
+
+      const fileName = `Order-${orderToPrint.orderId || "Receipt"}-${Date.now()}.pdf`;
+      doc.save(fileName);
+
+      debugLog("? PDF generated successfully:", fileName);
+    } catch (error) {
+      debugError("? Error generating PDF:", error);
+      alert("Failed to generate PDF. Please try again.");
+    }
+  };
+
+  // Handle swipe gestures with smooth animations
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    touchEndX.current = e.touches[0].clientX;
+    isSwiping.current = false;
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isSwiping.current) {
+      const deltaX = Math.abs(e.touches[0].clientX - touchStartX.current);
+      const deltaY = Math.abs(e.touches[0].clientY - touchStartY.current);
+
+      // Determine if this is a horizontal swipe
+      if (deltaX > deltaY && deltaX > 10) {
+        isSwiping.current = true;
+      }
+    }
+
+    if (isSwiping.current) {
+      touchEndX.current = e.touches[0].clientX;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!isSwiping.current) {
+      touchStartX.current = 0;
+      touchEndX.current = 0;
+      return;
+    }
+
+    const swipeDistance = touchStartX.current - touchEndX.current;
+    const minSwipeDistance = 50;
+    const swipeVelocity = Math.abs(swipeDistance);
+
+    if (swipeVelocity > minSwipeDistance && !isTransitioning) {
+      const currentIndex = filterTabs.findIndex(
+        (tab) => tab.id === activeFilter,
+      );
+      let newIndex = currentIndex;
+
+      if (swipeDistance > 0 && currentIndex < filterTabs.length - 1) {
+        // Swipe left - go to next filter (right side)
+        newIndex = currentIndex + 1;
+      } else if (swipeDistance < 0 && currentIndex > 0) {
+        // Swipe right - go to previous filter (left side)
+        newIndex = currentIndex - 1;
+      }
+
+      if (newIndex !== currentIndex) {
+        setIsTransitioning(true);
+
+        // Smooth transition with animation
+        setTimeout(() => {
+          setActiveFilter(filterTabs[newIndex].id);
+          scrollToFilter(newIndex);
+
+          // Reset transition state after animation
+          setTimeout(() => {
+            setIsTransitioning(false);
+          }, 300);
+        }, 50);
+      }
+    }
+
+    // Reset touch positions
+    touchStartX.current = 0;
+    touchEndX.current = 0;
+    touchStartY.current = 0;
+    isSwiping.current = false;
+  };
+
+  // Scroll filter bar to show active button with smooth animation
+  const scrollToFilter = (index) => {
+    if (filterBarRef.current) {
+      const buttons = filterBarRef.current.querySelectorAll("button");
+      if (buttons[index]) {
+        const button = buttons[index];
+        const container = filterBarRef.current;
+        const buttonLeft = button.offsetLeft;
+        const buttonWidth = button.offsetWidth;
+        const containerWidth = container.offsetWidth;
+        const scrollLeft = buttonLeft - containerWidth / 2 + buttonWidth / 2;
+
+        container.scrollTo({
+          left: scrollLeft,
+          behavior: "smooth",
+        });
+      }
+    }
+  };
+
+  // Scroll to active filter on change with smooth animation
+  useEffect(() => {
+    const index = filterTabs.findIndex((tab) => tab.id === activeFilter);
+    if (index >= 0) {
+      // Use requestAnimationFrame for smoother scrolling
+      requestAnimationFrame(() => {
+        scrollToFilter(index);
+      });
+    }
+  }, [activeFilter]);
+
+  const handleSelectOrder = (order) => {
+    selectedOrderHydrationRef.current = "";
+    setSelectedOrder(normalizeSelectedOrderForSheet(order));
+    setIsSheetOpen(true);
+  };
+
+  const renderContent = () => {
+    switch (activeFilter) {
+      case "all":
+        return (
+          <AllOrders
+            onSelectOrder={handleSelectOrder}
+            onCancel={handleCancelClick}
+            refreshToken={ordersRefreshToken}
+          />
+        );
+      case "preparing":
+        return (
+          <PreparingOrders
+            onSelectOrder={handleSelectOrder}
+            onCancel={handleCancelClick}
+            refreshToken={ordersRefreshToken}
+            onStatusChanged={requestOrdersRefresh}
+          />
+        );
+      case "ready":
+        return (
+          <ReadyOrders
+            onSelectOrder={handleSelectOrder}
+            refreshToken={ordersRefreshToken}
+          />
+        );
+      case "out-for-delivery":
+        return (
+          <OutForDeliveryOrders
+            onSelectOrder={handleSelectOrder}
+            refreshToken={ordersRefreshToken}
+          />
+        );
+      case "completed":
+        return (
+          <CompletedOrders
+            onSelectOrder={handleSelectOrder}
+            refreshToken={ordersRefreshToken}
           />
         );
       case "cancelled":

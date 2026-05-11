@@ -14,7 +14,6 @@ export default function RestaurantReviews() {
   const [searchQuery, setSearchQuery] = useState("")
   const [reviews, setReviews] = useState([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false)
   const [selectedReview, setSelectedReview] = useState(null)
   const [visibleColumns, setVisibleColumns] = useState({
@@ -199,12 +198,6 @@ export default function RestaurantReviews() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <button 
-                onClick={() => setIsSettingsOpen(true)}
-                className="p-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition-all"
-              >
-                <Settings className="w-5 h-5" />
-              </button>
             </div>
           </div>
 

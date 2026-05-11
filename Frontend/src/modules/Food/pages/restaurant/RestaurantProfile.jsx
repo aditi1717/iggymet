@@ -435,24 +435,28 @@ const RestaurantProfile = () => {
       if (!/^[a-zA-Z\s]*$/.test(basicInfo.ownerName)) return toast.error("Owner name should only contain letters")
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(basicInfo.ownerEmail)) return toast.error("Invalid email format")
       if (!/^\d{10}$/.test(basicInfo.ownerPhone)) return toast.error("Owner phone must be 10 digits")
-      if (basicInfo.primaryContactNumber && !/^\d{10}$/.test(basicInfo.primaryContactNumber)) return toast.error("Secondary contact number must be 10 digits")
+      if (basicInfo.primaryContactNumber && !/^\d{10,20}$/.test(basicInfo.primaryContactNumber)) return toast.error("Secondary contact number should be between 10 and 20 digits")
     } else if (section === 'kyc') {
       const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
       if (!panRegex.test(kycInfo.panNumber)) return toast.error("Invalid PAN format (e.g., ABCDE1234F)")
-      if (!/^[a-zA-Z\s]*$/.test(kycInfo.nameOnPan)) return toast.error("Name on PAN should only contain letters")
+      if (!/^[a-zA-Z\s]*$/.test(kycInfo.nameOnPan)) return toast.error("Name on PAN should only contain letters and spaces")
       
       if (kycInfo.gstRegistered) {
+        if (!kycInfo.gstNumber) return toast.error("GST number is required")
         const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
-        if (!gstRegex.test(kycInfo.gstNumber)) return toast.error("Invalid GST number format")
-        if (!/^[a-zA-Z\s]*$/.test(kycInfo.gstLegalName)) return toast.error("Legal entity name should only contain letters")
+        if (!gstRegex.test(kycInfo.gstNumber)) return toast.error("Invalid GST number format (e.g., 22AAAAA0000A1Z5)")
+        if (!kycInfo.gstLegalName) return toast.error("Legal entity name is required")
+        if (!/^[a-zA-Z\s]*$/.test(kycInfo.gstLegalName)) return toast.error("Legal entity name should only contain letters and spaces")
       }
     } else if (section === "fssai") {
       if (kycInfo.fssaiNumber && !/^\d{14}$/.test(kycInfo.fssaiNumber)) return toast.error("FSSAI license number must be 14 digits")
     } else if (section === 'bank') {
-      if (!/^\d+$/.test(bankInfo.accountNumber)) return toast.error("Account number should only contain digits")
+      if (!bankInfo.accountNumber) return toast.error("Account number is required")
+      if (!/^\d{9,15}$/.test(bankInfo.accountNumber)) return toast.error("Account number should be 9 to 15 digits")
       const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/
       if (!ifscRegex.test(bankInfo.ifscCode)) return toast.error("Invalid IFSC code format (e.g., ABCD0123456)")
-      if (!/^[a-zA-Z\s]*$/.test(bankInfo.accountHolderName)) return toast.error("Account holder name should only contain letters")
+      if (!bankInfo.accountHolderName) return toast.error("Account holder name is required")
+      if (!/^[a-zA-Z\s]*$/.test(bankInfo.accountHolderName)) return toast.error("Account holder name should only contain letters and spaces")
     } else if (section === 'location') {
       const selectedZoneId = normalizeProfileZoneId(location.zoneId)
       const selectedZone = zones.find((zone) => getZoneIdValue(zone) === selectedZoneId)
@@ -780,6 +784,7 @@ const RestaurantProfile = () => {
               <div className="relative">
                 <Mail className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                 <Input 
+                  type="email"
                   value={basicInfo.ownerEmail} 
                   onChange={e => setBasicInfo({...basicInfo, ownerEmail: e.target.value})}
                   disabled={!editStates.basic}
@@ -806,10 +811,10 @@ const RestaurantProfile = () => {
                 <Phone className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                 <Input 
                   value={basicInfo.primaryContactNumber} 
-                  onChange={e => setBasicInfo({...basicInfo, primaryContactNumber: e.target.value.replace(/\D/g, "").slice(0, 10)})}
+                  onChange={e => setBasicInfo({...basicInfo, primaryContactNumber: e.target.value.replace(/\D/g, "").slice(0, 20)})}
                   disabled={!editStates.basic}
                   className="pl-10 rounded-xl bg-slate-50/50"
-                  placeholder="10-digit contact number"
+                  placeholder="Max 20-digit contact number"
                 />
               </div>
             </div>
@@ -1233,17 +1238,17 @@ const RestaurantProfile = () => {
               <Label className="text-xs font-bold text-slate-500 ml-1">Account Number</Label>
               <Input 
                 value={bankInfo.accountNumber} 
-                onChange={e => setBankInfo({...bankInfo, accountNumber: e.target.value.replace(/\D/g, "")})}
+                onChange={e => setBankInfo({...bankInfo, accountNumber: e.target.value.replace(/\D/g, "").slice(0, 15)})}
                 disabled={!editStates.bank}
                 className="rounded-xl bg-slate-50/50 font-mono tracking-wider"
-                placeholder="Bank Account Number"
+                placeholder="9 to 15 digit number"
               />
             </div>
             <div className="space-y-2">
               <Label className="text-xs font-bold text-slate-500 ml-1">IFSC Code</Label>
               <Input 
                 value={bankInfo.ifscCode} 
-                onChange={e => setBankInfo({...bankInfo, ifscCode: e.target.value.toUpperCase().slice(0, 11)})}
+                onChange={e => setBankInfo({...bankInfo, ifscCode: e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 11)})}
                 disabled={!editStates.bank}
                 className="rounded-xl bg-slate-50/50 font-mono"
                 placeholder="ABCD0123456"
