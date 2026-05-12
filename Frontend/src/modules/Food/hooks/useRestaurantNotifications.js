@@ -644,6 +644,12 @@ export const useRestaurantNotifications = () => {
         );
       }
       const status = String(data?.orderStatus || data?.status || '').toLowerCase();
+      const dispatchStatus = String(
+        data?.dispatchStatus ||
+          data?.dispatch_status ||
+          data?.dispatch?.status ||
+          '',
+      ).toLowerCase();
       const eventOrderKeys = getOrderKeys(data);
       if (status.includes('cancel')) {
         const orderKeys = eventOrderKeys;
@@ -675,7 +681,13 @@ export const useRestaurantNotifications = () => {
       // If order is no longer waiting for restaurant review, immediately clear
       // the active new-order notification for the same order.
       const isPendingReviewStatus = status === 'created' || status === 'confirmed';
-      if (eventOrderKeys.length > 0 && status && !isPendingReviewStatus) {
+      const shouldDismissByDispatch =
+        dispatchStatus === 'accepted' ||
+        dispatchStatus === 'unassigned' ||
+        dispatchStatus === 'rejected';
+      const shouldDismissByStatus = status && !isPendingReviewStatus;
+
+      if (eventOrderKeys.length > 0 && (shouldDismissByStatus || shouldDismissByDispatch)) {
         if (activeOrderRef.current) {
           const activeOrderKeys = getOrderKeys(activeOrderRef.current);
           const matchesActive = activeOrderKeys.some((key) =>
