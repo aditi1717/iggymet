@@ -319,6 +319,48 @@ function toGeoPoint(lat, lng) {
   return { type: "Point", coordinates: [b, a] };
 }
 
+function extractLatLngFromLocation(location = {}) {
+  if (!location || typeof location !== "object") return null;
+  if (Array.isArray(location.coordinates) && location.coordinates.length >= 2) {
+    const lng = Number(location.coordinates[0]);
+    const lat = Number(location.coordinates[1]);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+  }
+  const lat = Number(location.latitude ?? location.lat);
+  const lng = Number(location.longitude ?? location.lng);
+  if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+  return null;
+}
+
+function resolveDeliveryFeeByDistance(distanceKm, feeSettings = {}) {
+  if (!Number.isFinite(distanceKm) || distanceKm <= 0) {
+    return Number(feeSettings.deliveryFee || 0);
+  }
+
+  const ranges = Array.isArray(feeSettings.deliveryFeeRanges)
+    ? [...feeSettings.deliveryFeeRanges]
+    : [];
+  if (!ranges.length) return Number(feeSettings.deliveryFee || 0);
+
+  ranges.sort((a, b) => Number(a.min) - Number(b.min));
+  for (let i = 0; i < ranges.length; i += 1) {
+    const r = ranges[i] || {};
+    const min = Number(r.min);
+    const max = Number(r.max);
+    const fee = Number(r.fee);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || !Number.isFinite(fee)) {
+      continue;
+    }
+    const isLast = i === ranges.length - 1;
+    const inRange = isLast
+      ? distanceKm >= min && distanceKm <= max
+      : distanceKm >= min && distanceKm < max;
+    if (inRange) return fee;
+  }
+
+  return Number(feeSettings.deliveryFee || 0);
+}
+
 function formatDeliveryAddressWithLabels(address = {}) {
   if (!address || typeof address !== "object") return "";
 
@@ -960,7 +1002,7 @@ export async function calculateOrder(userId, dto) {
   }
 
   const restaurant = await FoodRestaurant.findById(dto.restaurantId)
-    .select("status")
+    .select("status location")
     .lean();
   if (!restaurant) throw new ValidationError("Restaurant not found");
   if (restaurant.status !== "approved")
@@ -969,49 +1011,18 @@ export async function calculateOrder(userId, dto) {
   const packagingFee = 0;
   const platformFee = Number(feeSettings.platformFee || 0);
 
-  // Delivery fee by subtotal range (fallback to flat fee; free above threshold).
-  const freeThreshold = Number(feeSettings.freeDeliveryThreshold || 0);
-  let deliveryFee = 0;
-  if (
-    Number.isFinite(freeThreshold) &&
-    freeThreshold > 0 &&
-    subtotal >= freeThreshold
-  ) {
-    deliveryFee = 0;
-  } else {
-    const ranges = Array.isArray(feeSettings.deliveryFeeRanges)
-      ? [...feeSettings.deliveryFeeRanges]
-      : [];
-    if (ranges.length > 0) {
-      ranges.sort((a, b) => Number(a.min) - Number(b.min));
-      let matched = null;
-      for (let i = 0; i < ranges.length; i += 1) {
-        const r = ranges[i] || {};
-        const min = Number(r.min);
-        const max = Number(r.max);
-        const fee = Number(r.fee);
-        if (
-          !Number.isFinite(min) ||
-          !Number.isFinite(max) ||
-          !Number.isFinite(fee)
+  const restaurantLatLng = extractLatLngFromLocation(restaurant?.location || {});
+  const customerLatLng = extractLatLngFromLocation(dto?.address?.location || dto?.address || {});
+  const distanceKm =
+    restaurantLatLng && customerLatLng
+      ? haversineKm(
+          restaurantLatLng.lat,
+          restaurantLatLng.lng,
+          customerLatLng.lat,
+          customerLatLng.lng,
         )
-          continue;
-        const isLast = i === ranges.length - 1;
-        const inRange = isLast
-          ? subtotal >= min && subtotal <= max
-          : subtotal >= min && subtotal < max;
-        if (inRange) {
-          matched = fee;
-          break;
-        }
-      }
-      deliveryFee = Number.isFinite(matched)
-        ? matched
-        : Number(feeSettings.deliveryFee || 0);
-    } else {
-      deliveryFee = Number(feeSettings.deliveryFee || 0);
-    }
-  }
+      : null;
+  const deliveryFee = resolveDeliveryFeeByDistance(distanceKm, feeSettings);
 
   const gstRate = Number(feeSettings.gstRate || 0);
   const tax =

@@ -94,16 +94,21 @@ async function listNearbyOnlineDeliveryPartners(
 }
 
 export async function getDispatchSettings() {
-  return { dispatchMode: "auto" };
+  let doc = await FoodSettings.findOne({ key: "dispatch" }).lean();
+  if (!doc) {
+    await FoodSettings.create({ key: "dispatch", dispatchMode: "manual" });
+    doc = await FoodSettings.findOne({ key: "dispatch" }).lean();
+  }
+  return { dispatchMode: doc?.dispatchMode || "manual" };
 }
 
 export async function updateDispatchSettings(dispatchMode, adminId) {
-  // Always set to auto
+  const normalizedMode = dispatchMode === "auto" ? "auto" : "manual";
   await FoodSettings.findOneAndUpdate(
     { key: "dispatch" },
     {
       $set: {
-        dispatchMode: "auto",
+        dispatchMode: normalizedMode,
         updatedBy: { role: "ADMIN", adminId, at: new Date() },
       },
     },
@@ -113,6 +118,14 @@ export async function updateDispatchSettings(dispatchMode, adminId) {
 }
 
 export async function tryAutoAssign(orderId, options = {}) {
+  const settings = await getDispatchSettings();
+  if (settings.dispatchMode !== "auto") {
+    logger.info(
+      `tryAutoAssign: skipped for ${orderId} because dispatch mode is manual.`,
+    );
+    return null;
+  }
+
   const attempt = options.attempt || 1;
   const lockTimeout = 55000; // 55 seconds lock interval
 

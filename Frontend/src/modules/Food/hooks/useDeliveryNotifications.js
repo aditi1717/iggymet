@@ -228,6 +228,42 @@ export const useDeliveryNotifications = () => {
     return true;
   };
 
+  const getOrderKeys = (payload = {}) =>
+    [
+      payload?.orderMongoId,
+      payload?.order_mongo_id,
+      payload?.orderId,
+      payload?.order_id,
+      payload?._id,
+      payload?.id,
+    ]
+      .filter(Boolean)
+      .map((value) => String(value).trim())
+      .filter(Boolean);
+
+  const shouldStopAlertForStatusPayload = (statusPayload = {}) => {
+    const status = String(
+      statusPayload?.orderStatus ||
+      statusPayload?.status ||
+      statusPayload?.deliveryStatus ||
+      ''
+    ).toLowerCase();
+    const dispatchStatus = String(statusPayload?.dispatch?.status || '').toLowerCase();
+
+    if (
+      ['accepted', 'picked_up', 'delivering', 'reached_drop', 'delivered', 'completed', 'cancelled', 'deleted', 'rejected'].includes(status) ||
+      status.startsWith('cancelled_by_')
+    ) {
+      return true;
+    }
+
+    if (dispatchStatus === 'accepted' || dispatchStatus === 'unassigned') {
+      return true;
+    }
+
+    return false;
+  };
+
   const stopAlertLoop = useCallback(() => {
     if (alertLoopTimerRef.current) {
       clearInterval(alertLoopTimerRef.current);
@@ -247,9 +283,8 @@ export const useDeliveryNotifications = () => {
         return;
       }
 
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        playSoundFn(activeOrderRef.current);
-      }
+      // Keep ringing until rider explicitly accepts/passes or status resolves.
+      playSoundFn(activeOrderRef.current);
     }, ALERT_LOOP_INTERVAL_MS);
   }, [stopAlertLoop]);
   
@@ -900,11 +935,25 @@ export const useDeliveryNotifications = () => {
 
     socketRef.current.on('order_status_update', (statusData) => {
       debugLog('?? Delivery order status update received via socket:', statusData);
+      const activeOrderKeys = getOrderKeys(activeOrderRef.current || {});
+      const eventOrderKeys = getOrderKeys(statusData || {});
+      const isSameActiveOrder = activeOrderKeys.some((key) => eventOrderKeys.includes(key));
+      if (isSameActiveOrder && shouldStopAlertForStatusPayload(statusData || {})) {
+        stopAlertLoop();
+        activeOrderRef.current = null;
+      }
       setOrderStatusUpdate(statusData || null);
     });
 
     socketRef.current.on('order_cancelled', (statusData) => {
       debugLog('?? Delivery order cancelled event received via socket:', statusData);
+      const activeOrderKeys = getOrderKeys(activeOrderRef.current || {});
+      const eventOrderKeys = getOrderKeys(statusData || {});
+      const isSameActiveOrder = activeOrderKeys.some((key) => eventOrderKeys.includes(key));
+      if (isSameActiveOrder) {
+        stopAlertLoop();
+        activeOrderRef.current = null;
+      }
       setOrderStatusUpdate({
         ...(statusData || {}),
         status: 'cancelled'
@@ -913,6 +962,13 @@ export const useDeliveryNotifications = () => {
 
     socketRef.current.on('order_deleted', (statusData) => {
       debugLog('?? Delivery order deleted event received via socket:', statusData);
+      const activeOrderKeys = getOrderKeys(activeOrderRef.current || {});
+      const eventOrderKeys = getOrderKeys(statusData || {});
+      const isSameActiveOrder = activeOrderKeys.some((key) => eventOrderKeys.includes(key));
+      if (isSameActiveOrder) {
+        stopAlertLoop();
+        activeOrderRef.current = null;
+      }
       setOrderStatusUpdate({
         ...(statusData || {}),
         status: 'deleted'

@@ -269,6 +269,30 @@ const getGoogleMapsHref = (location, addressText = '') => {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 };
 
+const getGoogleMapsDirectionsHref = ({
+  origin,
+  destination,
+  destinationAddressText = '',
+}) => {
+  const destinationLat = Number(destination?.lat);
+  const destinationLng = Number(destination?.lng);
+  if (!Number.isFinite(destinationLat) || !Number.isFinite(destinationLng)) {
+    const fallback = getGoogleMapsHref(destination, destinationAddressText);
+    return fallback || '';
+  }
+
+  const destinationParam = `${destinationLat},${destinationLng}`;
+  const originLat = Number(origin?.lat);
+  const originLng = Number(origin?.lng);
+  const hasOrigin = Number.isFinite(originLat) && Number.isFinite(originLng);
+  const originParam = hasOrigin ? `${originLat},${originLng}` : '';
+  const baseUrl = 'https://www.google.com/maps/dir/?api=1';
+  const query = hasOrigin
+    ? `origin=${encodeURIComponent(originParam)}&destination=${encodeURIComponent(destinationParam)}`
+    : `destination=${encodeURIComponent(destinationParam)}`;
+  return `${baseUrl}&${query}&travelmode=driving`;
+};
+
 const getDispatchStatus = (order) =>
   String(order?.dispatch?.status || order?.queueStatus || '').toLowerCase();
 
@@ -691,7 +715,6 @@ const OrderDetailV2 = () => {
     [order],
   );
   const deliveryInstructions = useMemo(() => getDeliveryInstructions(order), [order]);
-  const dropMapHref = getGoogleMapsHref(customerLocation, customerAddress);
   const pickupMeta = useMemo(() => getPickupContactMeta(order), [order]);
   const pickupDisplayPhone = getDisplayPhone(pickupMeta.phone);
   const customerDisplayPhone = getDisplayPhone(customerMeta.phone);
@@ -763,6 +786,22 @@ const OrderDetailV2 = () => {
     rawStatus === 'reached_drop' ||
     phase === 'at_drop' ||
     ['delivered', 'completed'].includes(rawStatus);
+  const shouldNavigateToDrop = hasPickedOrder || hasReachedDrop;
+  const mapDestination = shouldNavigateToDrop ? customerLocation : restaurantLocation;
+  const mapDestinationAddress = shouldNavigateToDrop ? customerAddress : restaurantAddress;
+  const mapDestinationLabel = shouldNavigateToDrop ? 'customer location' : 'pickup location';
+  const activeMapHref = getGoogleMapsHref(mapDestination, mapDestinationAddress);
+  const googleMapsDirectionsHref = useMemo(() => {
+    const riderLocation = useDeliveryStore.getState().riderLocation || {};
+    return getGoogleMapsDirectionsHref({
+      origin: {
+        lat: riderLocation?.lat ?? riderLocation?.latitude,
+        lng: riderLocation?.lng ?? riderLocation?.longitude,
+      },
+      destination: mapDestination,
+      destinationAddressText: mapDestinationAddress,
+    });
+  }, [mapDestination, mapDestinationAddress]);
 
   const handleAccept = useCallback(() => runAction(
     'accept',
@@ -1142,14 +1181,37 @@ const OrderDetailV2 = () => {
 
         </section>
 
-        {!isPassedTaskFlow && dropMapHref && !isClosedOrder && (
-          <button
-            type="button"
-            onClick={openOrderMapInApp}
-            className="w-full rounded-xl bg-[#16a34a] px-4 py-3 text-sm font-semibold text-white"
-          >
-            View in map
-          </button>
+        {!isPassedTaskFlow && activeMapHref && !isClosedOrder && (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={openOrderMapInApp}
+              className="w-full rounded-xl bg-[#16a34a] px-4 py-3 text-sm font-semibold text-white"
+            >
+              View in app map
+            </button>
+            {googleMapsDirectionsHref ? (
+              <a
+                href={googleMapsDirectionsHref}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex w-full items-center justify-center rounded-xl border border-[#2979fb] bg-white px-4 py-3 text-sm font-semibold text-[#2979fb]"
+              >
+                Open Google Maps
+              </a>
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-400"
+              >
+                Google Maps unavailable
+              </button>
+            )}
+            <p className="sm:col-span-2 text-[11px] text-slate-500">
+              Google Maps will open navigation to {mapDestinationLabel}.
+            </p>
+          </div>
         )}
 
         {!isPassedTaskFlow && (

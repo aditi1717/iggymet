@@ -546,19 +546,26 @@ export default function RestaurantsList() {
     )
   }
 
-  const formatLocationAddress = (location = {}, fallback = "N/A") => {
-    if (!location || typeof location !== "object") return fallback
-    if (location.formattedAddress) return location.formattedAddress
-    if (location.address) return location.address
+  const formatLocationAddress = (source = {}, fallback = "N/A") => {
+    if (!source || typeof source !== "object") return fallback
+
+    const getField = (key) =>
+      source[key] ||
+      source.location?.[key] ||
+      source.onboarding?.step1?.location?.[key]
+
     const parts = [
-      location.addressLine1,
-      location.addressLine2,
-      location.area,
-      location.city,
-      location.state,
-      location.pincode || location.zipCode || location.postalCode,
+      getField("addressLine1"),
+      getField("addressLine2"),
+      getField("area"),
+      getField("city"),
+      getField("landmark"),
+      getField("pincode") || getField("zipCode") || getField("postalCode"),
+      getField("state"),
     ].filter(Boolean)
-    return parts.length > 0 ? parts.join(", ") : fallback
+
+    if (parts.length > 0) return parts.join(", ")
+    return fallback
   }
 
   const normalizeLocationFormFromRestaurant = (restaurant) => {
@@ -1776,7 +1783,7 @@ export default function RestaurantsList() {
                 const profileImgUrl = getPrimaryRestaurantImage(r)
                 const coverImages = Array.isArray(r?.coverImages) ? r.coverImages.map(normalizeImageUrl).filter(Boolean) : []
                 const hasFlatAddress = r?.addressLine1 || r?.area || r?.city || r?.state || r?.pincode
-                const flatAddress = [r?.addressLine1, r?.addressLine2, r?.area, r?.city, r?.state, r?.pincode, r?.landmark].filter(Boolean).join(", ")
+                const flatAddress = formatLocationAddress(r)
                 const menuImages = Array.isArray(r?.menuImages) ? r.menuImages.map(normalizeImageUrl).filter(Boolean) : []
                 const cuisinesList =
                   (Array.isArray(r?.cuisines) && r.cuisines.length ? r.cuisines : null) ||
@@ -1931,7 +1938,7 @@ export default function RestaurantsList() {
                             <div>
                               <p className="text-xs text-slate-500">Address</p>
                               <p className="text-sm font-medium text-slate-900">
-                                {r?.location ? formatLocationAddress(r.location, selectedRestaurant?.zone) : flatAddress}
+                                {formatLocationAddress(r, selectedRestaurant?.zone)}
                               </p>
                             </div>
                           </div>

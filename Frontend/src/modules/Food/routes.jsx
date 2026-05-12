@@ -53,7 +53,6 @@ function RestaurantGlobalNotificationListener() {
     location.pathname === "/food/restaurant/welcome" ||
     location.pathname === "/food/restaurant/auth/google-callback"
   const isOrderManagedRoute =
-    location.pathname === "/food/restaurant" ||
     location.pathname === "/food/restaurant/orders" ||
     location.pathname.startsWith("/food/restaurant/orders/")
 

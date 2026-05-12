@@ -1430,11 +1430,13 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
     try {
       if (activeOrder) {
         await handleAdvancedOrderAccept(order);
+        clearNewOrder();
       } else {
         const accepted = await acceptOrder(order, { keepCurrentActive: false });
         removeAdvancedOrder(order);
         setIncomingOrder((prev) => (getOrderIdentity(prev) === queuedOrderId ? null : prev));
         clearPersistedIncomingOrder();
+        clearNewOrder();
         persistFocusedOrder(getOrderIdentity(accepted) || queuedOrderId);
         toast.success('Order accepted');
       }
@@ -1446,6 +1448,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   }, [
     acceptOrder,
     activeOrder,
+    clearNewOrder,
     clearPersistedIncomingOrder,
     handleAdvancedOrderAccept,
     persistFocusedOrder,
@@ -1464,6 +1467,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
         setIncomingOrder(null);
         clearPersistedIncomingOrder();
       }
+      clearNewOrder();
       if (focusedOrderId === queuedOrderId) {
         persistFocusedOrder('');
       }
@@ -1472,6 +1476,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
       setOrderActionBusy({ orderId: '', type: '' });
     }
   }, [
+    clearNewOrder,
     clearPersistedIncomingOrder,
     focusedOrderId,
     incomingOrder,

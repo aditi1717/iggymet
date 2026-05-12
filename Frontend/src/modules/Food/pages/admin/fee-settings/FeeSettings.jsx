@@ -8,7 +8,7 @@ const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
 
-// Fee Settings Component - Range-based delivery fee configuration
+// Fee Settings Component - Distance slab based delivery fee configuration
 export default function FeeSettings() {
   const [feeSettings, setFeeSettings] = useState({
     deliveryFee: "",
@@ -130,7 +130,7 @@ export default function FeeSettings() {
       deliveryFeeRanges: [...ranges, { min, max, fee }].sort((a, b) => a.min - b.min)
     })
     setNewRange({ min: '', max: '', fee: '' })
-    toast.success('Range added successfully')
+    toast.success('Distance slab added successfully')
   }
 
   // Delete delivery fee range
@@ -140,7 +140,7 @@ export default function FeeSettings() {
       ...feeSettings,
       deliveryFeeRanges: newRanges
     })
-    toast.success('Range deleted successfully')
+    toast.success('Distance slab deleted successfully')
   }
 
   // Edit delivery fee range
@@ -193,7 +193,7 @@ export default function FeeSettings() {
     })
     setNewRange({ min: '', max: '', fee: '' })
     setEditingRangeIndex(null)
-    toast.success('Range updated successfully')
+    toast.success('Distance slab updated successfully')
   }
 
   // Cancel edit
@@ -256,9 +256,9 @@ export default function FeeSettings() {
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-lg font-semibold text-slate-900">Delivery Fee by Order Value Range</h3>
+                    <h3 className="text-lg font-semibold text-slate-900">Delivery Fee by Distance Slab</h3>
                     <p className="text-sm text-slate-500 mt-1">
-                      Set different delivery fees based on order value ranges
+                      Set different delivery fees based on distance in kilometers
                     </p>
                   </div>
                 </div>
@@ -269,8 +269,8 @@ export default function FeeSettings() {
                     <table className="w-full border border-slate-200 rounded-lg">
                       <thead className="bg-slate-50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border-b border-slate-200">Min (₹)</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border-b border-slate-200">Max (₹)</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border-b border-slate-200">Min (km)</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border-b border-slate-200">Max (km)</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border-b border-slate-200">Delivery Fee (₹)</th>
                           <th className="px-4 py-3 text-center text-sm font-semibold text-slate-700 border-b border-slate-200">Actions</th>
                         </tr>
@@ -375,36 +375,36 @@ export default function FeeSettings() {
                   </div>
                 )}
 
-                {/* Add New Range Form - Only show when NOT editing */}
+                {/* Add New Distance Slab Form - Only show when NOT editing */}
                 {editingRangeIndex === null && (
                   <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
                     <div className="flex items-center gap-2 mb-3">
                       <Plus className="w-4 h-4 text-green-600" />
-                      <h4 className="text-sm font-semibold text-slate-700">Add New Range</h4>
+                      <h4 className="text-sm font-semibold text-slate-700">Add New Distance Slab</h4>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">Min Value (₹)</label>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Min Distance (km)</label>
                         <input
                           type="number"
                           value={newRange.min}
                           onChange={(e) => setNewRange({ ...newRange, min: e.target.value })}
                           min="0"
-                          step="1"
+                          step="0.1"
                           className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all"
                           placeholder="0"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">Max Value (₹)</label>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Max Distance (km)</label>
                         <input
                           type="number"
                           value={newRange.max}
                           onChange={(e) => setNewRange({ ...newRange, max: e.target.value })}
                           min="0"
-                          step="1"
+                          step="0.1"
                           className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all"
-                          placeholder="1000"
+                          placeholder="10"
                         />
                       </div>
                       <div>
@@ -425,12 +425,12 @@ export default function FeeSettings() {
                           className="bg-green-600 hover:bg-green-700 text-white text-sm w-full flex items-center justify-center gap-2"
                         >
                           <Plus className="w-4 h-4" />
-                          Add Range
+                          Add Slab
                         </Button>
                       </div>
                     </div>
                     <p className="text-xs text-slate-500 mt-2 italic">
-                      Example: Orders between ₹0 and ₹1000 will have ₹50 delivery fee.
+                      Example: Distance between 0 and 3 km can have Rs 30 delivery fee.
                     </p>
                   </div>
                 )}
@@ -453,7 +453,7 @@ export default function FeeSettings() {
                     placeholder="Leave empty to disable fallback"
                   />
                   <p className="text-xs text-slate-500">
-                    Used only when no delivery fee range matches and free delivery threshold is not met
+                    Used only when no distance slab matches or location is unavailable
                   </p>
                 </div>
 
@@ -472,7 +472,7 @@ export default function FeeSettings() {
                     placeholder="149"
                   />
                   <p className="text-xs text-slate-500">
-                    Orders at or above this amount get free delivery
+                    Legacy field. Distance-based delivery flow does not use this for food orders.
                   </p>
                 </div>
 
@@ -522,3 +522,6 @@ export default function FeeSettings() {
     </div>
   )
 }
+
+
+

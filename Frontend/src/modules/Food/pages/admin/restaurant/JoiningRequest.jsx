@@ -33,6 +33,28 @@ const formatTime12Hour = (timeStr) => {
   return `${String(hour).padStart(2, "0")}:${String(m).padStart(2, "0")} ${period}`
 }
 
+const formatLocationAddress = (source = {}, fallback = "—") => {
+  if (!source || typeof source !== "object") return fallback
+
+  const getField = (key) =>
+    source[key] ||
+    source.location?.[key] ||
+    source.onboarding?.step1?.location?.[key]
+
+  const parts = [
+    getField("addressLine1"),
+    getField("addressLine2"),
+    getField("area"),
+    getField("city"),
+    getField("landmark"),
+    getField("pincode") || getField("zipCode") || getField("postalCode"),
+    getField("state"),
+  ].filter(Boolean)
+
+  if (parts.length > 0) return parts.join(", ")
+  return fallback
+}
+
 
 export default function JoiningRequest() {
   const [activeTab, setActiveTab] = useState("pending")
@@ -821,13 +843,7 @@ export default function JoiningRequest() {
                             <div>
                               <p className="text-xs text-slate-500">Address</p>
                               <p className="text-sm font-medium text-slate-900">
-                                {addressParts.length > 0
-                                  ? [r.addressLine1, r.addressLine2, r.area, r.city, r.landmark].filter(Boolean).join(", ")
-                                  : r?.location?.addressLine1
-                                    ? [r.location.addressLine1, r.location.addressLine2, r.location.area, r.location.city].filter(Boolean).join(", ")
-                                    : r?.onboarding?.step1?.location
-                                      ? [r.onboarding.step1.location.addressLine1, r.onboarding.step1.location.addressLine2, r.onboarding.step1.location.area, r.onboarding.step1.location.city].filter(Boolean).join(", ")
-                                      : r?.zone || "—"}
+                                {formatLocationAddress(r, r?.zone)}
                               </p>
                             </div>
                           </div>
