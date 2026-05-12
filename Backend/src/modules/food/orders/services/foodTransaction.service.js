@@ -117,13 +117,18 @@ export async function createInitialTransaction(order) {
         - couponByRestaurant   // Scenario 1: restaurant-funded coupon deducted from payout
         - offerByRestaurant;   // Scenario 3: item-level offer deducted from payout
 
-    // Scenario 2 (platform coupon): deduct couponByAdmin so platform net profit reflects
-    // the true cost of funding the discount.
+    // Platform net includes GST and should only bear platform-funded discounts.
+    // Restaurant-funded discounts are added back to platform-side settlement view.
     const couponByAdmin = Number(order.pricing?.couponByAdmin || 0);
-    const platformNetProfit = (order.pricing?.platformFee || 0) + (order.pricing?.deliveryFee || 0)
+    const tax = Number(order.pricing?.tax || 0);
+    const platformNetProfit = (Number(order.pricing?.platformFee || 0) || 0)
+        + (Number(order.pricing?.deliveryFee || 0) || 0)
+        + tax
         + restaurantCommission
         - riderShare
-        - couponByAdmin;       // Scenario 2: platform bears the cost of platform-funded coupons
+        - couponByAdmin
+        + couponByRestaurant
+        + offerByRestaurant;
 
     const transaction = new FoodTransaction({
         orderId: order._id,

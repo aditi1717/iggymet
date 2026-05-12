@@ -1140,7 +1140,8 @@ export default function Cart() {
   
   // Hide offer if it's already been used (check feedback from backend)
   // If backend returns null for autoAppliedOffer, it means the offer was filtered out (e.g., already used)
-  const shouldShowRestaurantOffer = autoAppliedRestaurantOffer && 
+  const shouldShowRestaurantOffer = !displayedAppliedCoupon &&
+    autoAppliedRestaurantOffer && 
     !pricing?.autoOfferFeedback?.reason?.includes('used') &&
     !pricing?.autoOfferFeedback?.reason?.includes('limit') &&
     !pricing?.autoOfferFeedback?.reason?.includes('per_user')

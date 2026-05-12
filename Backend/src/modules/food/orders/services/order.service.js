@@ -361,6 +361,40 @@ function resolveDeliveryFeeByDistance(distanceKm, feeSettings = {}) {
   return Number(feeSettings.deliveryFee || 0);
 }
 
+function normalizeExclusiveDiscountSplit(pricing = {}) {
+  const subtotal = Math.max(0, Number(pricing?.subtotal || 0));
+  const couponByAdminRaw = Math.max(0, Number(pricing?.couponByAdmin || 0));
+  const couponByRestaurantRaw = Math.max(0, Number(pricing?.couponByRestaurant || 0));
+  const offerByRestaurantRaw = Math.max(0, Number(pricing?.offerByRestaurant || 0));
+
+  const sources = [
+    { key: "couponByAdmin", value: couponByAdminRaw },
+    { key: "couponByRestaurant", value: couponByRestaurantRaw },
+    { key: "offerByRestaurant", value: offerByRestaurantRaw },
+  ].filter((item) => Number.isFinite(item.value) && item.value > 0);
+
+  if (!sources.length) {
+    return {
+      couponByAdmin: 0,
+      couponByRestaurant: 0,
+      offerByRestaurant: 0,
+      discount: 0,
+    };
+  }
+
+  // If multiple sources are sent, keep only one source (highest amount wins).
+  sources.sort((a, b) => b.value - a.value);
+  const winner = sources[0];
+  const exclusiveDiscount = Math.max(0, Math.min(subtotal, winner.value));
+
+  return {
+    couponByAdmin: winner.key === "couponByAdmin" ? exclusiveDiscount : 0,
+    couponByRestaurant: winner.key === "couponByRestaurant" ? exclusiveDiscount : 0,
+    offerByRestaurant: winner.key === "offerByRestaurant" ? exclusiveDiscount : 0,
+    discount: exclusiveDiscount,
+  };
+}
+
 function formatDeliveryAddressWithLabels(address = {}) {
   if (!address || typeof address !== "object") return "";
 
@@ -1110,7 +1144,8 @@ export async function calculateOrder(userId, dto) {
 
   const autoOfferMatch = await findApplicableRestaurantAutoOffer(dto.restaurantId, dto.items || [], userId);
   let autoOfferFeedback = null;
-  if (autoOfferMatch?.offer && !autoOfferMatch?.invalidReason) {
+  const hasCouponApplied = Boolean(codeRaw && appliedCoupon);
+  if (!hasCouponApplied && autoOfferMatch?.offer && !autoOfferMatch?.invalidReason) {
     autoOfferDiscount = autoOfferMatch.discount;
     autoAppliedOffer = {
       code: null,
@@ -1133,6 +1168,15 @@ export async function calculateOrder(userId, dto) {
       message: Number(autoOfferMatch.maxOfferQuantityPerOrder) > 0
         ? `Only ${Number(autoOfferMatch.maxOfferQuantityPerOrder)} item${Number(autoOfferMatch.maxOfferQuantityPerOrder) > 1 ? 's are' : ' is'} allowed for this offer in one order.`
         : 'This restaurant offer is no longer applicable.',
+    };
+  } else if (hasCouponApplied && autoOfferMatch?.offer) {
+    autoOfferFeedback = {
+      type: 'restaurant-auto-offer',
+      reason: 'coupon_applied',
+      title: autoOfferMatch.offer?.title || 'Restaurant offer',
+      offerId: String(autoOfferMatch.offer?._id || ''),
+      discount: autoOfferMatch.discount || 0,
+      message: 'Remove coupon to use restaurant offer',
     };
   }
   discount = Math.max(0, Math.min(subtotal, couponDiscount + autoOfferDiscount));
@@ -1247,6 +1291,11 @@ export async function createOrder(userId, dto) {
     total: Number(dto.pricing?.total ?? 0),
     currency: String(dto.pricing?.currency || "INR"),
   };
+  const exclusiveDiscountSplit = normalizeExclusiveDiscountSplit(normalizedPricing);
+  normalizedPricing.couponByAdmin = exclusiveDiscountSplit.couponByAdmin;
+  normalizedPricing.couponByRestaurant = exclusiveDiscountSplit.couponByRestaurant;
+  normalizedPricing.offerByRestaurant = exclusiveDiscountSplit.offerByRestaurant;
+  normalizedPricing.discount = exclusiveDiscountSplit.discount;
   const computedTotal = Math.max(
     0,
     (Number.isFinite(normalizedPricing.subtotal)
