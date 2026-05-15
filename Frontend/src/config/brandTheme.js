@@ -148,6 +148,15 @@ export const BRAND_THEME = {
       offerIcon: `text-[${COLORS.brand.primary}]`,
       broadcastIcon: `text-[${COLORS.brand.primary}]`,
     },
+    legal: {
+      pageBackground: "bg-white dark:bg-[#0a0a0a]",
+      headerSurface: "bg-white/80 dark:bg-[#1a1a1a]/80",
+      headerBorder: "border-gray-200 dark:border-gray-800",
+      cardSurface: "bg-white dark:bg-[#1a1a1a]",
+      cardBorder: "border-gray-100 dark:border-gray-800",
+      loader: COLORS.brand.primary,
+      brandLabel: "Bakala Legal",
+    },
     wallet: {
       pageBackground: "bg-white dark:bg-[#0a0a0a]",
       headerSurface: "bg-white dark:bg-[#1a1a1a]",

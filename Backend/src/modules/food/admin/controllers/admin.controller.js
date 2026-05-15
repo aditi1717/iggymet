@@ -341,6 +341,26 @@ export async function updateRestaurantById(req, res, next) {
     }
 }
 
+export async function deleteRestaurantById(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid restaurant id' });
+        }
+        const result = await adminService.deleteRestaurantById(id, req.adminAuth || {});
+        if (!result) {
+            return res.status(404).json({ success: false, message: 'Restaurant not found' });
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Restaurant deleted successfully',
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
 export async function updateRestaurantStatus(req, res, next) {
     try {
         const { id } = req.params;
@@ -368,22 +388,6 @@ export async function updateRestaurantLocation(req, res, next) {
             return res.status(404).json({ success: false, message: 'Restaurant not found' });
         }
         res.status(200).json({ success: true, message: 'Restaurant location updated successfully', data: { restaurant: updated } });
-    } catch (error) {
-        next(error);
-    }
-}
-
-export async function deleteRestaurant(req, res, next) {
-    try {
-        const { id } = req.params;
-        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ success: false, message: 'Invalid restaurant id' });
-        }
-        const result = await adminService.deleteRestaurant(id);
-        if (!result) {
-            return res.status(404).json({ success: false, message: 'Restaurant not found' });
-        }
-        res.status(200).json({ success: true, message: 'Restaurant deleted successfully', data: result });
     } catch (error) {
         next(error);
     }
@@ -671,11 +675,10 @@ export async function rejectRestaurantOffer(req, res, next) {
     }
 }
 
-// Restaurant product offers (auto offers)
 export async function getPendingRestaurantProductOffers(req, res, next) {
     try {
         const data = await adminService.getPendingRestaurantProductOffers(req.query || {});
-        res.status(200).json({ success: true, message: 'Pending restaurant offers fetched successfully', data });
+        res.status(200).json({ success: true, message: 'Pending restaurant product offers fetched successfully', data });
     } catch (error) {
         next(error);
     }
@@ -709,6 +712,7 @@ export async function rejectRestaurantProductOffer(req, res, next) {
         next(error);
     }
 }
+
 
 export async function getSupportTicketsController(req, res, next) {
     try {
@@ -1241,7 +1245,7 @@ export async function getSupportTicketStats(req, res, next) {
 
 export async function getSupportTickets(req, res, next) {
     try {
-        const data = await adminService.getDeliverySupportTickets(req.query);
+        const data = await adminService.getSupportTickets(req.query);
         res.status(200).json({
             success: true,
             message: 'Support tickets fetched successfully',
@@ -1254,18 +1258,13 @@ export async function getSupportTickets(req, res, next) {
 
 export async function updateSupportTicket(req, res, next) {
     try {
-        const ticket = await adminService.updateDeliverySupportTicket(req.params.id, req.body);
-        if (!ticket) {
-            return res.status(404).json({
-                success: false,
-                message: 'Support ticket not found'
-            });
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid ticket id' });
         }
-        res.status(200).json({
-            success: true,
-            message: 'Support ticket updated successfully',
-            data: ticket
-        });
+        const updated = await adminService.updateSupportTicket(id, req.body || {});
+        if (!updated) return res.status(404).json({ success: false, message: 'Ticket not found' });
+        res.status(200).json({ success: true, message: 'Support ticket updated successfully', data: { ticket: updated } });
     } catch (error) {
         next(error);
     }
@@ -1404,7 +1403,7 @@ export async function updateDeliveryPartnerZone(req, res, next) {
 
 export async function approveDeliveryPartnerZoneChange(req, res, next) {
     try {
-        const partner = await adminService.approveDeliveryPartnerZoneChange(req.params.id);
+        const partner = await adminService.approveDeliveryPartnerZoneChange(req.params.id, req.adminAuth || {});
         if (!partner) {
             return res.status(404).json({
                 success: false,
@@ -1413,7 +1412,7 @@ export async function approveDeliveryPartnerZoneChange(req, res, next) {
         }
         res.status(200).json({
             success: true,
-            message: 'Delivery partner zone change approved successfully',
+            message: 'Zone change approved successfully',
             data: { partner }
         });
     } catch (error) {
@@ -1424,7 +1423,7 @@ export async function approveDeliveryPartnerZoneChange(req, res, next) {
 export async function rejectDeliveryPartnerZoneChange(req, res, next) {
     try {
         const reason = req.body?.reason != null ? String(req.body.reason).trim() : '';
-        const partner = await adminService.rejectDeliveryPartnerZoneChange(req.params.id, reason);
+        const partner = await adminService.rejectDeliveryPartnerZoneChange(req.params.id, reason, req.adminAuth || {});
         if (!partner) {
             return res.status(404).json({
                 success: false,
@@ -1433,7 +1432,7 @@ export async function rejectDeliveryPartnerZoneChange(req, res, next) {
         }
         res.status(200).json({
             success: true,
-            message: 'Delivery partner zone change rejected successfully',
+            message: 'Zone change rejected successfully',
             data: { partner }
         });
     } catch (error) {
@@ -1441,15 +1440,10 @@ export async function rejectDeliveryPartnerZoneChange(req, res, next) {
     }
 }
 
-// ----- Zones -----
 export async function getZones(req, res, next) {
     try {
-        const data = await adminService.getZones(req.query, req.adminAuth || {});
-        res.status(200).json({
-            success: true,
-            message: 'Zones fetched successfully',
-            data
-        });
+        const data = await adminService.getZones();
+        res.status(200).json({ success: true, message: 'Zones fetched successfully', data });
     } catch (error) {
         next(error);
     }
@@ -1457,18 +1451,9 @@ export async function getZones(req, res, next) {
 
 export async function getZoneById(req, res, next) {
     try {
-        const zone = await adminService.getZoneById(req.params.id, req.adminAuth || {});
-        if (!zone) {
-            return res.status(404).json({
-                success: false,
-                message: 'Zone not found'
-            });
-        }
-        res.status(200).json({
-            success: true,
-            message: 'Zone fetched successfully',
-            data: { zone }
-        });
+        const zone = await adminService.getZoneById(req.params.id);
+        if (!zone) return res.status(404).json({ success: false, message: 'Zone not found' });
+        res.status(200).json({ success: true, message: 'Zone fetched successfully', data: { zone } });
     } catch (error) {
         next(error);
     }
@@ -1476,18 +1461,8 @@ export async function getZoneById(req, res, next) {
 
 export async function createZone(req, res, next) {
     try {
-        const result = await adminService.createZone(req.body || {});
-        if (result.error) {
-            return res.status(400).json({
-                success: false,
-                message: result.error
-            });
-        }
-        res.status(201).json({
-            success: true,
-            message: 'Zone created successfully',
-            data: result
-        });
+        const zone = await adminService.createZone(req.body || {});
+        res.status(201).json({ success: true, message: 'Zone created successfully', data: { zone } });
     } catch (error) {
         next(error);
     }
@@ -1495,18 +1470,9 @@ export async function createZone(req, res, next) {
 
 export async function updateZone(req, res, next) {
     try {
-        const result = await adminService.updateZone(req.params.id, req.body || {});
-        if (!result) {
-            return res.status(404).json({
-                success: false,
-                message: 'Zone not found'
-            });
-        }
-        res.status(200).json({
-            success: true,
-            message: 'Zone updated successfully',
-            data: result
-        });
+        const zone = await adminService.updateZone(req.params.id, req.body || {});
+        if (!zone) return res.status(404).json({ success: false, message: 'Zone not found' });
+        res.status(200).json({ success: true, message: 'Zone updated successfully', data: { zone } });
     } catch (error) {
         next(error);
     }
@@ -1515,60 +1481,13 @@ export async function updateZone(req, res, next) {
 export async function deleteZone(req, res, next) {
     try {
         const result = await adminService.deleteZone(req.params.id);
-        if (!result) {
-            return res.status(404).json({
-                success: false,
-                message: 'Zone not found'
-            });
-        }
-        res.status(200).json({
-            success: true,
-            message: 'Zone deleted successfully',
-            data: result
-        });
+        if (!result) return res.status(404).json({ success: false, message: 'Zone not found' });
+        res.status(200).json({ success: true, message: 'Zone deleted successfully', data: result });
     } catch (error) {
         next(error);
     }
 }
 
-export async function processRefund(req, res, next) {
-    try {
-        const { orderId } = req.params;
-        const { refundAmount } = req.body;
-        if (!orderId || !mongoose.Types.ObjectId.isValid(orderId)) {
-            return res.status(400).json({ success: false, message: 'Invalid order id' });
-        }
-        
-        // This is a stub for the actual refund logic.
-        // We will assume adminService.processRefund exists and handles the refund.
-        const updated = await adminService.processRefund(orderId, refundAmount);
-        
-        // Let's add the push notification here if we have access to the user ID
-        // First we need to get the order to find the user ID
-        const order = await mongoose.model('FoodOrder').findById(orderId).lean();
-        
-        if (order && order.userId) {
-            const { notifyOwnersSafely } = await import('../../notifications/firebase.service.js');
-            await notifyOwnersSafely(
-                [{ ownerType: 'USER', ownerId: order.userId }],
-                {
-                    title: 'Refund Processed! 💸',
-                    body: `Your refund of ₹${refundAmount || order.totalAmount || order.total || 0} for Order #${order.orderId} has been processed successfully.`,
-                    image: 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
-                    data: {
-                        type: 'refund_processed',
-                        orderId: String(order.orderId),
-                        orderMongoId: String(order._id)
-                    }
-                }
-            );
-        }
-        
-        res.status(200).json({ success: true, message: 'Refund processed successfully', data: updated });
-    } catch (error) {
-        next(error);
-    }
-}
 export async function getWithdrawals(req, res, next) {
     try {
         const data = await adminService.getWithdrawals(req.query || {});
@@ -1627,11 +1546,11 @@ export async function getCashLimitSettlements(req, res, next) {
 
 export async function getPayoutSettlementPreview(req, res, next) {
     try {
-        const beneficiaryType = String(req.query?.beneficiaryType || 'restaurant').trim().toLowerCase();
-        if (!['restaurant', 'delivery'].includes(beneficiaryType)) {
-            return res.status(400).json({ success: false, message: 'beneficiaryType must be restaurant or delivery' });
+        const beneficiaryType = String(req.query?.beneficiaryType || 'delivery').toLowerCase();
+        if (!['delivery', 'restaurant'].includes(beneficiaryType)) {
+            return res.status(400).json({ success: false, message: 'Invalid beneficiaryType' });
         }
-        const data = beneficiaryType === 'delivery'
+        const data = beneficiaryType === 'delivery' 
             ? await adminService.getDeliveryPayoutSettlementPreview(req.query || {}, req.adminAuth || {})
             : await adminService.getRestaurantPayoutSettlementPreview(req.query || {}, req.adminAuth || {});
         res.status(200).json({ success: true, message: 'Payout settlement preview fetched successfully', data });
@@ -1640,29 +1559,13 @@ export async function getPayoutSettlementPreview(req, res, next) {
     }
 }
 
-export async function markAllPayoutSettlementsPaid(req, res, next) {
-    try {
-        const body = req.body || {};
-        const beneficiaryType = String(body.beneficiaryType || 'restaurant').trim().toLowerCase();
-        if (!['restaurant', 'delivery'].includes(beneficiaryType)) {
-            return res.status(400).json({ success: false, message: 'beneficiaryType must be restaurant or delivery' });
-        }
-        const data = beneficiaryType === 'delivery'
-            ? await adminService.markAllDeliveryPayoutSettled(body, req.adminAuth || {})
-            : await adminService.markAllRestaurantPayoutSettled(body, req.adminAuth || {});
-        res.status(200).json({ success: true, message: 'Payouts marked paid successfully', data });
-    } catch (error) {
-        next(error);
-    }
-}
-
 export async function getPayoutSettlementHistory(req, res, next) {
     try {
-        const beneficiaryType = String(req.query?.beneficiaryType || 'restaurant').trim().toLowerCase();
-        if (!['restaurant', 'delivery'].includes(beneficiaryType)) {
-            return res.status(400).json({ success: false, message: 'beneficiaryType must be restaurant or delivery' });
+        const beneficiaryType = String(req.query?.beneficiaryType || 'delivery').toLowerCase();
+        if (!['delivery', 'restaurant'].includes(beneficiaryType)) {
+            return res.status(400).json({ success: false, message: 'Invalid beneficiaryType' });
         }
-        const data = beneficiaryType === 'delivery'
+        const data = beneficiaryType === 'delivery' 
             ? await adminService.getDeliveryPayoutSettlementHistory(req.query || {}, req.adminAuth || {})
             : await adminService.getRestaurantPayoutSettlementHistory(req.query || {}, req.adminAuth || {});
         res.status(200).json({ success: true, message: 'Payout settlement history fetched successfully', data });
@@ -1671,11 +1574,26 @@ export async function getPayoutSettlementHistory(req, res, next) {
     }
 }
 
+export async function markAllPayoutSettlementsPaid(req, res, next) {
+    try {
+        const beneficiaryType = String(req.body?.beneficiaryType || 'delivery').toLowerCase();
+        if (!['delivery', 'restaurant'].includes(beneficiaryType)) {
+            return res.status(400).json({ success: false, message: 'Invalid beneficiaryType' });
+        }
+        const result = beneficiaryType === 'delivery'
+            ? await adminService.markAllDeliveryPayoutSettlementsPaid(req.body || {}, req.adminAuth || {})
+            : await adminService.markAllRestaurantPayoutSettlementsPaid(req.body || {}, req.adminAuth || {});
+        res.status(200).json({ success: true, message: 'Payout settlements marked as paid successfully', data: result });
+    } catch (error) {
+        next(error);
+    }
+}
+
 export async function getPayoutSettlementHistoryBatchDetails(req, res, next) {
     try {
-        const beneficiaryType = String(req.query?.beneficiaryType || 'restaurant').trim().toLowerCase();
-        if (!['restaurant', 'delivery'].includes(beneficiaryType)) {
-            return res.status(400).json({ success: false, message: 'beneficiaryType must be restaurant or delivery' });
+        const beneficiaryType = String(req.query?.beneficiaryType || 'delivery').toLowerCase();
+        if (!['delivery', 'restaurant'].includes(beneficiaryType)) {
+            return res.status(400).json({ success: false, message: 'Invalid beneficiaryType' });
         }
         const { batchId } = req.params;
         const data = beneficiaryType === 'delivery'

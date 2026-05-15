@@ -142,6 +142,8 @@ export default function RestaurantSupport() {
     }
   }, [preSelectedOrderId, orders])
 
+  const isOrderRelated = ["order_status_issue", "new_order_issue"].includes(form.issueType)
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.issueType.trim()) {
@@ -152,8 +154,8 @@ export default function RestaurantSupport() {
       toast.error("Issue details are required")
       return
     }
-    if (!form.orderRef.trim()) {
-      toast.error("Order/reference ID is required")
+    if (isOrderRelated && !form.orderRef.trim()) {
+      toast.error("Order ID is required for order-related issues")
       return
     }
     try {
@@ -162,7 +164,7 @@ export default function RestaurantSupport() {
         category: form.category,
         issueType: form.issueType.trim(),
         description: form.description.trim(),
-        orderRef: form.orderRef.trim(),
+        orderRef: form.orderRef.trim() || undefined,
       })
       toast.success("Support ticket submitted")
       setForm((prev) => ({ ...prev, issueType: "", description: "", orderRef: "" }))
@@ -245,10 +247,10 @@ export default function RestaurantSupport() {
             value={form.orderRef}
             onChange={(e) => setForm((prev) => ({ ...prev, orderRef: e.target.value }))}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-            required
+            required={isOrderRelated}
             disabled={loadingOrders}
           >
-            <option value="">{loadingOrders ? "Loading orders..." : "Select order ID"}</option>
+            <option value="">{loadingOrders ? "Loading orders..." : isOrderRelated ? "Select order ID (Required)" : "Select order ID (Optional)"}</option>
             {orders.map((order) => {
               const code = getOrderCode(order)
               return (

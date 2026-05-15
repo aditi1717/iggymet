@@ -28,6 +28,8 @@ export const createRestaurantSupportTicketController = async (req, res, next) =>
         const subject = String(body.subject || description.slice(0, 180)).trim();
         const orderRef = String(body.orderRef || body.orderId || '').trim();
 
+        const isOrderRelated = ['order_status_issue', 'new_order_issue'].includes(issueType);
+
         if (!ALLOWED_CATEGORIES.includes(category)) {
             return sendError(res, 400, 'Invalid category');
         }
@@ -37,8 +39,8 @@ export const createRestaurantSupportTicketController = async (req, res, next) =>
         if (!description) {
             return sendError(res, 400, 'description required');
         }
-        if (!orderRef) {
-            return sendError(res, 400, 'orderRef required');
+        if (isOrderRelated && !orderRef) {
+            return sendError(res, 400, 'orderRef is required for order-related issues');
         }
 
         const created = await FoodRestaurantSupportTicket.create({
