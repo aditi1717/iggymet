@@ -2540,6 +2540,8 @@ export default function Cart() {
                         <div className="flex flex-wrap gap-2 mt-3">
                           {["Home", "Work", "Other"].map((label) => {
                             const normalizedLabel = normalizeAddressLabel(label)
+                            const activeAddress = selectedAddress || defaultAddress
+                            const isSelectedLabel = activeAddress && normalizeAddressLabel(activeAddress.label) === normalizedLabel
                             const addressExists = addresses.some(addr => normalizeAddressLabel(addr.label) === normalizedLabel)
                             return (
                               <button
@@ -2550,10 +2552,11 @@ export default function Cart() {
                                   handleSelectAddressByLabel(label)
                                 }}
                                 disabled={!addressExists}
-                                className={`text-xs px-4 py-1.5 rounded-full font-semibold transition-all ${addressExists
+                                className={`text-xs px-4 py-1.5 rounded-full font-semibold transition-all ${isSelectedLabel ? 'text-white shadow-sm' : addressExists
                                   ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-gray-800 dark:text-gray-300'
                                   : 'bg-gray-50 text-gray-400 border border-gray-100 cursor-not-allowed dark:bg-gray-900'
                                   }`}
+                                style={isSelectedLabel ? { backgroundColor: BRAND_THEME.colors.brand.primary } : undefined}
                               >
                                 {label}
                               </button>

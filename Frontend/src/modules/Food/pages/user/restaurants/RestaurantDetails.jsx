@@ -3312,6 +3312,43 @@ function RestaurantDetailsContent() {
                         <span className="text-sm text-gray-400">No image available</span>
                       </div>
                     )}
+                    {/* Share and Bookmark overlay on Image */}
+                    <div className="absolute top-4 right-4 flex gap-2 z-10">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          const restaurantId = restaurant?.restaurantId || restaurant?._id || restaurant?.id
+                          const isFav = isDishFavorite(selectedItem.id || selectedItem._id, restaurantId)
+                          if (isFav) {
+                            removeDishFavorite(selectedItem.id || selectedItem._id, restaurantId)
+                          } else {
+                            handleBookmarkClick(selectedItem)
+                          }
+                        }}
+                        className={`h-9 w-9 rounded-full flex items-center justify-center shadow-md transition-colors cursor-pointer ${
+                          isDishFavorite(selectedItem.id || selectedItem._id, restaurant?.restaurantId || restaurant?._id || restaurant?.id)
+                            ? "bg-red-500 text-white hover:bg-red-600"
+                            : "bg-white/90 dark:bg-[#1a1a1a]/90 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-[#1a1a1a]"
+                        }`}
+                        aria-label="Bookmark dish"
+                      >
+                        <Bookmark size={16} className={isDishFavorite(selectedItem.id || selectedItem._id, restaurant?.restaurantId || restaurant?._id || restaurant?.id) ? "fill-white" : ""} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          handleShareClick(selectedItem)
+                        }}
+                        className="h-9 w-9 rounded-full bg-white/90 dark:bg-[#1a1a1a]/90 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-[#1a1a1a] flex items-center justify-center shadow-md transition-colors cursor-pointer"
+                        aria-label="Share dish"
+                      >
+                        <Share2 size={16} />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Content Section */}

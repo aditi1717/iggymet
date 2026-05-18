@@ -25,6 +25,28 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 const RUPEE_SYMBOL = "\u20B9"
+
+const getNormalizedFoodType = (item = {}) =>
+  String(item?.foodType || item?.type || item?.category || "")
+    .trim()
+    .toLowerCase()
+
+const isItemVeg = (item = {}) => {
+  const normalizedFoodType = getNormalizedFoodType(item)
+  if (normalizedFoodType === "veg" || normalizedFoodType === "vegetarian") return true
+  if (
+    normalizedFoodType === "non-veg" ||
+    normalizedFoodType === "non veg" ||
+    normalizedFoodType === "nonveg" ||
+    normalizedFoodType === "egg"
+  ) {
+    return false
+  }
+  if (item?.isVeg === true) return true
+  if (item?.isVeg === false) return false
+  return false
+}
+
 const UNDER_PRICE_DEFAULT_STORAGE_KEY = "food-under-price-default"
 const DEFAULT_UNDER_PRICE_LIMIT = 250
 const resolveUnderPriceLimit = (value, fallback = DEFAULT_UNDER_PRICE_LIMIT) => {
@@ -1206,24 +1228,30 @@ export default function Under250() {
                                 whileHover={{ opacity: 1 }}
                                 transition={{ duration: 0.3 }}
                               />
-                              {/* Veg Indicator */}
-                              {item.isVeg && (
-                                <motion.div
-                                  className="absolute top-2 left-2 md:top-3 md:left-3 h-4 w-4 md:h-5 md:w-5 lg:h-6 lg:w-6 rounded border-2 border-green-600 bg-white flex items-center justify-center z-10"
-                                  whileHover={{ scale: 1.2, rotate: 5 }}
-                                  transition={{ duration: 0.2 }}
-                                >
-                                  <div className="h-2 w-2 md:h-2.5 md:w-2.5 lg:h-3 lg:w-3 rounded-full bg-green-600" />
-                                </motion.div>
-                              )}
+                              {/* Veg/Non-Veg Indicator */}
+                              <motion.div
+                                className={`absolute top-2 left-2 md:top-3 md:left-3 h-4 w-4 md:h-5 md:w-5 lg:h-6 lg:w-6 rounded border-2 bg-white flex items-center justify-center z-10 ${
+                                  isItemVeg(item) ? "border-green-600" : "border-red-600"
+                                }`}
+                                whileHover={{ scale: 1.2, rotate: 5 }}
+                                transition={{ duration: 0.2 }}
+                              >
+                                <div className={`h-2 w-2 md:h-2.5 md:w-2.5 lg:h-3 lg:w-3 rounded-full ${
+                                  isItemVeg(item) ? "bg-green-600" : "bg-red-600"
+                                }`} />
+                              </motion.div>
                             </div>
 
                             {/* Item Details */}
                             <div className="p-3 md:p-4 lg:p-5">
                               <div className="flex items-center gap-1 md:gap-2 mb-1 md:mb-2 lg:mb-3">
-                                {item.isVeg && (
-                                  <div className="h-3 w-3 md:h-4 md:w-4 lg:h-5 lg:w-5 rounded border border-green-600 bg-green-50 dark:bg-green-900/20 flex items-center justify-center">
+                                {isItemVeg(item) ? (
+                                  <div className="h-3 w-3 md:h-4 md:w-4 lg:h-5 lg:w-5 rounded border border-green-600 bg-green-50 dark:bg-green-900/20 flex items-center justify-center flex-shrink-0">
                                     <div className="h-1.5 w-1.5 md:h-2 md:w-2 lg:h-2.5 lg:w-2.5 rounded-full bg-green-600" />
+                                  </div>
+                                ) : (
+                                  <div className="h-3 w-3 md:h-4 md:w-4 lg:h-5 lg:w-5 rounded border border-red-600 bg-red-50 dark:bg-red-900/20 flex items-center justify-center flex-shrink-0">
+                                    <div className="h-1.5 w-1.5 md:h-2 md:w-2 lg:h-2.5 lg:w-2.5 rounded-full bg-red-600" />
                                   </div>
                                 )}
                                 <span className="text-sm md:text-base lg:text-lg font-semibold text-gray-900 dark:text-white">
@@ -1450,9 +1478,13 @@ export default function Under250() {
                 {/* Item Name and Indicator */}
                 <div className="flex items-start justify-between mb-3 md:mb-4 lg:mb-6">
                   <div className="flex items-center gap-2 md:gap-3 flex-1">
-                    {selectedItem.isVeg && (
+                    {isItemVeg(selectedItem) ? (
                       <div className="h-5 w-5 md:h-6 md:w-6 lg:h-7 lg:w-7 rounded border-2 border-green-600 dark:border-green-500 bg-green-50 dark:bg-green-900/20 flex items-center justify-center flex-shrink-0">
                         <div className="h-2.5 w-2.5 md:h-3 md:w-3 lg:h-3.5 lg:w-3.5 rounded-full bg-green-600 dark:bg-green-500" />
+                      </div>
+                    ) : (
+                      <div className="h-5 w-5 md:h-6 md:w-6 lg:h-7 lg:w-7 rounded border-2 border-red-600 dark:border-red-500 bg-red-50 dark:bg-red-900/20 flex items-center justify-center flex-shrink-0">
+                        <div className="h-2.5 w-2.5 md:h-3 md:w-3 lg:h-3.5 lg:w-3.5 rounded-full bg-red-600 dark:bg-red-500" />
                       </div>
                     )}
                     <h2 className="text-xl md:text-2xl lg:text-3xl xl:text-4xl font-bold text-gray-900 dark:text-white">

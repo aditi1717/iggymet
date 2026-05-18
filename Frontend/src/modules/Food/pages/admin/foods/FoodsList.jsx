@@ -377,6 +377,10 @@ export default function FoodsList() {
       toast.error("Food name is required")
       return
     }
+    if (!selectedImageFile && !String(foodForm.image || "").trim()) {
+      toast.error("Food item image is compulsory")
+      return
+    }
 
     const normalizedVariants = (Array.isArray(foodForm.variants) ? foodForm.variants : [])
       .map((variant) => ({
