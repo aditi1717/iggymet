@@ -13,7 +13,7 @@ export default function PrivacyPolicyV2() {
   useEffect(() => {
     const fetchPrivacy = async () => {
       try {
-        const response = await publicAPI.getPrivacy()
+        const response = await publicAPI.getDeliveryPrivacy()
         if (response.data.success) {
           setContent(response.data.data.content)
           setLastUpdated(response.data.data.updatedAt)

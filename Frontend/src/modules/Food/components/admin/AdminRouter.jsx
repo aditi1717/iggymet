@@ -94,7 +94,9 @@ const ThemeSettings = lazy(() => import("@food/pages/admin/settings/ThemeSetting
 const Gallery = lazy(() => import("@food/pages/admin/settings/Gallery"));
 const LoginSetup = lazy(() => import("@food/pages/admin/settings/LoginSetup"));
 const TermsAndCondition = lazy(() => import("@food/pages/admin/settings/TermsAndCondition"));
+import DeliveryTermsAndCondition from "@food/pages/admin/settings/DeliveryTermsAndCondition";
 const PrivacyPolicy = lazy(() => import("@food/pages/admin/settings/PrivacyPolicy"));
+import DeliveryPrivacyPolicy from "@food/pages/admin/settings/DeliveryPrivacyPolicy";
 const AboutUs = lazy(() => import("@food/pages/admin/settings/AboutUs"));
 const RefundPolicy = lazy(() => import("@food/pages/admin/settings/RefundPolicy"));
 const ShippingPolicy = lazy(() => import("@food/pages/admin/settings/ShippingPolicy"));
@@ -268,7 +270,9 @@ export default function AdminRouter() {
             <Route path="login-setup" element={<LoginSetup />} />
             <Route path="business-settings/fcm-index" element={<FirebaseNotification />} />
             <Route path="pages-social-media/terms" element={<TermsAndCondition />} />
+            <Route path="pages-social-media/delivery-terms" element={<DeliveryTermsAndCondition />} />
             <Route path="pages-social-media/privacy" element={<PrivacyPolicy />} />
+            <Route path="pages-social-media/delivery-privacy" element={<DeliveryPrivacyPolicy />} />
             <Route path="pages-social-media/about" element={<AboutUs />} />
             <Route path="pages-social-media/refund" element={<RefundPolicy />} />
             <Route path="pages-social-media/shipping" element={<ShippingPolicy />} />
