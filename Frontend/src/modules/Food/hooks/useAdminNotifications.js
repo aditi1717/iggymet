@@ -201,14 +201,7 @@ export default function useAdminNotifications(options = {}) {
       setLoading(true);
       const dismissed = new Set(getDismissedIds());
 
-      const [
-        restaurantsRes,
-        deliveryJoinRes,
-        foodApprovalRes,
-        supportRes,
-        deliverySupportRes,
-        fssaiExpiredRes,
-      ] = await Promise.all([
+      const settled = await Promise.allSettled([
         adminAPI.getPendingRestaurants(),
         adminAPI.getDeliveryPartnerJoinRequests({ page: 1, limit: 50 }),
         adminAPI.getPendingFoodApprovals({ page: 1, limit: 50 }),
@@ -216,6 +209,15 @@ export default function useAdminNotifications(options = {}) {
         adminAPI.getDeliverySupportTickets({ page: 1, limit: 50 }),
         adminAPI.getExpiredFssaiNotifications(),
       ]);
+      const valueOrNull = (index) =>
+        settled[index]?.status === "fulfilled" ? settled[index].value : null;
+
+      const restaurantsRes = valueOrNull(0);
+      const deliveryJoinRes = valueOrNull(1);
+      const foodApprovalRes = valueOrNull(2);
+      const supportRes = valueOrNull(3);
+      const deliverySupportRes = valueOrNull(4);
+      const fssaiExpiredRes = valueOrNull(5);
 
       const restaurantRows =
         restaurantsRes?.data?.data ||

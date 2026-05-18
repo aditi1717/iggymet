@@ -534,10 +534,14 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
               <span className={cn("text-left truncate", isInSection ? "font-semibold" : "font-medium")}>
                 {item.label}
               </span>
-              {getBadgeCount(item.label, item.path) > 0 && (
-                <span className="shrink-0 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1 min-w-[18px] text-center">
-                  {getBadgeCount(item.label, item.path) > 99 ? "99+" : getBadgeCount(item.label, item.path)}
-                </span>
+              {item.label === "Food Approval" && getBadgeCount(item.label, item.path) > 0 ? (
+                <span className="shrink-0 w-2.5 h-2.5 bg-red-600 rounded-full ml-2 animate-pulse shadow-[0_0_8px_rgba(220,38,38,0.7)]" />
+              ) : (
+                getBadgeCount(item.label, item.path) > 0 && (
+                  <span className="shrink-0 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1 min-w-[18px] text-center">
+                    {getBadgeCount(item.label, item.path) > 99 ? "99+" : getBadgeCount(item.label, item.path)}
+                  </span>
+                )
               )}
             </div>
           )}

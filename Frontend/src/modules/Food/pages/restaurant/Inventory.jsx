@@ -45,6 +45,9 @@ const MENU_FILTER_OPTIONS = [
   { value: "recommended", label: "Recommended" },
   { value: "veg", label: "Veg" },
   { value: "non-veg", label: "Non-veg" },
+  { value: "approved", label: "Approved" },
+  { value: "pending", label: "Pending" },
+  { value: "rejected", label: "Rejected" },
 ]
 
 const ADDON_FILTER_OPTIONS = [
@@ -1463,6 +1466,9 @@ export default function Inventory() {
     if (filterValue === "recommended") return items.filter((item) => item.isRecommended)
     if (filterValue === "veg") return items.filter((item) => item.isVeg)
     if (filterValue === "non-veg") return items.filter((item) => !item.isVeg)
+    if (filterValue === "approved") return items.filter((item) => item.approvalStatus === "approved")
+    if (filterValue === "pending") return items.filter((item) => item.approvalStatus === "pending")
+    if (filterValue === "rejected") return items.filter((item) => item.approvalStatus === "rejected")
     return items
   }
 

@@ -6,7 +6,7 @@ import { FoodCategory } from '../../admin/models/category.model.js';
 import { getFoodDisplayPrice, serializeFoodVariants } from '../../admin/services/foodVariant.service.js';
 import { isCategoryVisibleNow } from '../../shared/categoryWorkflow.js';
 
-const buildMenuFromFoods = async (foods = []) => {
+const buildMenuFromFoods = async (foods = [], options = {}) => {
     const categoryIds = Array.from(
         new Set(
             (foods || [])
@@ -27,7 +27,7 @@ const buildMenuFromFoods = async (foods = []) => {
     const categoryMap = new Map(categoryDocs.map((doc) => [String(doc._id), doc]));
     const visibleCategoryIdSet = new Set(
         categoryDocs
-            .filter((doc) => isCategoryVisibleNow(doc, { timezone: 'Asia/Kolkata' }))
+            .filter((doc) => options.ignoreVisibility || isCategoryVisibleNow(doc, { timezone: 'Asia/Kolkata' }))
             .map((doc) => String(doc._id))
     );
 
@@ -116,7 +116,7 @@ export async function getRestaurantMenu(restaurantId) {
         .sort({ createdAt: -1 })
         .limit(5000)
         .lean();
-    return buildMenuFromFoods(foods);
+    return buildMenuFromFoods(foods, { ignoreVisibility: true });
 }
 
 export async function updateRestaurantMenu(restaurantId, body = {}) {
