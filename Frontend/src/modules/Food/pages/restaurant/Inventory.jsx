@@ -14,22 +14,6 @@ import {
   ChevronRight,
   X,
   ThumbsUp,
-import { useState, useEffect, useRef, useMemo, useCallback } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import {
-  Search,
-  SlidersHorizontal,
-  ChevronUp,
-  ChevronDown,
-  Loader2,
-  Utensils,
-  Minus,
-  Plus,
-  Upload,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  ThumbsUp,
   Pencil
 } from "lucide-react"
 import RestaurantNavbar from "@food/components/restaurant/RestaurantNavbar"
@@ -2095,32 +2079,9 @@ export default function Inventory() {
                   onClick={() => setIsAddAddonOpen((v) => !v)}
                   className="h-12 rounded-[20px] px-4 text-sm font-semibold text-white shadow-[0_18px_32px_-24px_rgba(41,121,251,0.45)] transition-colors"
                   style={{ background: BRAND_THEME.gradients.primary, minWidth: "128px" }}
-                          setIsAddAddonOpen(false)
-                        }}
-                        className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleSaveAddon}
-                        disabled={savingAddon}
-                        className="px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 text-white"
-                        style={
-                          savingAddon
-                            ? { backgroundColor: "#e5e7eb", color: "#94a3b8" }
-                            : {
-                                background: BRAND_THEME.gradients.primary,
-                                boxShadow: `0 10px 28px -18px ${BRAND_THEME.colors.brand.primaryDark}`,
-                              }
-                        }
-                      >
-                        {savingAddon && <Loader2 className="h-4 w-4 animate-spin" />}
-                        <span>{savingAddon ? "Saving..." : "Submit for approval"}</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                >
+                  {isAddAddonOpen ? "Close Add-on Form" : "Add Add-on"}
+                </button>
               )}
               {loadingAddons ? (
                 <div className="flex items-center justify-center py-20">

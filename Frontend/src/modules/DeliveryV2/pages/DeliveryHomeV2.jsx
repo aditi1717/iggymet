@@ -645,7 +645,6 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const { distanceToTarget } = useProximityCheck();
   const { acceptOrder, rejectOrder, resetTrip } = useOrderManager();
   const { newOrder, clearNewOrder, orderStatusUpdate, clearOrderStatusUpdate, isConnected: isSocketConnected, emitLocation, playNotificationSound } = useDeliveryNotifications();
-import useNotificationInbox from '@food/hooks/useNotificationInbox';
   const companyName = useCompanyName();
   const { unreadCount: notificationUnreadCount } = useNotificationInbox('delivery', { limit: 10, pollMs: 30000 });
 
