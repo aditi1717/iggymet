@@ -16,7 +16,8 @@ import {
   Shield,
   Receipt,
   CircleSlash,
-  Loader2
+  Loader2,
+  FileText
 } from "lucide-react"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import DeliveryTrackingMap from "@food/components/user/DeliveryTrackingMap"
@@ -282,9 +283,13 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
     restaurantPhone:
       apiOrder?.restaurantPhone ||
       apiOrder?.restaurantId?.phone ||
+      apiOrder?.restaurantId?.primaryContactNumber ||
       apiOrder?.restaurantId?.ownerPhone ||
+      apiOrder?.restaurantId?.contactNumber ||
+      apiOrder?.restaurantId?.mobile ||
       apiOrder?.restaurant?.phone ||
       apiOrder?.restaurant?.ownerPhone ||
+      apiOrder?.restaurant?.primaryContactNumber ||
       previousOrder?.restaurantPhone ||
       '',
     restaurantAddress,
@@ -532,6 +537,7 @@ export default function OrderTracking() {
   const [deliveryInstructions, setDeliveryInstructions] = useState("")
   const [isUpdatingInstructions, setIsUpdatingInstructions] = useState(false)
   const [resolvedLookupId, setResolvedLookupId] = useState("")
+  const [showDeliveryOtpPopup, setShowDeliveryOtpPopup] = useState(false)
   const lastRealtimeRefreshRef = useRef(0)
   const trackingOrderIdsRef = useRef(new Set())
   const terminalPollStopRef = useRef(false)
@@ -542,6 +548,7 @@ export default function OrderTracking() {
   const activeFetchPromiseRef = useRef(null)
   const latestOrderRef = useRef(null)
   const latestRefreshStateRef = useRef(false)
+  const seenDeliveryOtpKeyRef = useRef("")
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined
@@ -872,10 +879,14 @@ export default function OrderTracking() {
     const rawPhone =
       order?.restaurantPhone ||
       order?.restaurantId?.phone ||
+      order?.restaurantId?.primaryContactNumber ||
       order?.restaurantId?.ownerPhone ||
+      order?.restaurantId?.contactNumber ||
+      order?.restaurantId?.mobile ||
       order?.restaurantId?.contact?.phone ||
       order?.restaurant?.phone ||
       order?.restaurant?.ownerPhone ||
+      order?.restaurant?.primaryContactNumber ||
       order?.restaurantId?.location?.phone ||
       '';
 
@@ -1204,6 +1215,25 @@ export default function OrderTracking() {
     return [...new Set(ids)]
   }, [orderId, resolvedLookupId, order?.orderId, order?.mongoId, order?.id])
 
+  const deliveryOtpCode = useMemo(() => {
+    const code = order?.deliveryVerification?.dropOtp?.code
+    return code ? String(code).trim() : ""
+  }, [order?.deliveryVerification?.dropOtp?.code])
+
+  const showDeliveryOtpInline = Boolean(deliveryOtpCode) && !isDeliveredLikeOrder && !isCancelledOrder
+
+  useEffect(() => {
+    if (!deliveryOtpCode || isDeliveredLikeOrder || isCancelledOrder) return
+    const otpKey = `${order?.mongoId || order?.orderId || orderId || "order"}:${deliveryOtpCode}`
+    if (seenDeliveryOtpKeyRef.current === otpKey) return
+    seenDeliveryOtpKeyRef.current = otpKey
+    setShowDeliveryOtpPopup(true)
+    const hideTimer = setTimeout(() => {
+      setShowDeliveryOtpPopup(false)
+    }, 60000)
+    return () => clearTimeout(hideTimer)
+  }, [deliveryOtpCode, isDeliveredLikeOrder, isCancelledOrder, order?.mongoId, order?.orderId, orderId])
+
   if (loading) {
     return (
       <AnimatedPage className="min-h-screen bg-gray-50 p-4">
@@ -1280,8 +1310,8 @@ export default function OrderTracking() {
       iconType: 'rider'
     },
     at_drop: {
-      title: "Picked Up",
-      subtitle: typeof estimatedTime === 'number' ? `Arriving in ${estimatedTime} mins` : "Rider picked your order and is on the way",
+      title: "Rider Reached Drop Location",
+      subtitle: "Your delivery partner has arrived at your location",
       color: BRAND_THEME.colors.brand.primary,
       iconType: 'rider'
     },
@@ -1317,6 +1347,30 @@ export default function OrderTracking() {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-[#0a0a0a]">
+      {showDeliveryOtpPopup && showDeliveryOtpInline && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] w-[92%] max-w-md">
+          <div className="bg-white border border-brand-200 rounded-xl shadow-lg p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Delivery OTP</p>
+                <p className="text-xs text-gray-500 mt-1">Share this OTP only after receiving your order.</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close OTP popup"
+                onClick={() => setShowDeliveryOtpPopup(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="mt-3 rounded-lg bg-brand-50 border border-brand-100 px-3 py-2">
+              <p className="text-xl font-bold tracking-[0.2em] text-brand-700">{deliveryOtpCode}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Green Header */}
       <motion.div
         className={`${!currentStatus.color.startsWith('#') ? currentStatus.color : ''} text-white sticky top-0 z-40`}
@@ -1436,6 +1490,25 @@ export default function OrderTracking() {
           </div>
         </motion.div>
 
+        {showDeliveryOtpInline && (
+          <motion.div
+            className="bg-white rounded-xl p-4 shadow-sm border border-brand-100"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.34 }}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Delivery OTP</p>
+                <p className="text-xs text-gray-500 mt-1">Tell this OTP to the delivery partner at your doorstep.</p>
+              </div>
+              <div className="px-3 py-2 rounded-lg bg-brand-50 border border-brand-100">
+                <span className="text-lg font-bold tracking-[0.16em] text-brand-700">{deliveryOtpCode}</span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* Delivery Partner Info */}
         {order?.deliveryPartnerId &&
           isRiderAcceptedForUi &&
@@ -1508,7 +1581,7 @@ export default function OrderTracking() {
           transition={{ delay: 0.65 }}
         >
           <p className="text-brand-800 font-medium">
-            All your delivery details in one place ??
+            All your delivery details in one place
           </p>
         </motion.div>
 
@@ -1668,7 +1741,7 @@ export default function OrderTracking() {
             onClick={() => setShowOrderDetails(true)}
           >
             <div className="flex items-start gap-3">
-              <Receipt className="w-5 h-5 text-gray-500 mt-0.5" />
+              <FileText className="w-5 h-5 text-gray-500 mt-0.5" />
               <div className="flex-1">
                 <div className="mt-2 space-y-1">
                   {order?.items?.map((item, index) => (
@@ -1736,7 +1809,7 @@ export default function OrderTracking() {
                 onClick={handleOpenInvoice}
                 className={`flex-1 ${BRAND_THEME.tokens.orders.primaryButtonAlt} py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors`}
               >
-                <Receipt className="w-4 h-4" />
+                <FileText className="w-4 h-4" />
                 Invoice
               </button>
             </div>
@@ -1971,21 +2044,21 @@ export default function OrderTracking() {
 
       {/* Delivery Instructions Modal */}
       <Dialog open={isInstructionsModalOpen} onOpenChange={setIsInstructionsModalOpen}>
-        <DialogContent className="sm:max-w-md w-[95vw] rounded-3xl p-6 border-0 shadow-2xl bg-white max-h-[90vh] overflow-y-auto z-[200]">
+        <DialogContent className="sm:max-w-md w-[95vw] rounded-3xl p-6 border-0 shadow-2xl bg-white dark:bg-[#1c1c1e] text-gray-900 dark:text-gray-100 max-h-[90vh] overflow-y-auto z-[200]">
           <DialogHeader className="mb-2">
-            <DialogTitle className="text-xl font-bold bg-clip-text text-transparent" style={{ backgroundImage: BRAND_THEME.tokens.orders.primaryGradient }}>
+            <DialogTitle className="text-xl font-bold bg-clip-text text-transparent dark:text-white" style={{ backgroundImage: BRAND_THEME.tokens.orders.primaryGradient }}>
               Delivery Instructions
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               Add instructions for the delivery partner to help them find your address or know where to leave your order.
             </p>
             <Textarea
               value={deliveryInstructions}
               onChange={(e) => setDeliveryInstructions(e.target.value)}
               placeholder="E.g. Ring the doorbell, leave at the front desk..."
-              className="min-h-[120px] resize-none border-gray-200 focus:ring-brand-500 rounded-xl bg-gray-50 text-base"
+              className="min-h-[120px] resize-none border border-gray-200 dark:border-gray-800 focus:ring-brand-500 rounded-xl bg-gray-50 dark:bg-[#2c2c2e] text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 text-base focus:border-brand-500 focus-visible:ring-0 focus-visible:ring-offset-0"
             />
             <Button 
               onClick={handleUpdateInstructions} 

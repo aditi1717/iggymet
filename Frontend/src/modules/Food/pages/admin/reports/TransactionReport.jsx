@@ -4,6 +4,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@food/components/ui/dialog"
 import { exportTransactionReportToCSV, exportTransactionReportToExcel, exportTransactionReportToPDF, exportTransactionReportToJSON } from "@food/components/admin/reports/reportsExportUtils"
 import { adminAPI } from "@food/api"
+import { getFoodOrderStatusLabel } from "@food/utils/foodOrderStatusUnified"
 import { toast } from "sonner"
 
 // Import icons from Transaction-report-icons
@@ -214,7 +215,7 @@ export default function TransactionReport() {
     if (normalized === 'user_unavailable_due_pending') return 'User Unavailable (Pending)'
     if (normalized === 'user_unavailable_recovered') return 'User Unavailable (Recovered)'
     if (normalized === 'cancelled_by_user_unavailable') return 'User Unavailable (Pending)'
-    return status || 'N/A'
+    return getFoodOrderStatusLabel(status, "", "admin") || 'N/A'
   }
 
   const getDisplayStatus = (transaction) => {

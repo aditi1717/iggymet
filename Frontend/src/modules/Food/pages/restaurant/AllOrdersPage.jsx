@@ -17,6 +17,7 @@ import { DateRangeCalendar } from "@food/components/ui/date-range-calendar"
 import { restaurantAPI } from "@food/api"
 import { useRestaurantNotifications } from "@food/hooks/useRestaurantNotifications"
 import { formatOrderAddressWithLabels } from "@food/utils/orderAddressFormatter"
+import { getCanonicalFoodOrderStatus, getFoodOrderStatusLabel } from "@food/utils/foodOrderStatusUnified"
 import BRAND_THEME from "@/config/brandTheme"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -224,33 +225,9 @@ export default function AllOrdersPage() {
     
     // Determine canonical status (for color/filter) + display label (for UI text)
     const backendStatus = String(order.orderStatus || order.status || "created").toLowerCase()
-    let status = 'PENDING'
-    let statusLabel = 'PENDING'
-    if (backendStatus === 'cancelled' || backendStatus === 'cancelled_by_user' || backendStatus === 'cancelled_by_admin') {
-      status = 'CANCELLED'
-      statusLabel = 'CANCELLED'
-    } else if (backendStatus === 'cancelled_by_restaurant') {
-      status = 'CANCELLED'
-      statusLabel = 'CANCELLED'
-    } else if (backendStatus === 'rejected') {
-      status = 'REJECTED'
-      statusLabel = 'REJECTED'
-    } else if (backendStatus === 'delivered') {
-      status = 'DELIVERED'
-      statusLabel = 'DELIVERED'
-    } else if (backendStatus === 'preparing') {
-      status = 'PREPARING'
-      statusLabel = 'PREPARING'
-    } else if (backendStatus === 'ready' || backendStatus === 'ready_for_pickup') {
-      status = 'READY'
-      statusLabel = 'READY'
-    } else if (backendStatus === 'out_for_delivery' || backendStatus === 'out for delivery' || backendStatus === 'picked_up') {
-      status = 'PICKED UP'
-      statusLabel = 'PICKED UP'
-    } else if (backendStatus === 'reached_drop' || backendStatus === 'at_drop' || backendStatus === 'at_delivery') {
-      status = 'PICKED UP'
-      statusLabel = 'PICKED UP'
-    }
+    const canonical = getCanonicalFoodOrderStatus(backendStatus, order?.deliveryState?.currentPhase)
+    let status = String(canonical || "pending").replace(/_/g, " ").toUpperCase()
+    let statusLabel = getFoodOrderStatusLabel(backendStatus, order?.deliveryState?.currentPhase, "restaurant").toUpperCase()
     
     const cancelledByRaw = String(order.cancelledBy || "").toLowerCase()
     const cancelledBy =

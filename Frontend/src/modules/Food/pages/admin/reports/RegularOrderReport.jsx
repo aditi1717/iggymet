@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react"
 import { BarChart3, ChevronDown, Settings, FileText, FileSpreadsheet, Code, Loader2 } from "lucide-react"
 import { adminAPI } from "@food/api"
+import { getFoodOrderStatusLabel } from "@food/utils/foodOrderStatusUnified"
 import { API_BASE_URL } from "@food/api/config"
 import io from "socket.io-client"
 import { toast } from "sonner"
@@ -56,42 +57,7 @@ const htmlEscape = (value) =>
     .replace(/'/g, "&#39;")
 
 const mapOrderStatusForReport = (backendStatusRaw, deliveryPhaseRaw = "") => {
-  const backendStatus = String(backendStatusRaw || "").toLowerCase()
-  const deliveryPhase = String(deliveryPhaseRaw || "").toLowerCase()
-
-  if (!backendStatus || backendStatus === "created" || backendStatus === "placed") return "Pending"
-  if (backendStatus === "confirmed" || backendStatus === "accepted") return "Accepted"
-  if (backendStatus === "preparing" || backendStatus === "processed") return "Processing"
-  if (
-    backendStatus === "ready" ||
-    backendStatus === "ready_for_pickup" ||
-    deliveryPhase === "ready_for_pickup" ||
-    deliveryPhase === "at_pickup"
-  ) {
-    return "Ready"
-  }
-  if (
-    backendStatus === "picked_up" ||
-    backendStatus === "out_for_delivery" ||
-    backendStatus === "reached_drop" ||
-    backendStatus === "at_drop" ||
-    backendStatus === "at_delivery"
-  ) {
-    return "Food On The Way"
-  }
-  if (backendStatus === "delivered" || backendStatus === "completed") return "Delivered"
-  if (backendStatus === "cancelled_by_user_unavailable") return "Cancelled - User Unavailable"
-  if (
-    backendStatus === "cancelled_by_restaurant" ||
-    backendStatus === "cancelled_by_user" ||
-    backendStatus === "cancelled_by_admin" ||
-    backendStatus === "cancelled"
-  ) {
-    return "Canceled"
-  }
-
-  // Keep previous fallback behavior for unknown statuses.
-  return String(backendStatusRaw || "")
+  return getFoodOrderStatusLabel(backendStatusRaw, deliveryPhaseRaw, "report")
 }
 
 const toIdCandidates = (...values) =>

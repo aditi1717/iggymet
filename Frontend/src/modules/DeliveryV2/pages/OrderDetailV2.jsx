@@ -520,6 +520,11 @@ const OrderDetailV2 = () => {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState('');
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [dropOtpCode, setDropOtpCode] = useState('');
+  const [pickupPhoto, setPickupPhoto] = useState(null);
+  const [pickupPhotoPreview, setPickupPhotoPreview] = useState(null);
+  const pickupFileInputRef = useRef(null);
 
   // Delivery Attempt States
   // 'normal' | 'timer' | 'proof'
@@ -568,6 +573,13 @@ const OrderDetailV2 = () => {
     if (!file) return;
     setProofPhoto(file);
     setProofPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const handlePickupPhotoSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPickupPhoto(file);
+    setPickupPhotoPreview(URL.createObjectURL(file));
   };
 
   const handleReportNonResponsive = useCallback(async () => {
@@ -786,6 +798,9 @@ const OrderDetailV2 = () => {
     rawStatus === 'reached_drop' ||
     phase === 'at_drop' ||
     ['delivered', 'completed'].includes(rawStatus);
+  const dropOtpRequired = Boolean(order?.deliveryVerification?.dropOtp?.required);
+  const dropOtpVerified = Boolean(order?.deliveryVerification?.dropOtp?.verified);
+  const canMarkDelivered = hasReachedDrop && (!dropOtpRequired || dropOtpVerified);
   const shouldNavigateToDrop = hasPickedOrder || hasReachedDrop;
   const mapDestination = shouldNavigateToDrop ? customerLocation : restaurantLocation;
   const mapDestinationAddress = shouldNavigateToDrop ? customerAddress : restaurantAddress;
@@ -850,17 +865,29 @@ const OrderDetailV2 = () => {
   const handlePicked = useCallback(() => runAction(
     'picked',
     async () => {
+      if (!pickupPhoto) {
+        throw new Error('Pickup photo is required before marking picked up');
+      }
+      const uploadResponse = await uploadAPI.uploadMedia(pickupPhoto, {
+        folder: 'food/delivery/pickup-proof',
+      });
+      const billImageUrl =
+        uploadResponse?.data?.data?.url ||
+        uploadResponse?.data?.url ||
+        '';
       // Keep backend transition valid: rider must reach pickup before marking picked.
       await deliveryAPI.confirmReachedPickup(orderId);
       await deliveryAPI.confirmOrderId(
         orderId,
         order?.displayOrderId || orderId,
         useDeliveryStore.getState().riderLocation || {},
-        {},
+        { billImageUrl },
       );
+      setPickupPhoto(null);
+      setPickupPhotoPreview(null);
     },
     'Order marked as picked',
-  ), [order, orderId, runAction]);
+  ), [order, orderId, pickupPhoto, runAction]);
 
   const handleArriveDrop = useCallback(() => runAction(
     'drop-arrival',
@@ -873,23 +900,36 @@ const OrderDetailV2 = () => {
   const handleDelivered = useCallback(() => runAction(
     'delivered',
     async () => {
-      await deliveryAPI.completeDelivery(orderId, { rating: 5 });
-      clearActiveOrder();
-    },
-    'Order delivered',
-  ), [clearActiveOrder, orderId, runAction]);
-
-  const handleReachedAndDelivered = useCallback(() => runAction(
-    'reached-and-delivered',
-    async () => {
-      if (!hasReachedDrop) {
-        await deliveryAPI.confirmReachedDrop(orderId);
+      if (dropOtpRequired && !dropOtpVerified) {
+        throw new Error('Please verify customer OTP before marking delivered');
       }
       await deliveryAPI.completeDelivery(orderId, { rating: 5 });
       clearActiveOrder();
     },
-    'Reached location and delivered',
-  ), [clearActiveOrder, hasReachedDrop, orderId, runAction]);
+    'Order delivered',
+  ), [clearActiveOrder, dropOtpRequired, dropOtpVerified, orderId, runAction]);
+
+  const handleVerifyDropOtp = useCallback(() => runAction(
+    'verify-drop-otp',
+    async () => {
+      const otp = String(dropOtpCode || '').replace(/\D/g, '').slice(0, 6);
+      if (!otp) {
+        throw new Error('Please enter OTP');
+      }
+      await deliveryAPI.verifyDropOtp(orderId, otp);
+      setShowOtpModal(false);
+      setDropOtpCode('');
+    },
+    'OTP verified',
+  ), [dropOtpCode, orderId, runAction]);
+
+  const handleResendDropOtp = useCallback(() => runAction(
+    'resend-drop-otp',
+    async () => {
+      await deliveryAPI.confirmReachedDrop(orderId);
+    },
+    'OTP resent to customer',
+  ), [orderId, runAction]);
   const isPassedTaskFlow = dispatchStatus === 'unassigned' && !isClosedOrder;
 
   const canAccept = order && dispatchStatus === 'assigned' && !isClosedOrder;
@@ -905,15 +945,37 @@ const OrderDetailV2 = () => {
         run: handlePicked,
       };
     }
+    if (!hasReachedDrop) {
+      return {
+        key: 'reached-drop',
+        label: 'Slide to mark Reached Customer',
+        successLabel: 'Reached Customer',
+        run: handleArriveDrop,
+      };
+    }
+    if (dropOtpRequired && !dropOtpVerified) {
+      return {
+        key: 'verify-drop-otp',
+        label: 'Slide to enter customer OTP',
+        successLabel: 'Enter OTP',
+        run: async () => {
+          setShowOtpModal(true);
+        },
+      };
+    }
     return {
-      key: 'reached-and-delivered',
-      label: 'Slide to mark Reached Location & Delivered',
-      successLabel: 'Reached & Delivered',
-      run: handleReachedAndDelivered,
+      key: 'delivered',
+      label: 'Slide to mark Delivered',
+      successLabel: 'Delivered',
+      run: handleDelivered,
     };
   }, [
-    handleReachedAndDelivered,
+    dropOtpRequired,
+    dropOtpVerified,
+    handleArriveDrop,
+    handleDelivered,
     handlePicked,
+    hasReachedDrop,
     hasPickedOrder,
     isAcceptedFlow,
     isPassedTaskFlow,
@@ -1027,11 +1089,49 @@ const OrderDetailV2 = () => {
 
           {isAcceptedFlow && !isPassedTaskFlow && attemptPhase === 'normal' && !attemptSubmitted && (
             <div className="rounded-2xl border border-slate-200 bg-white p-3">
+              {!hasPickedOrder && (
+                <div className="mb-3">
+                  <p className="mb-2 text-[12px] font-semibold text-slate-700">Pickup photo required</p>
+                  <input
+                    ref={pickupFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handlePickupPhotoSelect}
+                  />
+                  {pickupPhotoPreview ? (
+                    <div className="relative overflow-hidden rounded-2xl border border-slate-200">
+                      <img src={pickupPhotoPreview} alt="Pickup proof" className="h-36 w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => { setPickupPhoto(null); setPickupPhotoPreview(null); }}
+                        className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/50 text-white"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => pickupFileInputRef.current?.click()}
+                      className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 py-5 text-slate-500 hover:bg-slate-100 transition-colors"
+                    >
+                      <Camera className="h-5 w-5" />
+                      <span className="text-[13px] font-semibold">Take / Upload Pickup Photo</span>
+                    </button>
+                  )}
+                </div>
+              )}
               <ActionSlider
                 key={sliderStepConfig?.key || 'status-slider'}
                 label={busyAction ? 'Updating...' : sliderStepConfig?.label || 'Slide to update'}
                 successLabel={sliderStepConfig?.successLabel || 'Done'}
-                disabled={!sliderStepConfig || Boolean(busyAction)}
+                disabled={
+                  !sliderStepConfig ||
+                  Boolean(busyAction) ||
+                  (sliderStepConfig?.key === 'picked' && !pickupPhoto)
+                }
                 onConfirm={async () => {
                   if (!sliderStepConfig?.run) return;
                   await sliderStepConfig.run();
@@ -1040,6 +1140,16 @@ const OrderDetailV2 = () => {
                 containerStyle={{ backgroundColor: '#E8F3EE' }}
                 style={{ background: 'linear-gradient(135deg, #2979fb 0%, #0A7A45 100%)' }}
               />
+              {hasReachedDrop && dropOtpRequired && !dropOtpVerified && (
+                <p className="mt-2 text-[11px] font-medium text-amber-700">
+                  Ask customer for OTP from their order tracking screen, then verify to complete delivery.
+                </p>
+              )}
+              {sliderStepConfig?.key === 'picked' && !pickupPhoto && (
+                <p className="mt-2 text-[11px] font-medium text-rose-600">
+                  Upload pickup photo to unlock the slide.
+                </p>
+              )}
             </div>
           )}
           {isPassedTaskFlow && (
@@ -1048,8 +1158,8 @@ const OrderDetailV2 = () => {
             </div>
           )}
 
-          {/* Delivery Attempt Section — only shown after pickup */}
-          {isAcceptedFlow && hasPickedOrder && !isClosedOrder && (
+          {/* Delivery Attempt Section — shown only after reached customer */}
+          {isAcceptedFlow && hasReachedDrop && !isClosedOrder && !(dropOtpRequired && dropOtpVerified) && (
             <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
 
               {/* Submitted State */}
@@ -1078,7 +1188,7 @@ const OrderDetailV2 = () => {
                     </div>
                     <div className="text-left">
                       <p className="text-[13px] font-bold text-slate-800">Delivery Attempt</p>
-                      <p className="text-[11px] font-medium text-slate-400">Customer not answering? Start wait timer</p>
+                      <p className="text-[11px] font-medium text-slate-400">Customer not answering call? Start wait timer</p>
                     </div>
                   </div>
                   <span className="text-[11px] font-bold text-orange-500 bg-orange-50 rounded-lg px-2 py-1">30 sec</span>
@@ -1180,6 +1290,53 @@ const OrderDetailV2 = () => {
           )}
 
         </section>
+
+        {showOtpModal && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+            <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-2xl">
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-900">Enter Customer OTP</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowOtpModal(false)}
+                  className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="text-xs text-slate-500">
+                Customer app se OTP lekar yahan enter karein. OTP verify hone ke baad hi delivered hoga.
+              </p>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={dropOtpCode}
+                onChange={(e) => setDropOtpCode(String(e.target.value || '').replace(/\D/g, '').slice(0, 6))}
+                className="mt-3 h-11 w-full rounded-xl border border-slate-300 px-3 text-base font-semibold tracking-[0.2em] text-slate-900 focus:border-[#2979fb] focus:outline-none"
+                placeholder="OTP"
+              />
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleResendDropOtp}
+                  disabled={Boolean(busyAction)}
+                  className="rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-700 disabled:opacity-60"
+                >
+                  {busyAction === 'resend-drop-otp' ? 'Resending...' : 'Resend OTP'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleVerifyDropOtp}
+                  disabled={Boolean(busyAction)}
+                  className="rounded-xl bg-[#2979fb] py-2.5 text-xs font-semibold text-white disabled:opacity-60"
+                >
+                  {busyAction === 'verify-drop-otp' ? 'Verifying...' : 'Verify OTP'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {!isPassedTaskFlow && activeMapHref && !isClosedOrder && (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

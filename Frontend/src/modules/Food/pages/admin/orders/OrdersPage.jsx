@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom"
 import io from "socket.io-client"
 import { FileText, Calendar, Package, Loader2 } from "lucide-react"
 import { adminAPI } from "@food/api"
+import { getFoodOrderStatusLabelFromOrder } from "@food/utils/foodOrderStatusUnified"
 import { API_BASE_URL } from "@food/api/config"
 import { toast } from "sonner"
 import OrdersTopbar from "@food/components/admin/orders/OrdersTopbar"
@@ -501,38 +502,7 @@ export default function OrdersPage({ statusKey = "all" }) {
       const noResponseMeta = order.noResponseMeta || null
       let paymentCollectionStatus = order.paymentCollectionStatus || null
 
-      let displayStatus = order.orderStatus
-      if (!backendStatus || backendStatus === "created" || backendStatus === "confirmed") {
-        displayStatus = "Pending"
-      } else if (backendStatus === "preparing") {
-        displayStatus = "Processing"
-      } else if (backendStatus === "ready_for_pickup") {
-        displayStatus = "Ready"
-      } else if (
-        backendStatus === "picked_up" ||
-        backendStatus === "out_for_delivery" ||
-        backendStatus === "en_route_to_delivery"
-      ) {
-        displayStatus = "Picked Up"
-      } else if (
-        backendStatus === "reached_drop" ||
-        backendStatus === "at_drop" ||
-        backendStatus === "at_delivery"
-      ) {
-        displayStatus = "Picked Up"
-      } else if (backendStatus === "delivered") {
-        displayStatus = "Delivered"
-      } else if (backendStatus === "cancelled_by_restaurant") {
-        displayStatus = "Cancelled by Restaurant"
-      } else if (backendStatus === "cancelled_by_user") {
-        displayStatus = "Cancelled by User"
-      } else if (backendStatus === "cancelled_by_admin") {
-        displayStatus = "Cancelled by Admin"
-      } else if (backendStatus === "cancelled_by_user_unavailable") {
-        displayStatus = "Cancelled - User Unavailable"
-      } else if (backendStatus === "user_unavailable_review") {
-        displayStatus = "User Unavailable Review"
-      }
+      let displayStatus = getFoodOrderStatusLabelFromOrder(order, "admin")
 
       const hasUserUnavailableDue =
         (backendStatus === "cancelled_by_user_unavailable" || noResponseMeta?.isUserUnavailable) &&
@@ -608,6 +578,8 @@ export default function OrdersPage({ statusKey = "all" }) {
         ...order,
         id: order._id || order.id,
         orderId: order.orderId || order.id,
+        billImageUrl: order.billImageUrl || order.billImage || order?.deliveryState?.billImageUrl || "",
+        deliveryState: order.deliveryState || null,
         date,
         time,
         customerName,

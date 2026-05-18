@@ -5,6 +5,7 @@ import { orderAPI } from "@food/api"
 import { useCart } from "@food/context/CartContext"
 import { toast } from "sonner"
 import { getCompanyNameAsync } from "@food/utils/businessSettings"
+import { getCanonicalFoodOrderStatus } from "@food/utils/foodOrderStatusUnified"
 import BRAND_THEME from "@/config/brandTheme"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -114,12 +115,15 @@ export default function Orders() {
 
   // Get order status text
   const getOrderStatus = (order) => {
-    const status = order.status
-    if (status === 'delivered' || status === 'completed') return 'delivered'
-    if (status === 'out_for_delivery' || status === 'outForDelivery') return 'outForDelivery'
-    if (status === 'ready' || status === 'preparing') return 'preparing'
-    if (String(status).toLowerCase().includes('cancel')) return 'cancelled'
-    return status || 'confirmed'
+    const canonical = getCanonicalFoodOrderStatus(
+      order?.status || order?.orderStatus,
+      order?.deliveryState?.currentPhase
+    )
+    if (canonical === "picked_up") return "outForDelivery"
+    if (canonical === "processing" || canonical === "ready" || canonical === "accepted") return "preparing"
+    if (canonical === "delivered") return "delivered"
+    if (canonical === "cancelled" || canonical === "cancelled_user_unavailable" || canonical === "rejected") return "cancelled"
+    return canonical || 'confirmed'
   }
 
   // Auto-show rating popup when order is delivered (only once per order)
