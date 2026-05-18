@@ -125,7 +125,7 @@ export default function ShowIdCardV2() {
         <div className="bg-white w-full rounded-2xl shadow-lg border border-gray-100 overflow-hidden relative">
           
           {/* Card Top Brand Strip */}
-          <div className="h-20 bg-gray-900 relative px-4 pt-4 flex items-start justify-between overflow-hidden">
+          <div className="h-24 bg-gray-900 relative px-4 pt-4 flex items-start justify-between overflow-hidden">
              <div className="absolute inset-0 bg-gradient-to-r from-gray-900 to-gray-800" />
              <div className="relative z-10">
                 <p className="text-[9px] font-black uppercase tracking-[0.3em] text-orange-400">{companyName}</p>

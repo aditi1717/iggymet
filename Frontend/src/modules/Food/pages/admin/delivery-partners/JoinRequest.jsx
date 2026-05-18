@@ -861,6 +861,28 @@ export default function JoinRequest() {
                           <p className="text-sm text-slate-900 mt-1">{viewDetails.documents.bankDetails.bankName}</p>
                         </div>
                       )}
+                      {viewDetails.documents.bankDetails.upiId && (
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 uppercase">UPI ID</label>
+                          <p className="text-sm text-slate-900 mt-1">{viewDetails.documents.bankDetails.upiId}</p>
+                        </div>
+                      )}
+                      {viewDetails.documents.bankDetails.upiQrCode && (
+                        <div className="col-span-2">
+                          <label className="text-xs font-semibold text-slate-500 uppercase">UPI QR</label>
+                          <div className="mt-2 flex items-center gap-3">
+                            <img src={viewDetails.documents.bankDetails.upiQrCode} alt="UPI QR" className="w-24 h-24 object-cover rounded-lg border border-slate-200" />
+                            <a
+                              href={viewDetails.documents.bankDetails.upiQrCode}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-sm text-[#2979fb] hover:text-brand-700"
+                            >
+                              <ExternalLink className="w-3 h-3" /> View QR
+                            </a>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

@@ -1661,6 +1661,11 @@ const getDeliveryMeOnce = () => {
 
 /** Delivery API - OTP login + registration via new backend. */
 export const deliveryAPI = {
+  invalidateProfileCache: () => {
+    deliveryMeCached = null;
+    deliveryMeCacheTime = 0;
+    deliveryMeInFlight = null;
+  },
   sendOTP: (phone, _purpose = "login") => {
     if (!phone) return Promise.reject(new Error("Phone is required"));
     return authService.requestDeliveryOtp(phone);

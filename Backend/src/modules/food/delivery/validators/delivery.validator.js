@@ -76,40 +76,50 @@ export const validateDeliveryProfileUpdateDto = (body) => {
 };
 
 const bankDetailsSchema = z.object({
-    accountHolderName: z.string().min(1, 'Account holder name is required').optional().or(z.literal('')),
-    accountNumber: z.string().min(1, 'Account number is required').optional().or(z.literal('')),
-    ifscCode: z.string().min(1, 'IFSC code is required').optional().or(z.literal('')),
-    bankName: z.string().min(1, 'Bank name is required').optional().or(z.literal('')),
-    upiId: z.string().optional().or(z.literal('')),
+    accountHolderName: z.string().trim().min(1, 'Account holder name is required'),
+    accountNumber: z.string().trim().min(1, 'Account number is required'),
+    ifscCode: z.string().trim().min(1, 'IFSC code is required'),
+    bankName: z.string().trim().min(1, 'Bank name is required'),
+    upiId: z.string().trim().min(1, 'UPI ID is required'),
     upiQrCode: z.string().optional().or(z.literal(''))
 });
 
 const bankDetailsUpdateSchema = z.object({
     documents: z.object({
-        bankDetails: bankDetailsSchema.optional(),
+        bankDetails: bankDetailsSchema,
         pan: z.object({ number: z.string().optional() }).optional()
-    }).optional()
-}).optional();
+    })
+});
 
 export const validateDeliveryBankDetailsDto = (body) => {
     // If we have flat keys from FormData (multer), reconstruct the nested object for Zod
     const processed = { ...body };
     if (!processed.documents) processed.documents = {};
-    if (!processed.documents.bankDetails) {
-        processed.documents.bankDetails = {
-            accountHolderName: body['documents[bankDetails][accountHolderName]'],
-            accountNumber: body['documents[bankDetails][accountNumber]'],
-            ifscCode: body['documents[bankDetails][ifscCode]'],
-            bankName: body['documents[bankDetails][bankName]'],
-            upiId: body['documents[bankDetails][upiId]']
-        };
-    }
+    const nestedBank = processed?.documents?.bankDetails || {};
+    processed.documents.bankDetails = {
+        accountHolderName:
+            body['documents[bankDetails][accountHolderName]'] ?? nestedBank.accountHolderName,
+        accountNumber:
+            body['documents[bankDetails][accountNumber]'] ?? nestedBank.accountNumber,
+        ifscCode:
+            body['documents[bankDetails][ifscCode]'] ?? nestedBank.ifscCode,
+        bankName:
+            body['documents[bankDetails][bankName]'] ?? nestedBank.bankName,
+        upiId:
+            body['documents[bankDetails][upiId]'] ?? nestedBank.upiId
+    };
     if (!processed.documents.pan && body['documents[pan][number]']) {
         processed.documents.pan = { number: body['documents[pan][number]'] };
     }
 
     const result = bankDetailsUpdateSchema.safeParse(processed);
     if (!result.success) {
+        const first = result.error.errors?.[0];
+        if (first?.path?.length) {
+            const field = first.path[first.path.length - 1];
+            const message = first.message || 'Invalid value';
+            throw new ValidationError(`${field}: ${message}`);
+        }
         throw new ValidationError(result.error.errors[0].message);
     }
     return result.data;

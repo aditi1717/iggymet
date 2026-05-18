@@ -10,7 +10,6 @@ import {
   Loader2,
   Star,
   ShieldAlert,
-  FileText,
   Store,
 } from "lucide-react"
 import { deliveryAPI } from "@food/api"
@@ -69,33 +68,47 @@ export const ProfileV2 = () => {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-poppins pb-28">
       
-      {/* Basic Compact Header */}
-      <div className="bg-white border-b border-gray-100 flex items-center px-4 py-3 sticky top-0 z-50">
-        <h1 className="text-base font-bold text-gray-900">My Profile</h1>
+      {/* Enlarge and beautiful Header with Profile Details */}
+      <div 
+        onClick={() => navigate("/food/delivery/profile/details")}
+        className="bg-gradient-to-r from-gray-900 to-gray-800 text-white pt-10 pb-12 px-6 rounded-b-[2rem] shadow-md relative overflow-hidden cursor-pointer active:opacity-95 transition-opacity"
+      >
+        {/* Decorative backdrop shapes */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-8 -mt-8 blur-2xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-500/10 rounded-full -ml-8 -mb-8 blur-xl pointer-events-none" />
+
+        <div className="flex items-center gap-4 relative z-10">
+          {/* Circular Profile Photo on Header */}
+          <div className="w-16 h-16 rounded-full overflow-hidden shrink-0 border-2 border-white/20 bg-white/10 flex items-center justify-center shadow-lg">
+            {profile?.profileImage?.url ? (
+              <img src={profile.profileImage.url} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <User className="w-8 h-8 text-white/60" />
+            )}
+          </div>
+          
+          {/* Name and ID */}
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-bold text-white tracking-tight truncate leading-snug">
+              {profile?.name || "Delivery Partner"}
+            </h1>
+            <p className="text-xs text-gray-300 font-medium mt-0.5 flex items-center gap-2">
+              <span className="bg-white/10 px-2 py-0.5 rounded-full text-[10px] font-bold text-orange-300 tracking-wider">
+                ID: {profile?.deliveryId || "N/A"}
+              </span>
+              {profile?.status && (
+                <span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                  {profile.status}
+                </span>
+              )}
+            </p>
+          </div>
+          
+          <ChevronRight className="w-5 h-5 text-white/60 shrink-0" />
+        </div>
       </div>
 
-      <div className="px-4 pt-3 space-y-3">
-        
-        {/* Simple Profile Identity Card */}
-        <div 
-          onClick={() => navigate("/food/delivery/profile/details")}
-          className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm flex items-center justify-between cursor-pointer active:bg-gray-50 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-             <div className="bg-gray-100 w-12 h-12 rounded-full overflow-hidden shrink-0 border border-gray-200 flex items-center justify-center">
-               {profile?.profileImage?.url ? (
-                 <img src={profile.profileImage.url} alt="Profile" className="w-full h-full object-cover" />
-               ) : (
-                 <User className="w-6 h-6 text-gray-400" />
-               )}
-             </div>
-             <div>
-               <h2 className="text-sm font-bold text-gray-900 leading-tight mb-0.5">{profile?.name || "Delivery Partner"}</h2>
-               <p className="text-xs text-gray-500 font-medium">ID: {profile?.deliveryId || "N/A"}</p>
-             </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-gray-400" />
-        </div>
+      <div className="px-4 pt-5 space-y-4">
 
         {/* Action Grid (Compact) */}
         <div className="grid grid-cols-2 gap-3">
@@ -122,19 +135,6 @@ export const ProfileV2 = () => {
              <div className="text-left">
                <span className="text-xs font-semibold text-gray-800 block">Shop</span>
                <span className="text-[10px] text-gray-400 font-medium">Buy items</span>
-             </div>
-           </button>
-
-           <button
-             onClick={() => navigate("/food/delivery/profile/documents")}
-             className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm flex items-center gap-3 active:bg-gray-50 transition-colors col-span-2"
-           >
-             <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
-               <FileText className="w-4 h-4" />
-             </div>
-             <div className="text-left">
-               <span className="text-xs font-semibold text-gray-800 block">Docs</span>
-               <span className="text-[10px] text-gray-400 font-medium">Manage</span>
              </div>
            </button>
         </div>
@@ -230,5 +230,4 @@ export const ProfileV2 = () => {
 }
 
 export default ProfileV2;
-
 

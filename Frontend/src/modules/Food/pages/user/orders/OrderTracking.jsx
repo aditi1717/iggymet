@@ -733,9 +733,25 @@ export default function OrderTracking() {
   }, [orderId, getOrderById, fetchOrderDetailsWithFallback, resolveOrderFromList])
 
   const handleBackToOrders = useCallback(() => {
-    if (window.history.length > 1) {
-      navigate(-1)
-      return
+    try {
+      const ref = typeof document !== "undefined" ? String(document.referrer || "") : ""
+      const hasInternalReferrer =
+        ref &&
+        (ref.includes("/food/") || ref.includes("/user/")) &&
+        (() => {
+          try {
+            return new URL(ref).origin === window.location.origin
+          } catch {
+            return false
+          }
+        })()
+
+      if (hasInternalReferrer && window.history.length > 1) {
+        navigate(-1)
+        return
+      }
+    } catch {
+      // fall through to safe route
     }
     navigate("/food/orders")
   }, [navigate])

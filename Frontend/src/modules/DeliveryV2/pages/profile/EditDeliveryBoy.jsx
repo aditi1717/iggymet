@@ -48,6 +48,8 @@ export const EditDeliveryBoy = () => {
   const [editingDocuments, setEditingDocuments] = useState(false)
   const [editingBank, setEditingBank] = useState(false)
   const [errors, setErrors] = useState({})
+  const [upiQrPreviewUrl, setUpiQrPreviewUrl] = useState("")
+  const [upiQrFile, setUpiQrFile] = useState(null)
 
   const profileImageUrl = profile?.profileImage?.url || profile?.profilePhoto || null
   const aadharNumber = profile?.documents?.aadhar?.number || profile?.aadharNumber || "Not added"
@@ -57,6 +59,7 @@ export const EditDeliveryBoy = () => {
   const panPhotoUrl = profile?.documents?.pan?.document || null
   const drivingPhotoUrl = profile?.documents?.drivingLicense?.document || null
   const upiQrUrl = profile?.documents?.bankDetails?.upiQrCode || null
+  const visibleUpiQrUrl = upiQrPreviewUrl || upiQrUrl
 
   const selectedZoneLabel = useMemo(() => {
     const zone = zones.find((z) => String(z?._id || z?.id || "") === String(zoneId || ""))
@@ -141,7 +144,8 @@ export const EditDeliveryBoy = () => {
     } else if (key === "ifscCode") {
       if (value && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(value.toUpperCase())) err = "Invalid IFSC"
     } else if (key === "upiId") {
-      if (value && !/^[\w\.-]+@[\w\.-]+$/.test(value)) err = "Invalid UPI ID"
+      if (!value || !String(value).trim()) err = "UPI ID is required"
+      else if (!/^[\w\.-]+@[\w\.-]+$/.test(value)) err = "Invalid UPI ID"
     }
     setErrors((prev) => ({ ...prev, [key]: err }))
     return err
@@ -190,12 +194,19 @@ export const EditDeliveryBoy = () => {
 
   const uploadSingleFile = async (field, file) => {
     if (!file) return
+    if (field === "upiQrCode") {
+      setUpiQrFile(file)
+      setUpiQrPreviewUrl(URL.createObjectURL(file))
+      toast.success("UPI QR selected. Click Save to update bank details.")
+      return
+    }
     try {
       setUploading(field)
       const fd = new FormData()
       fd.append(field, file)
       const response = await deliveryAPI.updateProfileMultipart(fd)
       if (handleReapprovalRedirect(response)) return
+      deliveryAPI.invalidateProfileCache?.()
       await refresh()
       toast.success("Updated")
     } catch {
@@ -226,6 +237,7 @@ export const EditDeliveryBoy = () => {
       fd.append("state", String(state || "").trim())
       const response = await deliveryAPI.updateProfileMultipart(fd)
       if (handleReapprovalRedirect(response)) return
+      deliveryAPI.invalidateProfileCache?.()
       await refresh()
       toast.success("Basic details updated")
       setEditingBasic(false)
@@ -252,6 +264,7 @@ export const EditDeliveryBoy = () => {
         },
       })
       if (handleReapprovalRedirect(response)) return
+      deliveryAPI.invalidateProfileCache?.()
       await refresh()
       toast.success("Vehicle details updated")
       setEditingVehicle(false)
@@ -264,6 +277,12 @@ export const EditDeliveryBoy = () => {
 
   const saveBankDetails = async () => {
     const { accountHolderName, accountNumber, ifscCode, bankName, upiId, panNumber } = form
+    if (!String(accountHolderName || "").trim()) return toast.error("Account holder name is required")
+    if (!String(accountNumber || "").trim()) return toast.error("Account number is required")
+    if (!String(ifscCode || "").trim()) return toast.error("IFSC code is required")
+    if (!String(bankName || "").trim()) return toast.error("Bank name is required")
+    if (!String(upiId || "").trim()) return toast.error("UPI ID is required")
+    if (!visibleUpiQrUrl && !upiQrFile) return toast.error("UPI QR image is required")
     const e1 = validateField("accountNumber", accountNumber)
     const e2 = validateField("ifscCode", ifscCode)
     const e3 = validateField("upiId", upiId)
@@ -278,10 +297,16 @@ export const EditDeliveryBoy = () => {
       bankFd.append("documents[bankDetails][ifscCode]", String(ifscCode || "").trim().toUpperCase())
       bankFd.append("documents[bankDetails][bankName]", String(bankName || "").trim())
       bankFd.append("documents[bankDetails][upiId]", String(upiId || "").trim())
+      if (upiQrFile) {
+        bankFd.append("upiQrCode", upiQrFile)
+      }
       bankFd.append("documents[pan][number]", String(panNumber || "").trim().toUpperCase())
       const response = await deliveryAPI.updateBankDetailsMultipart(bankFd)
       if (handleReapprovalRedirect(response)) return
+      deliveryAPI.invalidateProfileCache?.()
       await refresh()
+      setUpiQrFile(null)
+      setUpiQrPreviewUrl("")
       toast.success("Bank details updated")
       setEditingBank(false)
     } catch {
@@ -305,6 +330,7 @@ export const EditDeliveryBoy = () => {
       fd.append("drivingLicenseNumber", String(drivingLicenseNumber || "").trim().toUpperCase())
       const response = await deliveryAPI.updateProfileMultipart(fd)
       if (handleReapprovalRedirect(response)) return
+      deliveryAPI.invalidateProfileCache?.()
       await refresh()
       toast.success("Document details updated")
       setEditingDocuments(false)
@@ -331,6 +357,7 @@ export const EditDeliveryBoy = () => {
         navigate("/food/delivery/login", { replace: true })
         return
       }
+      deliveryAPI.invalidateProfileCache?.()
       await refresh()
       toast.success("Zone updated")
     } catch {
@@ -612,8 +639,8 @@ export const EditDeliveryBoy = () => {
           </div>
           <div className="rounded-xl border border-slate-200 p-2">
             <p className="text-[10px] font-semibold text-slate-500 mb-1">Existing UPI QR</p>
-            {upiQrUrl ? (
-              <img src={upiQrUrl} alt="UPI QR" className="w-28 h-28 object-cover rounded-lg" />
+            {visibleUpiQrUrl ? (
+              <img src={visibleUpiQrUrl} alt="UPI QR" className="w-28 h-28 object-cover rounded-lg" />
             ) : (
               <div className="w-28 h-28 rounded-lg bg-slate-100 text-[10px] text-slate-400 flex items-center justify-center">No QR</div>
             )}

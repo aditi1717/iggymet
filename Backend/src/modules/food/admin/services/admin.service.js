@@ -5622,12 +5622,14 @@ export async function getDeliveryPartnerById(id) {
                 : null,
             drivingLicense: partner.drivingLicensePhoto ? { document: partner.drivingLicensePhoto } : null,
             bankDetails:
-                partner.bankAccountHolderName || partner.bankAccountNumber || partner.bankIfscCode || partner.bankName
+                partner.bankAccountHolderName || partner.bankAccountNumber || partner.bankIfscCode || partner.bankName || partner.upiId || partner.upiQrCode
                     ? {
                         accountHolderName: partner.bankAccountHolderName || null,
                         accountNumber: partner.bankAccountNumber || null,
                         ifscCode: partner.bankIfscCode || null,
-                        bankName: partner.bankName || null
+                        bankName: partner.bankName || null,
+                        upiId: partner.upiId || null,
+                        upiQrCode: partner.upiQrCode || null
                     }
                     : null
         },

@@ -43,31 +43,33 @@ export default function OrdersTopbar({
               <Search className="w-4 h-4 text-slate-500" />
             </button>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="px-4 py-2.5 text-sm font-medium rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 flex items-center gap-2 transition-all">
-                <Download className="w-4 h-4" />
-                <span className="text-black font-bold">Export</span>
-                <ChevronDown className="w-3 h-3" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-50">
-              <DropdownMenuLabel>Export Format</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => onExport("excel")} className="cursor-pointer">
-                <div className="w-6 h-6 rounded-md bg-green-50 flex items-center justify-center mr-3">
-                  <FileSpreadsheet className="w-4 h-4 text-green-600" />
-                </div>
-                <span>Excel</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onExport("pdf")} className="cursor-pointer">
-                <div className="w-6 h-6 rounded-md bg-red-50 flex items-center justify-center mr-3">
-                  <FileText className="w-4 h-4 text-red-600" />
-                </div>
-                <span>PDF</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {typeof onExport === "function" && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="px-4 py-2.5 text-sm font-medium rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 flex items-center gap-2 transition-all">
+                  <Download className="w-4 h-4" />
+                  <span className="text-black font-bold">Export</span>
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-50">
+                <DropdownMenuLabel>Export Format</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onExport("excel")} className="cursor-pointer">
+                  <div className="w-6 h-6 rounded-md bg-green-50 flex items-center justify-center mr-3">
+                    <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                  </div>
+                  <span>Excel</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onExport("pdf")} className="cursor-pointer">
+                  <div className="w-6 h-6 rounded-md bg-red-50 flex items-center justify-center mr-3">
+                    <FileText className="w-4 h-4 text-red-600" />
+                  </div>
+                  <span>PDF</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <button 
             onClick={onFilterClick}
             className={`px-4 py-2.5 text-sm font-medium rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 flex items-center gap-2 transition-all relative ${

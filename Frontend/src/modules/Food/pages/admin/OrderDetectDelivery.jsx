@@ -711,7 +711,6 @@ export default function OrderDetectDelivery() {
         setSearchQuery={setSearchQuery}
         onFilterClick={() => setIsFilterOpen(true)}
         activeFiltersCount={activeFiltersCount}
-        onExport={handleExport}
         onSettingsClick={() => setIsSettingsOpen(true)}
       />
 

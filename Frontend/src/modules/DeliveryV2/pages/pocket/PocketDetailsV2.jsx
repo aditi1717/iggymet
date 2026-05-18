@@ -384,7 +384,7 @@ export const PocketDetailsV2 = () => {
     document.body.appendChild(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     toast.success('Excel sheet downloaded');
   };
 
