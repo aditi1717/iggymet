@@ -10,6 +10,7 @@ export default function AuthRoutes() {
     <Suspense fallback={<Loader />}>
       <Routes>
         <Route path="login" element={<Login />} />
+        <Route path="otp" element={<Navigate to="/food/user/auth/otp?step=name" replace />} />
         <Route path="portal" element={<Portal />} />
         <Route path="*" element={<Navigate to="/user/auth/login" replace />} />
       </Routes>

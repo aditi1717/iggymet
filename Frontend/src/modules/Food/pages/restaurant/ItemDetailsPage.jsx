@@ -385,11 +385,7 @@ export default function ItemDetailsPage() {
   }
 
   const handleCameraClick = () => {
-    if (isFlutterBridgeAvailable()) {
-      setIsPhotoPickerOpen(true)
-    } else {
-      fileInputRef.current?.click()
-    }
+    setIsPhotoPickerOpen(true)
   }
 
   const handleImageDelete = (index) => {
@@ -512,6 +508,11 @@ export default function ItemDetailsPage() {
   const handleSave = async () => {
     if (!itemName.trim()) {
       toast.error("Please enter an item name")
+      return
+    }
+
+    if (images.length === 0 && imageFiles.size === 0) {
+      toast.error("Food item image is compulsory")
       return
     }
 
@@ -1240,6 +1241,29 @@ export default function ItemDetailsPage() {
                   </div>
                 ) : (
                   <div className="space-y-2">
+                    <button
+                      onClick={() => {
+                        setIsCategoryPopupOpen(false)
+                        navigate('/food/restaurant/menu-categories', {
+                          state: {
+                            backTo: location.pathname
+                          }
+                        })
+                      }}
+                      className="w-full rounded-lg border border-dashed border-orange-300 bg-orange-50/50 hover:bg-orange-50 px-4 py-3.5 flex items-center justify-between text-left transition-colors mb-2"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
+                          <Plus className="w-4 h-4 text-orange-600" />
+                        </div>
+                        <div>
+                          <span className="text-sm font-semibold text-orange-700">Add Category</span>
+                          <p className="text-xs text-orange-500">Create a new category for your items</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-orange-400" />
+                    </button>
+
                     {categories.map((cat) => (
                       <button
                         key={cat.id}

@@ -1,14 +1,17 @@
 import { useState, useEffect, useRef } from "react"
-import { useNavigate } from "react-router-dom"
-import { ArrowLeft, Loader2 } from "lucide-react"
+import { useNavigate, useSearchParams } from "react-router-dom"
+import { AlertCircle, ArrowLeft, Loader2 } from "lucide-react"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import { Input } from "@food/components/ui/input"
 import { Button } from "@food/components/ui/button"
-import { authAPI } from "@food/api"
+import { authAPI, userAPI } from "@food/api"
 import { setAuthData as setUserAuthData } from "@food/utils/auth"
+import loginBanner from "@food/assets/loginbanner.png"
+import BRAND_THEME from "@/config/brandTheme"
 
 export default function OTP() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [otp, setOtp] = useState(["", "", "", ""]) // exactly 4 digits
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
@@ -23,6 +26,7 @@ export default function OTP() {
   const [contactType, setContactType] = useState("phone")
   const [deviceToken, setDeviceToken] = useState(null)
   const [activePlatform, setActivePlatform] = useState("web")
+  const [pendingAuth, setPendingAuth] = useState(null)
   const inputRefs = useRef([])
   const submittingRef = useRef(false)
 
@@ -63,6 +67,31 @@ export default function OTP() {
       // OTP auto-fill removed - user must manually enter OTP
     }
 
+    const stepParam = String(searchParams.get("step") || "").toLowerCase()
+    if (stepParam === "name") {
+      try {
+        const storedNameFlow =
+          sessionStorage.getItem("userOtpNameFlow") ||
+          localStorage.getItem("userOtpNameFlow")
+        if (storedNameFlow) {
+          const parsed = JSON.parse(storedNameFlow)
+          if (parsed?.verifiedOtp) {
+            setVerifiedOtp(String(parsed.verifiedOtp).replace(/\D/g, "").slice(0, 4))
+          }
+          setDeviceToken(parsed?.fcmToken || null)
+          setActivePlatform(parsed?.platform || "web")
+          if (parsed?.accessToken && parsed?.refreshToken && parsed?.user) {
+            setPendingAuth({
+              accessToken: parsed.accessToken,
+              refreshToken: parsed.refreshToken,
+              user: parsed.user,
+            })
+          }
+          setShowNameInput(true)
+        }
+      } catch (_) {}
+    }
+
     // Start resend timer (60 seconds)
     setResendTimer(60)
     const timer = setInterval(() => {
@@ -76,7 +105,7 @@ export default function OTP() {
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [navigate])
+  }, [navigate, searchParams])
 
   useEffect(() => {
     // Focus first input on mount
@@ -220,7 +249,8 @@ export default function OTP() {
         fcmToken,
         platform
       )
-      const data = response?.data?.data || response?.data || {}
+      const responseBody = response?.data || {}
+      const data = responseBody?.data || responseBody || {}
 
       const accessToken = data.accessToken
       const refreshToken = data.refreshToken ?? null
@@ -234,10 +264,45 @@ export default function OTP() {
       }
 
       // Check if user needs name prompt (isNewUser flag or missing name)
-      const hasName = user.name && String(user.name).trim().length > 0 && String(user.name).toLowerCase() !== "null";
-      const needsName = data.isNewUser === true || !hasName;
+      const normalizedName = String(user?.name || "").trim()
+      const hasName =
+        normalizedName.length > 0 &&
+        normalizedName.toLowerCase() !== "null" &&
+        normalizedName.toLowerCase() !== "undefined"
+      const needsName =
+        responseBody?.isNewUser === true ||
+        data?.isNewUser === true ||
+        user?.isNewUser === true ||
+        !hasName
 
       if (needsName) {
+        const pending = { accessToken, refreshToken, user }
+        setPendingAuth(pending)
+        try {
+          const existing = JSON.parse(sessionStorage.getItem("userOtpNameFlow") || "{}")
+          const existingLocal = JSON.parse(localStorage.getItem("userOtpNameFlow") || "{}")
+          const merged = { ...existingLocal, ...existing }
+          sessionStorage.setItem(
+            "userOtpNameFlow",
+            JSON.stringify({
+              ...merged,
+              verifiedOtp: code4,
+              accessToken,
+              refreshToken,
+              user,
+            }),
+          )
+          localStorage.setItem(
+            "userOtpNameFlow",
+            JSON.stringify({
+              ...merged,
+              verifiedOtp: code4,
+              accessToken,
+              refreshToken,
+              user,
+            }),
+          )
+        } catch (_) {}
         setVerifiedOtp(code4)
         setShowNameInput(true)
         setIsLoading(false)
@@ -247,6 +312,8 @@ export default function OTP() {
 
       // Clear auth data from sessionStorage
       sessionStorage.removeItem("userAuthData")
+      sessionStorage.removeItem("userOtpNameFlow")
+      localStorage.removeItem("userOtpNameFlow")
 
       setUserAuthData("user", accessToken, user, refreshToken)
 
@@ -293,50 +360,59 @@ export default function OTP() {
       return
     }
 
-    if (!verifiedOtp) {
-      setError("OTP verification step missing. Please request a new OTP.")
-      return
-    }
-
     setIsLoading(true)
     setError("")
     setNameError("")
 
     try {
-      const phone = authData?.method === "phone" ? authData.phone : null
-      const email = authData?.method === "email" ? authData.email : null
-      const purpose = authData?.isSignUp ? "register" : "login"
-      const referralCode = authData?.referralCode || null
+      const cachedPending =
+        pendingAuth ||
+        (() => {
+          try {
+            const parsed = JSON.parse(
+              sessionStorage.getItem("userOtpNameFlow") ||
+                localStorage.getItem("userOtpNameFlow") ||
+                "{}",
+            )
+            if (parsed?.accessToken && parsed?.refreshToken && parsed?.user) {
+              return {
+                accessToken: parsed.accessToken,
+                refreshToken: parsed.refreshToken,
+                user: parsed.user,
+              }
+            }
+          } catch (_) {}
+          return null
+        })()
 
-      // Second call with name to auto-register and login
-      const response = await authAPI.verifyOTP(
-        phone,
-        verifiedOtp,
-        purpose,
-        trimmedName,
-        email,
+      const resolvedPending = cachedPending
+      if (!resolvedPending?.accessToken || !resolvedPending?.refreshToken || !resolvedPending?.user) {
+        throw new Error("Session expired. Please go back and verify OTP again.")
+      }
+
+      // Authenticate once using the already-verified OTP response, then save name in profile.
+      setUserAuthData(
         "user",
-        null,
-        referralCode,
-        deviceToken,
-        activePlatform
+        resolvedPending.accessToken,
+        resolvedPending.user,
+        resolvedPending.refreshToken,
       )
-      const data = response?.data?.data || response?.data || {}
-
-      const accessToken = data.accessToken
-      const refreshToken = data.refreshToken ?? null
-      const user = data.user
-
-      if (!accessToken || !user) {
-        throw new Error("Invalid response from server")
-      }
-      if (!refreshToken) {
-        throw new Error("Invalid response from server: missing refresh token")
-      }
+      const profileRes = await userAPI.updateProfile({ name: trimmedName })
+      const updatedUser =
+        profileRes?.data?.data?.user ||
+        profileRes?.data?.user ||
+        profileRes?.data?.data ||
+        { ...resolvedPending.user, name: trimmedName }
 
       sessionStorage.removeItem("userAuthData")
-
-      setUserAuthData("user", accessToken, user, refreshToken)
+      sessionStorage.removeItem("userOtpNameFlow")
+      localStorage.removeItem("userOtpNameFlow")
+      setUserAuthData(
+        "user",
+        resolvedPending.accessToken,
+        updatedUser,
+        resolvedPending.refreshToken,
+      )
 
       window.dispatchEvent(new Event("userAuthChanged"))
 
@@ -431,15 +507,6 @@ export default function OTP() {
         <div className="p-6 sm:p-8 md:p-10 space-y-6 md:space-y-8">
           {/* Message */}
           <div className="text-center space-y-4">
-            {showNameInput && (
-              <div className="flex justify-center">
-                <div className="w-16 h-16 bg-brand-50 rounded-full flex items-center justify-center">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center shadow-lg text-white" style={{ background: BRAND_THEME.gradients.primary }}>
-                    <Smartphone className="h-5 w-5" />
-                  </div>
-                </div>
-              </div>
-            )}
             <div className="space-y-2">
               <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white leading-tight">
                 {showNameInput 
@@ -533,13 +600,21 @@ export default function OTP() {
               </div>
 
               <Button
+                type="button"
                 onClick={handleSubmitName}
                 disabled={isLoading}
                 className="w-full h-12 md:h-14 text-white font-bold text-lg rounded-xl transition-all hover:shadow-lg active:scale-[0.98]"
                 style={{ background: BRAND_THEME.gradients.primary }}
               >
-                {isLoading ? "Getting things ready..." : "Finish Registration"}
+                {isLoading ? "Please wait..." : "Continue"}
               </Button>
+
+              {error && (
+                <div className="flex items-center justify-center gap-1.5 text-xs text-red-500 bg-red-50 dark:bg-red-900/10 py-2 rounded-lg">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  <span>{error}</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -550,15 +625,7 @@ export default function OTP() {
             </div>
           )}
         </div>
-        
-        {/* Footer info */}
-        <div className="p-6 bg-gray-50 dark:bg-[#1f1f1f] text-center">
-            <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-widest font-bold">
-                AppZeto Food Delivery
-            </p>
-        </div>
       </div>
     </AnimatedPage>
   )
 }
-

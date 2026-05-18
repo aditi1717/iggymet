@@ -147,13 +147,55 @@ export default function UnifiedOTPFastLogin() {
       }
 
       const response = await authAPI.verifyOTP(phoneNumber, otpDigits, "login", null, null, "user", null, null, fcmToken, platform)
-      const data = response?.data?.data || response?.data || {}
-      const accessToken = data.accessToken
-      const refreshToken = data.refreshToken || null
-      const user = data.user
+      const responseBody = response?.data || {}
+      const data = responseBody?.data || responseBody || {}
+      let accessToken = data.accessToken
+      let refreshToken = data.refreshToken || null
+      let user = data.user
 
       if (!accessToken || !user) {
         throw new Error("Invalid response from server")
+      }
+
+      const normalizedName = String(user?.name || "").trim()
+      const hasName =
+        normalizedName.length > 0 &&
+        normalizedName.toLowerCase() !== "null" &&
+        normalizedName.toLowerCase() !== "undefined"
+      const needsName =
+        responseBody?.isNewUser === true ||
+        data?.isNewUser === true ||
+        user?.isNewUser === true ||
+        !hasName
+
+      if (needsName) {
+        const nameFlowPayload = {
+          verifiedOtp: otpDigits,
+          fcmToken: fcmToken || null,
+          platform: platform || "web",
+          accessToken,
+          refreshToken,
+          user,
+        }
+        sessionStorage.setItem(
+          "userAuthData",
+          JSON.stringify({
+            method: "phone",
+            phone: `+91 ${String(phoneNumber || "").replace(/\D/g, "").slice(0, 10)}`,
+            email: null,
+            name: null,
+            referralCode: null,
+            isSignUp: false,
+            module: "user",
+          }),
+        )
+        sessionStorage.setItem(
+          "userOtpNameFlow",
+          JSON.stringify(nameFlowPayload),
+        )
+        localStorage.setItem("userOtpNameFlow", JSON.stringify(nameFlowPayload))
+        navigate("/food/user/auth/otp?step=name", { replace: true })
+        return
       }
 
       setAuthData("user", accessToken, user, refreshToken)

@@ -19,9 +19,11 @@ import {
 import RestaurantNavbar from "@food/components/restaurant/RestaurantNavbar"
 import BottomNavOrders from "@food/components/restaurant/BottomNavOrders"
 import { Switch } from "@food/components/ui/switch"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { restaurantAPI, uploadAPI } from "@food/api"
 import { toast } from "sonner"
+import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
+import { isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
 import DocumentUploadActions from "@food/components/DocumentUploadActions"
 import BRAND_THEME from "@/config/brandTheme"
 const debugLog = (...args) => {}
@@ -747,8 +749,31 @@ export default function Inventory() {
     }
   })
   const [searchQuery, setSearchQuery] = useState("")
-  const [filterOpen, setFilterOpen] = useState(false)
-  const [selectedFilter, setSelectedFilter] = useState("all")
+  const [searchParams, setSearchParams] = useSearchParams()
+  const filterOpen = searchParams.get("filter") === "open"
+  const setFilterOpen = (val) => {
+    if (val) {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev)
+        next.set("filter", "open")
+        return next
+      })
+    } else {
+      if (searchParams.get("filter") === "open") {
+        navigate(-1)
+      }
+    }
+  }
+  const [selectedMenuFilter, setSelectedMenuFilter] = useState("all")
+  const [selectedAddonFilter, setSelectedAddonFilter] = useState("all")
+  const selectedFilter = activeTab === "add-ons" ? selectedAddonFilter : selectedMenuFilter
+  const setSelectedFilter = (val) => {
+    if (activeTab === "add-ons") {
+      setSelectedAddonFilter(val)
+    } else {
+      setSelectedMenuFilter(val)
+    }
+  }
   const [isLoading, setIsLoading] = useState(false)
   const [loadingInventory, setLoadingInventory] = useState(false)
   const [categories, setCategories] = useState(() => {
@@ -817,6 +842,7 @@ export default function Inventory() {
   const [addonImageFile, setAddonImageFile] = useState(null)
   const [addonImagePreview, setAddonImagePreview] = useState("")
   const [savingAddon, setSavingAddon] = useState(false)
+  const [isAddonPhotoPickerOpen, setIsAddonPhotoPickerOpen] = useState(false)
   const [recommendedMap, setRecommendedMap] = useState(() => {
     try {
       if (typeof window === "undefined") return {}
@@ -2074,15 +2100,7 @@ export default function Inventory() {
                 )}
               </button>
 
-              {activeTab === "add-ons" && (
-                <button
-                  onClick={() => setIsAddAddonOpen((v) => !v)}
-                  className="h-12 rounded-[20px] px-4 text-sm font-semibold text-white shadow-[0_18px_32px_-24px_rgba(41,121,251,0.45)] transition-colors"
-                  style={{ background: BRAND_THEME.gradients.primary, minWidth: "128px" }}
-                >
-                  {isAddAddonOpen ? "Close Add-on Form" : "Add Add-on"}
-                </button>
-              )}
+
             </div>
               {activeTab === "add-ons" && (
                 <>
@@ -2399,16 +2417,22 @@ export default function Inventory() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-brand-900/50 z-50"
+              className="fixed inset-0 bg-brand-900/50 z-[70]"
               onClick={() => setFilterOpen(false)}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
             />
             <motion.div
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-50"
+              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[71] max-h-[85vh] overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom)+5.5rem)]"
               onClick={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
             >
               <div className="p-6">
                 <div className="flex items-start justify-between gap-4 mb-6">
@@ -2714,12 +2738,206 @@ export default function Inventory() {
         )}
       </AnimatePresence>
 
+      
+      {/* Add Add-on Popup Modal */}
+      <AnimatePresence>
+        {isAddAddonOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAddAddonOpen(false)}
+              className="fixed inset-0 bg-brand-900/50 z-[70]"
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+            />
+            {/* Modal Container */}
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[71] max-h-[85vh] overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom)+5.5rem)]"
+              onClick={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+            >
+              <div className="sticky top-0 bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between z-10">
+                <h2 className="text-lg font-bold text-gray-900">Add Add-on</h2>
+                <button
+                  type="button"
+                  onClick={() => setIsAddAddonOpen(false)}
+                  className="rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Image Upload Area */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-800 mb-2">Add-on Image *</label>
+                  <div className="relative">
+                    {addonImagePreview ? (
+                      <div className="relative h-44 w-full rounded-2xl overflow-hidden group border border-slate-200 shadow-sm">
+                        <img
+                          src={addonImagePreview}
+                          alt="Add-on preview"
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsAddonPhotoPickerOpen(true)}
+                            className="bg-white/90 p-2 rounded-full text-slate-800 hover:bg-white transition-colors shadow"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (addonImagePreview.startsWith("blob:")) {
+                                URL.revokeObjectURL(addonImagePreview)
+                              }
+                              setAddonImageFile(null)
+                              setAddonImagePreview("")
+                            }}
+                            className="bg-red-500/90 p-2 rounded-full text-white hover:bg-red-600 transition-colors shadow"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => setIsAddonPhotoPickerOpen(true)}
+                        className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl py-8 px-4 cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-all bg-slate-50/50"
+                      >
+                        <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 mb-3">
+                          <Upload className="w-6 h-6" />
+                        </div>
+                        <p className="text-sm font-semibold text-slate-700">Click to upload add-on image</p>
+                        <p className="text-xs text-slate-500 mt-1">Recommended size 1:1 ratio (PNG, JPG)</p>
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      ref={addonImageInputRef}
+                      className="hidden"
+                      accept="image/*"
+                      onChange={(e) => handleAddonDocumentSelect(e.target.files?.[0])}
+                    />
+                  </div>
+                </div>
+
+                {/* Add-on Name */}
+                <div>
+                  <label htmlFor="addon-name" className="block text-sm font-semibold text-slate-800 mb-2">Add-on Name *</label>
+                  <input
+                    id="addon-name"
+                    type="text"
+                    value={addonName}
+                    onChange={(e) => setAddonName(e.target.value)}
+                    placeholder="e.g. Extra Cheese, Spicy Mayo"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-300 focus:bg-white focus:outline-none transition-all"
+                  />
+                </div>
+
+                {/* Add-on Price */}
+                <div>
+                  <label htmlFor="addon-price" className="block text-sm font-semibold text-slate-800 mb-2">Price (Rs.) *</label>
+                  <input
+                    id="addon-price"
+                    type="number"
+                    value={addonPrice}
+                    onChange={(e) => setAddonPrice(e.target.value)}
+                    placeholder="0.00"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-300 focus:bg-white focus:outline-none transition-all"
+                  />
+                </div>
+
+                {/* Add-on Description */}
+                <div>
+                  <label htmlFor="addon-desc" className="block text-sm font-semibold text-slate-800 mb-2">Description (Optional)</label>
+                  <textarea
+                    id="addon-desc"
+                    value={addonDescription}
+                    onChange={(e) => setAddonDescription(e.target.value)}
+                    placeholder="Describe this add-on option..."
+                    rows={3}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-300 focus:bg-white focus:outline-none transition-all resize-none"
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-4 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetAddonForm()
+                      setIsAddAddonOpen(false)
+                    }}
+                    disabled={savingAddon}
+                    className="flex-1 py-3 px-4 border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl font-semibold text-sm transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveAddon}
+                    disabled={savingAddon}
+                    className="flex-1 py-3 px-4 text-white rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2"
+                    style={{
+                      background: BRAND_THEME.gradients.primary,
+                      boxShadow: '0 12px 28px -18px ' + BRAND_THEME.colors.brand.primaryDark,
+                    }}
+                  >
+                    {savingAddon ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <span>Save Add-on</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Floating Add Add-on Button when on Add-ons tab */}
+      {activeTab === "add-ons" && (
+        <div className="fixed right-4 bottom-24 z-30 flex flex-col items-end gap-2">
+          <motion.button
+            whileTap={{ scale: 0.96 }}
+            onClick={() => setIsAddAddonOpen(true)}
+            className="rounded-full px-5 py-3 text-sm font-semibold text-white shadow-[0_22px_40px_-24px_rgba(41,121,251,0.45)]"
+            style={{ background: BRAND_THEME.gradients.primary, boxShadow: '0 22px 40px -24px ' + BRAND_THEME.colors.brand.primaryDark + '8c' }}
+          >
+            + Add Add-on
+          </motion.button>
+        </div>
+      )}
+
       {/* Floating Menu Button & Popup (hidden on Add-ons tab) */}
       {activeTab !== "add-ons" && (
         <div className="fixed right-4 bottom-24 z-30 flex flex-col items-end gap-2">
           <motion.button
             whileTap={{ scale: 0.96 }}
-            onClick={() => setIsAddPopupOpen(true)}
+            onClick={() => {
+              navigate(`/food/restaurant/hub-menu/item/new`, {
+                state: {
+                  backTo: "/food/restaurant/inventory",
+                },
+              })
+            }}
             className="rounded-full px-5 py-3 text-sm font-semibold text-white"
             style={{ background: BRAND_THEME.gradients.primary, boxShadow: `0 22px 40px -24px ${BRAND_THEME.colors.brand.primaryDark}8c` }}
           >
@@ -2807,6 +3025,15 @@ export default function Inventory() {
 
       {/* Bottom Navigation */}
       </div>
+      <ImageSourcePicker
+        isOpen={isAddonPhotoPickerOpen}
+        onClose={() => setIsAddonPhotoPickerOpen(false)}
+        onFileSelect={handleAddonDocumentSelect}
+        title="Add-on Image"
+        description="Choose how to upload your add-on image"
+        fileNamePrefix="addon-photo"
+        galleryInputRef={addonImageInputRef}
+      />
       <BottomNavOrders />
     </div>
   )
