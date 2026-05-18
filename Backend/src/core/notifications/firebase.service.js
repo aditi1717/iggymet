@@ -23,7 +23,7 @@ const OWNER_TOKEN_FIELDS = {
     mobile: 'fcmTokenMobile'
 };
 const OWNER_APP_PREFIXES = {
-    USER: '👤 [User]',
+    USER: '',
     RESTAURANT: '🏪 [Shop]',
     DELIVERY_PARTNER: '🛵 [Rider]',
     ADMIN: '🛡️ [Admin]'

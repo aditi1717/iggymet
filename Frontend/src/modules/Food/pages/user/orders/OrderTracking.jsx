@@ -1336,13 +1336,7 @@ export default function OrderTracking() {
             <ArrowLeft className="w-6 h-6" />
           </motion.button>
           <h2 className="font-semibold text-lg text-black">{order.restaurant}</h2>
-          <motion.button
-            className="w-10 h-10 flex items-center justify-center cursor-pointer"
-            whileTap={{ scale: 0.9 }}
-            onClick={handleShare}
-          >
-            <Share2 className="w-5 h-5" />
-          </motion.button>
+          <div className="w-10 h-10" />
         </div>
 
         {/* Status section - hidden for success milestones as requested */}

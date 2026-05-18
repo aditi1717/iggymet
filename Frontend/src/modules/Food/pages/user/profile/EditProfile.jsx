@@ -589,6 +589,7 @@ export default function EditProfile() {
                           height: '48px',
                           borderRadius: '8px',
                           backgroundColor: '#ffffff !important',
+                          color: '#111827 !important',
                           '& fieldset': {
                             borderColor: '#d1d5db !important',
                           },
@@ -606,8 +607,44 @@ export default function EditProfile() {
                           color: '#111827 !important',
                           WebkitTextFillColor: '#111827 !important',
                         },
+                        '& input': {
+                          color: '#111827 !important',
+                          WebkitTextFillColor: '#111827 !important',
+                        },
                         '& .MuiSvgIcon-root': {
                           color: '#6b7280 !important',
+                        },
+                        '.dark & .MuiOutlinedInput-root': {
+                          backgroundColor: '#ffffff !important',
+                          color: '#111827 !important',
+                        },
+                        '.dark & .MuiInputBase-input': {
+                          color: '#111827 !important',
+                          WebkitTextFillColor: '#111827 !important',
+                        },
+                        '.dark & input': {
+                          color: '#111827 !important',
+                          WebkitTextFillColor: '#111827 !important',
+                        },
+                        '.dark & .MuiSvgIcon-root': {
+                          color: '#6b7280 !important',
+                        },
+                        '@media (prefers-color-scheme: dark)': {
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#ffffff !important',
+                            color: '#111827 !important',
+                          },
+                          '& .MuiInputBase-input': {
+                            color: '#111827 !important',
+                            WebkitTextFillColor: '#111827 !important',
+                          },
+                          '& input': {
+                            color: '#111827 !important',
+                            WebkitTextFillColor: '#111827 !important',
+                          },
+                          '& .MuiSvgIcon-root': {
+                            color: '#6b7280 !important',
+                          },
                         },
                       },
                     },
@@ -636,6 +673,7 @@ export default function EditProfile() {
                           height: '48px',
                           borderRadius: '8px',
                           backgroundColor: '#ffffff !important',
+                          color: '#111827 !important',
                           '& fieldset': {
                             borderColor: '#d1d5db !important',
                           },
@@ -653,8 +691,44 @@ export default function EditProfile() {
                           color: '#111827 !important',
                           WebkitTextFillColor: '#111827 !important',
                         },
+                        '& input': {
+                          color: '#111827 !important',
+                          WebkitTextFillColor: '#111827 !important',
+                        },
                         '& .MuiSvgIcon-root': {
                           color: '#6b7280 !important',
+                        },
+                        '.dark & .MuiOutlinedInput-root': {
+                          backgroundColor: '#ffffff !important',
+                          color: '#111827 !important',
+                        },
+                        '.dark & .MuiInputBase-input': {
+                          color: '#111827 !important',
+                          WebkitTextFillColor: '#111827 !important',
+                        },
+                        '.dark & input': {
+                          color: '#111827 !important',
+                          WebkitTextFillColor: '#111827 !important',
+                        },
+                        '.dark & .MuiSvgIcon-root': {
+                          color: '#6b7280 !important',
+                        },
+                        '@media (prefers-color-scheme: dark)': {
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#ffffff !important',
+                            color: '#111827 !important',
+                          },
+                          '& .MuiInputBase-input': {
+                            color: '#111827 !important',
+                            WebkitTextFillColor: '#111827 !important',
+                          },
+                          '& input': {
+                            color: '#111827 !important',
+                            WebkitTextFillColor: '#111827 !important',
+                          },
+                          '& .MuiSvgIcon-root': {
+                            color: '#6b7280 !important',
+                          },
                         },
                       },
                     },
