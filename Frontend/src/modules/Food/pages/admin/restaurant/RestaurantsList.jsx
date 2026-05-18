@@ -79,7 +79,7 @@ const formatTime12Hour = (value) => {
 }
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-const MAX_TIMING_SLOTS = 5
+const MAX_TIMING_SLOTS = 1
 
 const DEFAULT_OPENING_TIME = "09:00 AM"
 const DEFAULT_CLOSING_TIME = "10:00 PM"
@@ -90,8 +90,14 @@ const formatTimeForInput = (value, fallback = "") => {
   return formatTime12Hour(normalized)
 }
 
+const formatTimeForTimeInput = (value, fallback = "") => {
+  const normalized = normalizeTimeValue(value)
+  return normalized || fallback
+}
+
 const createDefaultAdminSchedule = () => ({
   isOpen: true,
+  openDays: [...DAY_NAMES],
   slots: [{ id: `slot-${Date.now()}`, openingTime: DEFAULT_OPENING_TIME, closingTime: DEFAULT_CLOSING_TIME }],
 })
 
@@ -114,33 +120,72 @@ const normalizeSlotsFromDay = (dayData) => {
 
   const openingTime = normalizeTimeValue(dayData?.openingTime) || normalizeTimeValue(DEFAULT_OPENING_TIME)
   const closingTime = normalizeTimeValue(dayData?.closingTime) || normalizeTimeValue(DEFAULT_CLOSING_TIME)
-  return [{ id: `slot-${Date.now()}`, openingTime, closingTime }]
+  return [{ id: `slot-${Date.now()}`, openingTime: formatTime12Hour(openingTime), closingTime: formatTime12Hour(closingTime) }]
 }
 
 const normalizeScheduleFromOutletTimings = (outletTimings, fallback = null) => {
   const source = outletTimings && typeof outletTimings === "object" ? outletTimings : {}
-  const firstDay = DAY_NAMES.find((day) => source?.[day]) || "Monday"
-  const firstDayData = source?.[firstDay]
-  if (firstDayData && typeof firstDayData === "object") {
-    return {
-      isOpen: firstDayData.isOpen !== false,
-      slots: normalizeSlotsFromDay(firstDayData),
+  
+  // Check if there are any configured day records in outletTimings
+  const hasConfiguredTimings = DAY_NAMES.some((day) => source[day] !== undefined)
+
+  let openDays = []
+  let isOpen = true
+
+  if (hasConfiguredTimings) {
+    // Respect the database configurations!
+    openDays = DAY_NAMES.filter((day) => {
+      const dayData = source[day]
+      return dayData && dayData.isOpen !== false
+    })
+    isOpen = openDays.length > 0
+  } else {
+    // No timings in database yet, fall back to restaurant's openDays
+    if (fallback) {
+      const rawOpenDays = Array.isArray(fallback.openDays)
+        ? fallback.openDays
+        : (typeof fallback.openDays === "string" ? fallback.openDays.split(",") : [])
+      
+      // Translate 3-letter abbreviations to full names if needed
+      openDays = rawOpenDays.map(d => {
+        const trimmed = String(d).trim()
+        const found = DAY_NAMES.find(day => day.toLowerCase().startsWith(trimmed.toLowerCase()))
+        return found || trimmed
+      }).filter(Boolean)
+      isOpen = fallback.isActive !== false
+    }
+
+    // If still empty and completely new, default to all days open
+    if (openDays.length === 0) {
+      openDays = [...DAY_NAMES]
+      isOpen = true
     }
   }
 
-  const fallbackOpening = normalizeTimeValue(
-    fallback?.openingTime || fallback?.deliveryTimings?.openingTime || fallback?.onboarding?.step2?.deliveryTimings?.openingTime || "09:00",
-  ) || normalizeTimeValue(DEFAULT_OPENING_TIME)
-  const fallbackClosing = normalizeTimeValue(
-    fallback?.closingTime || fallback?.deliveryTimings?.closingTime || fallback?.onboarding?.step2?.deliveryTimings?.closingTime || "22:00",
-  ) || normalizeTimeValue(DEFAULT_CLOSING_TIME)
-  return {
-    isOpen: true,
-    slots: [{
+  const firstDay = DAY_NAMES.find((day) => source?.[day]) || "Monday"
+  const firstDayData = source?.[firstDay]
+  
+  let slots = []
+  if (firstDayData && typeof firstDayData === "object") {
+    slots = normalizeSlotsFromDay(firstDayData)
+  } else {
+    const fallbackOpening = normalizeTimeValue(
+      fallback?.openingTime || fallback?.deliveryTimings?.openingTime || fallback?.onboarding?.step2?.deliveryTimings?.openingTime || "09:00",
+    ) || normalizeTimeValue(DEFAULT_OPENING_TIME)
+    const fallbackClosing = normalizeTimeValue(
+      fallback?.closingTime || fallback?.deliveryTimings?.closingTime || fallback?.onboarding?.step2?.deliveryTimings?.closingTime || "22:00",
+    ) || normalizeTimeValue(DEFAULT_CLOSING_TIME)
+    slots = [{
       id: `slot-${Date.now()}`,
       openingTime: formatTime12Hour(fallbackOpening),
       closingTime: formatTime12Hour(fallbackClosing),
-    }],
+    }]
+  }
+
+  return {
+    isOpen,
+    openDays,
+    slots,
   }
 }
 
@@ -203,7 +248,13 @@ const buildAllDaysOutletPayload = (schedule) => {
   const closingTime = isOpen ? (slots[0]?.closingTime || "22:00") : ""
 
   return DAY_NAMES.reduce((acc, day) => {
-    acc[day] = { isOpen, openingTime, closingTime, slots }
+    const isThisDayOpen = isOpen && (schedule?.openDays || []).includes(day)
+    acc[day] = {
+      isOpen: isThisDayOpen,
+      openingTime: isThisDayOpen ? openingTime : "",
+      closingTime: isThisDayOpen ? closingTime : "",
+      slots: isThisDayOpen ? slots : [],
+    }
     return acc
   }, {})
 }
@@ -1132,6 +1183,8 @@ export default function RestaurantsList() {
       const normalizedOpeningTime = normalizeTimeValue(primarySlot?.openingTime || detailsForm.openingTime.trim())
       const normalizedClosingTime = normalizeTimeValue(primarySlot?.closingTime || detailsForm.closingTime.trim())
 
+      const openDaysAbbr = (outletSchedule.openDays || []).map(day => day.slice(0, 3))
+
       const payload = {
         name: detailsForm.name.trim(),
         pureVegRestaurant: detailsForm.pureVegRestaurant === true,
@@ -1143,6 +1196,7 @@ export default function RestaurantsList() {
         estimatedDeliveryTime: detailsForm.estimatedDeliveryTime.trim(),
         openingTime: normalizedOpeningTime,
         closingTime: normalizedClosingTime,
+        openDays: openDaysAbbr,
         isActive: detailsForm.isActive,
         zoneId: locationForm.zoneId, // Include zoneId in main payload
       }
@@ -1800,90 +1854,84 @@ export default function RestaurantsList() {
                       <input type="text" value={detailsForm.primaryContactNumber} onChange={(e) => setDetailsForm((prev) => ({ ...prev, primaryContactNumber: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
                     </div>
                     <div className="md:col-span-2 rounded-xl border border-slate-200 p-4 bg-slate-50">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">Outlet Timings (All Days)</p>
-                          <p className="text-xs text-slate-500">Admin aur Restaurant dono mein same timing reflect hoga.</p>
-                        </div>
-                        <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-                          <input
-                            type="checkbox"
-                            checked={outletSchedule.isOpen !== false}
-                            onChange={(e) => {
-                              setOutletTimingsError("")
-                              setOutletSchedule((prev) => ({ ...prev, isOpen: e.target.checked }))
-                            }}
-                            className="h-4 w-4 rounded border-slate-300 text-brand-600"
-                          />
-                          Outlet Open
-                        </label>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">Outlet Timings & Operational Days</p>
+                        <p className="text-xs text-slate-500 mt-0.5">Admin aur Restaurant dono mein same timing reflect hoga.</p>
                       </div>
 
-                      {outletSchedule.isOpen !== false ? (
-                        <div className="mt-4 space-y-3">
-                          {outletSchedule.slots.map((slot, index) => (
-                            <div key={slot.id} className="rounded-lg border border-slate-200 bg-white p-3">
-                              <div className="flex items-center justify-between mb-2">
-                                <p className="text-xs font-semibold text-slate-700">Slot {index + 1}</p>
-                                {outletSchedule.slots.length > 1 ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteOutletSlot(slot.id)}
-                                    className="text-xs px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100"
-                                  >
-                                    Remove
-                                  </button>
-                                ) : null}
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                  <label className="block text-[11px] text-slate-500 mb-1">Opening</label>
-                                  <input
-                                    type="text"
-                                    placeholder="hh:mm AM/PM"
-                                    value={formatTimeForInput(slot.openingTime, DEFAULT_OPENING_TIME)}
-                                    onChange={(e) => handleOutletSlotTimeChange(slot.id, "openingTime", e.target.value)}
-                                    onBlur={() => handleOutletSlotTimeBlur(slot.id, "openingTime")}
-                                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-[11px] text-slate-500 mb-1">Closing</label>
-                                  <input
-                                    type="text"
-                                    placeholder="hh:mm AM/PM"
-                                    value={formatTimeForInput(slot.closingTime, DEFAULT_CLOSING_TIME)}
-                                    onChange={(e) => handleOutletSlotTimeChange(slot.id, "closingTime", e.target.value)}
-                                    onBlur={() => handleOutletSlotTimeBlur(slot.id, "closingTime")}
-                                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
-                                  />
-                                </div>
-                              </div>
-                              <p className="mt-2 text-[11px] text-slate-500">
-                                {formatTime12Hour(slot.openingTime)} - {formatTime12Hour(slot.closingTime)}
-                              </p>
-                            </div>
-                          ))}
-
-                          <div className="flex items-center justify-between">
-                            <button
-                              type="button"
-                              onClick={handleAddOutletSlot}
-                              disabled={outletSchedule.slots.length >= MAX_TIMING_SLOTS}
-                              className="text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-50"
-                            >
-                              + Add Slot
-                            </button>
-                            <span className="text-[11px] text-slate-500">
-                              {outletSchedule.slots.length}/{MAX_TIMING_SLOTS} slots
-                            </span>
+                      {outletSchedule.slots.slice(0, 1).map((slot) => (
+                        <div key={slot.id} className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">Opening Time</label>
+                            <input
+                              type="time"
+                              value={formatTimeForTimeInput(slot.openingTime, "09:00")}
+                              onChange={(e) => handleOutletSlotTimeChange(slot.id, "openingTime", e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">Closing Time</label>
+                            <input
+                              type="time"
+                              value={formatTimeForTimeInput(slot.closingTime, "22:00")}
+                              onChange={(e) => handleOutletSlotTimeChange(slot.id, "closingTime", e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                            />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <p className="text-[11px] text-slate-500">
+                              Selected timing: {formatTime12Hour(slot.openingTime)} - {formatTime12Hour(slot.closingTime)}
+                            </p>
                           </div>
                         </div>
-                      ) : (
-                        <p className="mt-3 text-xs text-slate-600 bg-white border border-slate-200 rounded-lg px-3 py-2">
-                          Outlet closed for all days.
+                      ))}
+
+                      <div className="space-y-2 mt-4">
+                        <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                          <Calendar className="w-3.5 h-3.5 text-slate-800" />
+                          <span>Open Days</span>
+                        </label>
+                        <p className="text-[11px] text-slate-500">
+                          Select the days of the week when this restaurant is open.
                         </p>
-                      )}
+                        <div className="grid grid-cols-7 gap-1.5 mt-2">
+                          {DAY_NAMES.map((day) => {
+                            const active = (outletSchedule.openDays || []).includes(day)
+                            const abbr = day.slice(0, 3)
+                            return (
+                              <button
+                                key={day}
+                                type="button"
+                                onClick={() => {
+                                  setOutletTimingsError("")
+                                  setOutletSchedule((prev) => {
+                                    const openDays = prev.openDays || []
+                                    const exists = openDays.includes(day)
+                                    let nextDays
+                                    if (exists) {
+                                      nextDays = openDays.filter((d) => d !== day)
+                                    } else {
+                                      nextDays = [...openDays, day]
+                                    }
+                                    return {
+                                      ...prev,
+                                      openDays: nextDays,
+                                    }
+                                  })
+                                }}
+                                className={`aspect-square flex flex-col items-center justify-center rounded-md text-[11px] font-semibold transition-all border ${
+                                  active
+                                    ? "bg-slate-900 border-slate-900 text-white shadow-sm"
+                                    : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                                }`}
+                              >
+                                <span>{abbr}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
 
                       {outletTimingsError ? (
                         <p className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
@@ -2253,35 +2301,52 @@ export default function RestaurantsList() {
                       <h4 className="text-lg font-semibold text-slate-900 mb-4">Timings & Status</h4>
                       <div className="space-y-3">
                         {outletSchedule?.isOpen === false ? (
-                          <div className="flex items-center gap-3">
-                            <Clock className="w-5 h-5 text-slate-400" />
+                          <div className="flex items-center gap-3 bg-red-50 border border-red-100 rounded-lg p-2.5">
+                            <Clock className="w-5 h-5 text-red-500" />
                             <div>
-                              <p className="text-xs text-slate-500">Outlet Timing</p>
-                              <p className="text-sm font-medium text-slate-900">Closed for all days</p>
+                              <p className="text-xs text-red-500 font-semibold">Outlet Timing</p>
+                              <p className="text-sm font-semibold text-red-700">Closed for all days</p>
                             </div>
                           </div>
-                        ) : (openingTimeVal || closingTimeVal) ? (
-                          <div className="flex items-center gap-3">
-                            <Clock className="w-5 h-5 text-slate-400" />
+                        ) : (
+                          <>
+                            {(openingTimeVal || closingTimeVal) ? (
+                              <div className="flex items-center gap-3">
+                                <Clock className="w-5 h-5 text-slate-400" />
+                                <div>
+                                  <p className="text-xs text-slate-500">Opening / Closing Time</p>
+                                  <p className="text-sm font-medium text-slate-900">
+                                    {formatTime12Hour(openingTimeVal)} – {formatTime12Hour(closingTimeVal)}
+                                  </p>
+                                </div>
+                              </div>
+                            ) : null}
                             <div>
-                              <p className="text-xs text-slate-500">Opening / Closing</p>
-                              <p className="text-sm font-medium text-slate-900">
-                                {formatTime12Hour(openingTimeVal)} – {formatTime12Hour(closingTimeVal)}
-                              </p>
+                              <p className="text-xs text-slate-500 mb-1">Open Days</p>
+                              {(!outletSchedule.openDays || outletSchedule.openDays.length === 0) ? (
+                                <p className="text-sm font-medium text-red-600">Closed for all days</p>
+                              ) : (
+                                <div className="flex flex-wrap gap-1.5 mt-1">
+                                  {DAY_NAMES.map((day) => {
+                                    const active = (outletSchedule.openDays || []).includes(day)
+                                    const abbr = day.slice(0, 3)
+                                    return (
+                                      <span
+                                        key={day}
+                                        className={`px-2.5 py-1 text-xs font-semibold rounded-md border ${
+                                          active
+                                            ? "bg-slate-900 border-slate-900 text-white shadow-sm"
+                                            : "bg-slate-50 border-slate-200 text-slate-400"
+                                        }`}
+                                      >
+                                        {abbr}
+                                      </span>
+                                    )
+                                  })}
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ) : null}
-                        {outletSchedule?.isOpen !== false && timingSlotsVal.length > 0 && (
-                          <div>
-                            <p className="text-xs text-slate-500 mb-1">Slots</p>
-                            <div className="flex flex-wrap gap-2">
-                              {timingSlotsVal.map((slot, idx) => (
-                                <span key={slot.id || idx} className="px-2 py-1 bg-slate-100 text-slate-700 rounded text-xs font-medium">
-                                  Slot {idx + 1}: {formatTime12Hour(slot.openingTime)} - {formatTime12Hour(slot.closingTime)}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
+                          </>
                         )}
                         {estimatedDeliveryTimeVal && (
                           <div>

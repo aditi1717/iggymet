@@ -1467,8 +1467,38 @@ export default function Under250() {
                   priority={true}
                   placeholder="blur"
                 />
-                 {/* Bookmark and Share Icons Overlay */}
+                {/* Bookmark and Share Icons Overlay */}
+                <div className="absolute top-4 right-4 flex gap-2 z-10">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      handleBookmarkClick(selectedItem.id || selectedItem._id)
+                    }}
+                    className={`h-9 w-9 md:h-10 md:w-10 rounded-full flex items-center justify-center shadow-md transition-colors cursor-pointer ${
+                      bookmarkedItems.has(selectedItem.id || selectedItem._id)
+                        ? "bg-red-500 text-white hover:bg-red-600"
+                        : "bg-white/90 dark:bg-[#1a1a1a]/90 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-[#1a1a1a]"
+                    }`}
+                    aria-label="Bookmark dish"
+                  >
+                    <Bookmark size={16} className={bookmarkedItems.has(selectedItem.id || selectedItem._id) ? "fill-white" : ""} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      handleShareItem(selectedItem)
+                    }}
+                    className="h-9 w-9 md:h-10 md:w-10 rounded-full bg-white/90 dark:bg-[#1a1a1a]/90 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-[#1a1a1a] flex items-center justify-center shadow-md transition-colors cursor-pointer"
+                    aria-label="Share dish"
+                  >
+                    <Share2 size={16} />
+                  </button>
                 </div>
+              </div>
 
               {/* Content Section */}
               <div
@@ -1476,7 +1506,7 @@ export default function Under250() {
                 className="flex-1 overflow-y-auto px-4 md:px-6 lg:px-8 xl:px-10 py-4 md:py-6 lg:py-8"
               >
                 {/* Item Name and Indicator */}
-                <div className="flex items-start justify-between mb-3 md:mb-4 lg:mb-6">
+                <div className="flex items-start justify-between mb-3 md:mb-4 lg:mb-6 gap-4">
                   <div className="flex items-center gap-2 md:gap-3 flex-1">
                     {isItemVeg(selectedItem) ? (
                       <div className="h-5 w-5 md:h-6 md:w-6 lg:h-7 lg:w-7 rounded border-2 border-green-600 dark:border-green-500 bg-green-50 dark:bg-green-900/20 flex items-center justify-center flex-shrink-0">
@@ -1491,6 +1521,18 @@ export default function Under250() {
                       {selectedItem.name}
                     </h2>
                   </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      handleShareItem(selectedItem)
+                    }}
+                    className="p-2 border border-gray-200 dark:border-gray-800 rounded-full text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center justify-center cursor-pointer shadow-sm flex-shrink-0"
+                    aria-label="Share dish"
+                  >
+                    <Share2 className="h-5 w-5 md:h-6 md:w-6" />
+                  </button>
                 </div>
 
                 {/* Description */}

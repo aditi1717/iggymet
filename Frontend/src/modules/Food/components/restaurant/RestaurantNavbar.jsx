@@ -18,6 +18,48 @@ const extractRestaurantPayload = (response) =>
   response?.data?.data ||
   null
 
+const parseTimeToMinutes = (timeValue) => {
+  if (!timeValue || typeof timeValue !== "string") return null
+  const match = String(timeValue).trim().match(/^(\d{1,2}):(\d{2})$/)
+  if (!match) return null
+  const hour = Number(match[1])
+  const minute = Number(match[2])
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null
+  return (hour * 60) + minute
+}
+
+const isWithinSlot = (nowMinutes, slot) => {
+  const opening = slot?.openingMinutes
+  const closing = slot?.closingMinutes
+  if (opening === null || opening === undefined || closing === null || closing === undefined) return false
+  if (closing > opening) return nowMinutes >= opening && nowMinutes <= closing
+  return nowMinutes >= opening || nowMinutes <= closing
+}
+
+const extractDaySlots = (dayData) => {
+  const rawSlots = Array.isArray(dayData?.slots) ? dayData.slots : []
+  const normalized = rawSlots
+    .map((slot) => {
+      const openingTime = String(slot?.openingTime || "").trim()
+      const closingTime = String(slot?.closingTime || "").trim()
+      const openingMinutes = parseTimeToMinutes(openingTime)
+      const closingMinutes = parseTimeToMinutes(closingTime)
+      if (openingMinutes === null || closingMinutes === null) return null
+      return { openingTime, closingTime, openingMinutes, closingMinutes }
+    })
+    .filter(Boolean)
+
+  if (normalized.length > 0) return normalized
+
+  const openingTime = String(dayData?.openingTime || "").trim()
+  const closingTime = String(dayData?.closingTime || "").trim()
+  const openingMinutes = parseTimeToMinutes(openingTime)
+  const closingMinutes = parseTimeToMinutes(closingTime)
+  if (openingMinutes === null || closingMinutes === null) return []
+  return [{ openingTime, closingTime, openingMinutes, closingMinutes }]
+}
+
 
 export default function RestaurantNavbar({
   restaurantName: propRestaurantName,
@@ -30,7 +72,9 @@ export default function RestaurantNavbar({
   const [isSearchActive, setIsSearchActive] = useState(false)
   const [searchValue, setSearchValue] = useState("")
   const [status, setStatus] = useState("Offline")
+  const [manualOnlineStatus, setManualOnlineStatus] = useState(false)
   const [restaurantData, setRestaurantData] = useState(null)
+  const [outletTimings, setOutletTimings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [companyName, setCompanyName] = useState("")
   const [logoUrl, setLogoUrl] = useState(null)
@@ -64,7 +108,7 @@ export default function RestaurantNavbar({
     return () => window.removeEventListener('businessSettingsUpdated', handleSettingsUpdate)
   }, [])
 
-  // Fetch restaurant data on mount
+  // Fetch restaurant data and outlet timings on mount
   useEffect(() => {
     const fetchRestaurantData = async () => {
       try {
@@ -75,17 +119,35 @@ export default function RestaurantNavbar({
           setRestaurantData(data)
         }
       } catch (error) {
-        // Only log error if it's not a network/timeout error (backend might be down/slow)
         if (error.code !== 'ERR_NETWORK' && error.code !== 'ECONNABORTED' && !error.message?.includes('timeout')) {
           debugError("Error fetching restaurant data:", error)
         }
-        // Continue with default values if fetch fails
       } finally {
         setLoading(false)
       }
     }
 
+    const fetchOutletTimings = async () => {
+      try {
+        const response = await restaurantAPI.getOutletTimings()
+        const timings = response?.data?.data?.outletTimings || response?.data?.outletTimings
+        if (timings) {
+          setOutletTimings(timings)
+        }
+      } catch (error) {
+        // ignore timing fetch errors
+      }
+    }
+
     fetchRestaurantData()
+    fetchOutletTimings()
+
+    // Listen for outlet timings updates
+    const handleTimingsUpdate = () => {
+      fetchOutletTimings()
+    }
+    window.addEventListener("outletTimingsUpdated", handleTimingsUpdate)
+    return () => window.removeEventListener("outletTimingsUpdated", handleTimingsUpdate)
   }, [])
 
   // Format full address from location object - using stored data only, no live fetching
@@ -230,34 +292,29 @@ export default function RestaurantNavbar({
     }
   }, [restaurantData, propLocation])
 
-  // Load status from localStorage on mount and listen for changes
+  // Load manual accepts orders status on mount and listen for changes
   useEffect(() => {
-    const updateStatus = () => {
+    const updateManualStatus = () => {
       try {
         const savedStatus = localStorage.getItem('restaurant_online_status')
         if (savedStatus !== null) {
-          const isOnline = JSON.parse(savedStatus)
-          setStatus(isOnline ? "Online" : "Offline")
-        } else {
-          // If not stored yet, fallback to backend value (when available).
-          const isOnline = Boolean(restaurantData?.isAcceptingOrders)
-          setStatus(isOnline ? "Online" : "Offline")
+          setManualOnlineStatus(JSON.parse(savedStatus))
+        } else if (restaurantData) {
+          setManualOnlineStatus(Boolean(restaurantData.isAcceptingOrders))
         }
       } catch (error) {
-        debugError("Error loading restaurant status:", error)
-        const isOnline = Boolean(restaurantData?.isAcceptingOrders)
-        setStatus(isOnline ? "Online" : "Offline")
+        if (restaurantData) {
+          setManualOnlineStatus(Boolean(restaurantData.isAcceptingOrders))
+        }
       }
     }
 
-    // Load initial status
-    updateStatus()
+    updateManualStatus()
 
-    // Listen for status changes from RestaurantStatus page
-  const handleStatusChange = (event) => {
+    const handleStatusChange = (event) => {
       const isOnline = event.detail?.isOnline || false
-      setStatus(isOnline ? "Online" : "Offline")
-  }
+      setManualOnlineStatus(isOnline)
+    }
 
     window.addEventListener('restaurantStatusChanged', handleStatusChange)
     
@@ -265,6 +322,65 @@ export default function RestaurantNavbar({
       window.removeEventListener('restaurantStatusChanged', handleStatusChange)
     }
   }, [restaurantData])
+
+  // Dynamically compute final Online/Offline status based on all 3 conditions:
+  // 1. Manual status must be ON
+  // 2. Today's day must be OPEN in outlet timings
+  // 3. Current time must be WITHIN timing slots
+  useEffect(() => {
+    const recomputeStatus = () => {
+      // Condition 1: Manual off
+      if (!manualOnlineStatus) {
+        setStatus("Offline")
+        return
+      }
+
+      // If timings haven't loaded yet, fall back to manual status
+      if (!outletTimings) {
+        setStatus(manualOnlineStatus ? "Online" : "Offline")
+        return
+      }
+
+      const now = new Date()
+      const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+      const currentDayFull = DAY_NAMES[now.getDay()] // "Monday", "Tuesday", etc.
+      const currentHour = now.getHours()
+      const currentMinute = now.getMinutes()
+      const currentTimeInMinutes = currentHour * 60 + currentMinute
+
+      const dayData = outletTimings[currentDayFull]
+      
+      // Condition 2: Day is closed
+      if (!dayData || dayData.isOpen === false) {
+        setStatus("Offline")
+        return
+      }
+
+      const slots = extractDaySlots(dayData)
+      if (slots.length === 0) {
+        // No slots means open 24/7 or not configured yet, so treat as online
+        setStatus("Online")
+        return
+      }
+
+      // Condition 3: Outside timing slots
+      const isWithin = slots.some((slot) => isWithinSlot(currentTimeInMinutes, slot))
+      if (!isWithin) {
+        setStatus("Offline")
+        return
+      }
+
+      // All conditions passed!
+      setStatus("Online")
+    }
+
+    recomputeStatus()
+    
+    // Check every 30 seconds to react to clock changes
+    const interval = setInterval(recomputeStatus, 30000)
+    
+    return () => clearInterval(interval)
+  }, [manualOnlineStatus, outletTimings])
 
   const handleStatusClick = () => {
     navigate("/restaurant/status")

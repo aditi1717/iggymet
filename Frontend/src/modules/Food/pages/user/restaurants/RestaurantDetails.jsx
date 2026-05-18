@@ -3354,7 +3354,7 @@ function RestaurantDetailsContent() {
                   {/* Content Section */}
                   <div className="flex-1 overflow-y-auto px-4 py-4">
                     {/* Item Name and Indicator */}
-                    <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-start justify-between mb-3 gap-4">
                       <div className="flex items-center gap-2 flex-1">
                         {isItemVeg(selectedItem) ? (
                           <div className="h-5 w-5 rounded border-2 border-green-600 dark:border-green-500 bg-green-50 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
@@ -3369,6 +3369,18 @@ function RestaurantDetailsContent() {
                           {selectedItem.name}
                         </h2>
                       </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          handleShareClick(selectedItem)
+                        }}
+                        className="p-2 border border-gray-200 dark:border-gray-800 rounded-full text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center justify-center cursor-pointer shadow-sm flex-shrink-0"
+                        aria-label="Share dish"
+                      >
+                        <Share2 className="h-5 w-5" />
+                      </button>
                     </div>
 
                     {/* Description */}

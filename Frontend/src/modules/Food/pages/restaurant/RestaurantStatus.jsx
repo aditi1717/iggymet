@@ -457,15 +457,13 @@ export default function RestaurantStatus() {
                 })()
               )}
             </p>
-            {!isDayClosed && (
-              <button
-                onClick={() => navigate("/restaurant/outlet-timings")}
-                className="flex items-center gap-1 text-brand-600 hover:text-brand-700 text-sm font-medium"
-              >
-                Details
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            )}
+            <button
+              onClick={() => navigate("/restaurant/outlet-timings")}
+              className="flex items-center gap-1 text-brand-600 hover:text-brand-700 text-sm font-semibold shrink-0 ml-4"
+            >
+              Change
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
 
           

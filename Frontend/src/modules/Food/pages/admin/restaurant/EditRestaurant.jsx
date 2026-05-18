@@ -5,7 +5,9 @@ import { Input } from "@food/components/ui/input"
 import { Button } from "@food/components/ui/button"
 import { Label } from "@food/components/ui/label"
 import { getGoogleMapsApiKey } from "@food/utils/googleMapsApiKey"
-import { ArrowLeft, Loader2 } from "lucide-react"
+import { ArrowLeft, Loader2, Calendar } from "lucide-react"
+
+const daysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 const debugError = (..._args) => {}
 
@@ -84,6 +86,7 @@ const normalizeDetailsFormFromRestaurant = (restaurant) => {
     offer: restaurant?.offer || "",
     openingTime: restaurant?.openingTime || restaurant?.deliveryTimings?.openingTime || "",
     closingTime: restaurant?.closingTime || restaurant?.deliveryTimings?.closingTime || "",
+    openDays: Array.isArray(restaurant?.openDays) ? restaurant.openDays : [],
     isActive: restaurant?.isActive !== false,
   }
 }
@@ -316,6 +319,7 @@ export default function EditRestaurant() {
         offer: detailsForm.offer,
         openingTime: detailsForm.openingTime,
         closingTime: detailsForm.closingTime,
+        openDays: detailsForm.openDays || [],
         isActive: detailsForm.isActive !== false,
       }
 
@@ -494,6 +498,58 @@ export default function EditRestaurant() {
                 <div>
                   <Label>Offer</Label>
                   <Input value={detailsForm.offer} onChange={(e) => setDetailsForm((p) => ({ ...p, offer: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Opening Time</Label>
+                  <Input
+                    type="time"
+                    value={detailsForm.openingTime || ""}
+                    onChange={(e) => setDetailsForm((p) => ({ ...p, openingTime: e.target.value }))}
+                    className="bg-white text-sm"
+                  />
+                </div>
+                <div>
+                  <Label>Closing Time</Label>
+                  <Input
+                    type="time"
+                    value={detailsForm.closingTime || ""}
+                    onChange={(e) => setDetailsForm((p) => ({ ...p, closingTime: e.target.value }))}
+                    className="bg-white text-sm"
+                  />
+                </div>
+                <div className="md:col-span-2 space-y-2 mt-2">
+                  <Label className="flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-gray-800" />
+                    <span>Open Days</span>
+                  </Label>
+                  <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+                    {daysOfWeek.map((day) => {
+                      const active = (detailsForm.openDays || []).includes(day)
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => {
+                            setDetailsForm((prev) => {
+                              const openDays = prev.openDays || []
+                              const exists = openDays.includes(day)
+                              if (exists) {
+                                return { ...prev, openDays: openDays.filter((d) => d !== day) }
+                              }
+                              return { ...prev, openDays: [...openDays, day] }
+                            })
+                          }}
+                          className={`aspect-square flex items-center justify-center rounded-md text-[11px] font-medium transition-colors ${
+                            active
+                              ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                              : "bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200"
+                          }`}
+                        >
+                          {day}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
             </section>

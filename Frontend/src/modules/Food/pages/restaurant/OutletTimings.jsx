@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, Clock, Loader2, Plus, Trash2 } from "lucide-react"
+import { ArrowLeft, Clock, Loader2, Plus, Trash2, Calendar } from "lucide-react"
 import { MobileTimePicker } from "@mui/x-date-pickers/MobileTimePicker"
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider"
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns"
@@ -48,6 +48,7 @@ const timeToMinutes = (value) => {
 
 const getDefaultSchedule = () => ({
   isOpen: true,
+  openDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
   slots: [{ id: `slot-${Date.now()}`, openingTime: "09:00", closingTime: "22:00" }],
 })
 
@@ -77,16 +78,24 @@ const normalizeSlotsFromDay = (dayData) => {
 
 const normalizeScheduleFromApi = (outletTimings) => {
   if (!outletTimings || typeof outletTimings !== "object") return getDefaultSchedule()
-  const firstAvailableDay = DAY_NAMES.find((day) => outletTimings?.[day]) || "Monday"
-  const dayData = outletTimings[firstAvailableDay] || {}
+  
+  const openDays = DAY_NAMES.filter((day) => {
+    const dayData = outletTimings[day]
+    return dayData && dayData.isOpen !== false
+  })
+
+  const activeDay = openDays[0] || DAY_NAMES.find((day) => outletTimings?.[day]) || "Monday"
+  const dayData = outletTimings[activeDay] || {}
 
   return {
-    isOpen: dayData.isOpen !== false,
+    isOpen: openDays.length > 0,
+    openDays: openDays.length > 0 ? openDays : [],
     slots: normalizeSlotsFromDay(dayData),
   }
 }
 
-const validateSlots = (slots = []) => {
+const validateSlots = (slots = [], openDays = []) => {
+  if (openDays.length === 0) return "At least one operational day must be selected."
   if (!Array.isArray(slots) || slots.length === 0) return "At least one time slot is required."
 
   const slot = slots[0]
@@ -101,6 +110,7 @@ const validateSlots = (slots = []) => {
 
 const buildPayloadForAllDays = (schedule) => {
   const isOpen = schedule?.isOpen !== false
+  const selectedDays = schedule?.openDays || []
   const slots = isOpen
     ? (schedule?.slots || []).map((slot) => ({
       openingTime: slot.openingTime,
@@ -112,7 +122,13 @@ const buildPayloadForAllDays = (schedule) => {
   const closingTime = isOpen ? (slots[0]?.closingTime || "22:00") : ""
 
   return DAY_NAMES.reduce((acc, day) => {
-    acc[day] = { isOpen, openingTime, closingTime, slots }
+    const isThisDayOpen = isOpen && selectedDays.includes(day)
+    acc[day] = {
+      isOpen: isThisDayOpen,
+      openingTime: isThisDayOpen ? openingTime : "",
+      closingTime: isThisDayOpen ? closingTime : "",
+      slots: isThisDayOpen ? slots : [],
+    }
     return acc
   }, {})
 }
@@ -155,7 +171,7 @@ export default function OutletTimings() {
       setValidationError("")
       return
     }
-    setValidationError(validateSlots(schedule.slots))
+    setValidationError(validateSlots(schedule.slots, schedule.openDays))
   }, [schedule, loading])
 
   useEffect(() => {
@@ -247,7 +263,7 @@ export default function OutletTimings() {
             </button>
             <div className="min-w-0 flex-1">
               <h1 className="text-lg font-bold text-gray-900">Outlet timings</h1>
-              <p className="text-xs text-gray-500">One schedule applied to all 7 days</p>
+              <p className="text-xs text-gray-500">Configure operational days and delivery timings</p>
             </div>
             {statusLabel ? (
               <p className={`text-xs font-medium ${savingState === "error" ? "text-red-600" : "text-emerald-600"}`}>
@@ -262,14 +278,16 @@ export default function OutletTimings() {
             <div className="mb-3">
               <h2 className="text-sm font-semibold text-brand-700">{companyName} delivery timings</h2>
               <p className="text-xs text-slate-600 mt-1">
-                Same timing Monday to Sunday. Add multiple slots if you close in between.
+                Select your open days and set the delivery timings slot for your outlet.
               </p>
             </div>
 
             <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2">
               <div>
                 <p className="text-sm font-semibold text-slate-900">Outlet status</p>
-                <p className="text-xs text-slate-500">{schedule.isOpen ? "Open for all days" : "Closed for all days"}</p>
+                <p className="text-xs text-slate-500">
+                  {schedule.isOpen ? "Open on selected days" : "Closed for all days"}
+                </p>
               </div>
               <Switch
                 checked={schedule.isOpen}
@@ -283,6 +301,53 @@ export default function OutletTimings() {
 
             {schedule.isOpen ? (
               <div className="mt-4 space-y-3">
+                {/* Days Selector */}
+                <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+                  <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                    <Calendar className="w-4 h-4 text-slate-800" />
+                    <span>Select Operational Days</span>
+                  </label>
+                  <p className="text-[11px] text-slate-500">
+                    Choose the days of the week when your restaurant is open.
+                  </p>
+                  <div className="grid grid-cols-7 gap-1.5 mt-2">
+                    {DAY_NAMES.map((day) => {
+                      const active = (schedule.openDays || []).includes(day)
+                      const abbr = day.slice(0, 3)
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => {
+                            setSavingState("idle")
+                            setSchedule((prev) => {
+                              const openDays = prev.openDays || []
+                              const exists = openDays.includes(day)
+                              let nextDays
+                              if (exists) {
+                                nextDays = openDays.filter((d) => d !== day)
+                              } else {
+                                nextDays = [...openDays, day]
+                              }
+                              return {
+                                ...prev,
+                                openDays: nextDays,
+                              }
+                            })
+                          }}
+                          className={`aspect-square flex flex-col items-center justify-center rounded-md text-[11px] font-semibold transition-all border ${
+                            active
+                              ? "bg-slate-900 border-slate-900 text-white shadow-sm"
+                              : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                          }`}
+                        >
+                          <span>{abbr}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
                 {schedule.slots.map((slot, index) => (
                   <div key={slot.id} className="rounded-lg border border-slate-200 bg-white p-3">
 

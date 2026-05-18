@@ -132,7 +132,37 @@ export async function getOutletTimingsForRestaurant(restaurantId) {
         throw new ValidationError('Invalid restaurant id');
     }
     const doc = await FoodRestaurantOutletTimings.findOne({ restaurantId }).select('timings updatedAt').lean();
-    if (!doc) return { outletTimings: toClientShape({ timings: defaultTimings() }) };
+    if (!doc) {
+        try {
+            const restaurant = await mongoose.model('FoodRestaurant').findById(restaurantId).select('openingTime closingTime openDays').lean();
+            if (restaurant) {
+                const openingTime = restaurant.openingTime || '09:00';
+                const closingTime = restaurant.closingTime || '22:00';
+                const openDays = Array.isArray(restaurant.openDays) ? restaurant.openDays : [];
+                
+                const timings = DAY_NAMES.map((day) => {
+                    const dayAbbr = day.slice(0, 3).toLowerCase();
+                    const isOpen = openDays.length === 0 ? true : openDays.some(d => {
+                        const sd = String(d || '').trim().toLowerCase();
+                        return sd === day.toLowerCase() || sd === dayAbbr || day.toLowerCase().startsWith(sd);
+                    });
+                    
+                    const slots = isOpen ? [{ openingTime, closingTime }] : [];
+                    return {
+                        day,
+                        isOpen,
+                        openingTime: isOpen ? openingTime : '',
+                        closingTime: isOpen ? closingTime : '',
+                        slots
+                    };
+                });
+                return { outletTimings: toClientShape({ timings }) };
+            }
+        } catch (e) {
+            // Ignore error and fall back to defaultTimings below
+        }
+        return { outletTimings: toClientShape({ timings: defaultTimings() }) };
+    }
     return { outletTimings: toClientShape(doc) };
 }
 
@@ -167,6 +197,24 @@ export async function upsertOutletTimingsForRestaurant(restaurantId, outletTimin
         { upsert: true, new: true, setDefaultsOnInsert: true, projection: 'timings updatedAt' }
     ).lean();
 
+    // TO REMAIN SYNCED WITH ADMIN & ONBOARDING:
+    // Let's find the primary opening time, closing time, and open days from this payload to save back to FoodRestaurant!
+    try {
+        const firstOpenDay = timings.find(t => t.isOpen);
+        const openingTime = firstOpenDay ? firstOpenDay.openingTime : '09:00';
+        const closingTime = firstOpenDay ? firstOpenDay.closingTime : '22:00';
+        
+        // Match open days: convert standard days (e.g. 'Monday', 'Tuesday') to abbreviations ('Mon', 'Tue')
+        // since FoodRestaurant stored abbreviations from onboarding step 2 ("Mon", "Tue" etc.)
+        const openDays = timings.filter(t => t.isOpen).map(t => t.day.slice(0, 3));
+        
+        await mongoose.model('FoodRestaurant').findByIdAndUpdate(
+            restaurantId,
+            { $set: { openingTime, closingTime, openDays } }
+        );
+    } catch (e) {
+        // Ignore or log error
+    }
+
     return { outletTimings: toClientShape(doc) };
 }
-

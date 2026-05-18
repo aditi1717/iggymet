@@ -3192,8 +3192,47 @@ export async function updateRestaurantById(id, body = {}, adminScope = {}) {
     if (body.openingTime !== undefined) doc.openingTime = normalizeRestaurantTime(body.openingTime) || '';
     if (body.closingTime !== undefined) doc.closingTime = normalizeRestaurantTime(body.closingTime) || '';
     validateOpeningClosingTimes(doc.openingTime, doc.closingTime);
-    if (body.openDays !== undefined && Array.isArray(body.openDays)) {
-        doc.openDays = body.openDays.map(d => toStr(d)).filter(Boolean);
+    if (body.openDays !== undefined) {
+        if (Array.isArray(body.openDays)) {
+            doc.openDays = body.openDays.map(d => toStr(d)).filter(Boolean);
+        } else if (typeof body.openDays === 'string') {
+            doc.openDays = body.openDays.split(',').map(d => toStr(d).trim()).filter(Boolean);
+        } else {
+            throw new ValidationError('openDays must be an array or comma-separated string');
+        }
+    }
+
+    // Propagate changes to FoodRestaurantOutletTimings to maintain 100% synchronization
+    if (body.openingTime !== undefined || body.closingTime !== undefined || body.openDays !== undefined) {
+        try {
+            const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+            const openDays = doc.openDays || [];
+            const openingTime = doc.openingTime || '09:00';
+            const closingTime = doc.closingTime || '22:00';
+            
+            const timings = DAY_NAMES.map((day) => {
+                const dayAbbr = day.slice(0, 3).toLowerCase();
+                const isOpen = openDays.some(d => {
+                    const sd = String(d || '').trim().toLowerCase();
+                    return sd === day.toLowerCase() || sd === dayAbbr || day.toLowerCase().startsWith(sd);
+                });
+                return {
+                    day,
+                    isOpen,
+                    openingTime: isOpen ? openingTime : '',
+                    closingTime: isOpen ? closingTime : '',
+                    slots: isOpen ? [{ openingTime, closingTime }] : []
+                };
+            });
+            
+            await mongoose.model('FoodRestaurantOutletTimings').findOneAndUpdate(
+                { restaurantId: doc._id },
+                { $set: { timings } },
+                { upsert: true }
+            );
+        } catch (e) {
+            // Ignore error
+        }
     }
     if (body.offer !== undefined) doc.offer = toStr(body.offer);
 
@@ -4087,6 +4126,24 @@ export async function createRestaurantByAdmin(body) {
     const normalizedClosingTime = normalizeRestaurantTime(body.closingTime) || '22:00';
     validateOpeningClosingTimes(normalizedOpeningTime, normalizedClosingTime);
 
+    let cuisinesArray = [];
+    if (body.cuisines) {
+        if (Array.isArray(body.cuisines)) {
+            cuisinesArray = body.cuisines.map(c => toStr(c)).filter(Boolean);
+        } else if (typeof body.cuisines === 'string') {
+            cuisinesArray = body.cuisines.split(',').map(c => toStr(c).trim()).filter(Boolean);
+        }
+    }
+
+    let openDaysArray = [];
+    if (body.openDays) {
+        if (Array.isArray(body.openDays)) {
+            openDaysArray = body.openDays.map(d => toStr(d)).filter(Boolean);
+        } else if (typeof body.openDays === 'string') {
+            openDaysArray = body.openDays.split(',').map(d => toStr(d).trim()).filter(Boolean);
+        }
+    }
+
     const doc = {
         restaurantName: toStr(body.restaurantName) || toStr(body.name),
         ownerName: toStr(body.ownerName),
@@ -4103,10 +4160,10 @@ export async function createRestaurantByAdmin(body) {
         state: toStr(loc.state),
         pincode: toStr(loc.pincode),
         landmark: toStr(loc.landmark),
-        cuisines: Array.isArray(body.cuisines) ? body.cuisines : [],
+        cuisines: cuisinesArray,
         openingTime: normalizedOpeningTime,
         closingTime: normalizedClosingTime,
-        openDays: Array.isArray(body.openDays) ? body.openDays : [],
+        openDays: openDaysArray,
         panNumber: toStr(body.panNumber),
         nameOnPan: toStr(body.nameOnPan),
         gstRegistered: Boolean(body.gstRegistered),
