@@ -2083,6 +2083,9 @@ export default function Inventory() {
                   {isAddAddonOpen ? "Close Add-on Form" : "Add Add-on"}
                 </button>
               )}
+            </div>
+              {activeTab === "add-ons" && (
+                <>
               {loadingAddons ? (
                 <div className="flex items-center justify-center py-20">
                   <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
@@ -2160,8 +2163,8 @@ export default function Inventory() {
                   ))}
                 </div>
               )}
-            </>
-          )}
+                </>
+              )}
           {activeTab !== "add-ons" && !loadingInventory && listToRender.length === 0 && (
             <div className="rounded-[28px] border border-dashed border-slate-200 bg-white/70 px-6 py-16 text-center shadow-[0_18px_40px_-34px_rgba(15,23,42,0.35)]">
               <p className="text-lg font-semibold text-slate-700">
@@ -2803,6 +2806,7 @@ export default function Inventory() {
       )}
 
       {/* Bottom Navigation */}
+      </div>
       <BottomNavOrders />
     </div>
   )

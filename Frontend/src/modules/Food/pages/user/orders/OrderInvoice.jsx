@@ -278,7 +278,6 @@ export default function OrderInvoice() {
     order?.paymentMethod ||
     order?.payment?.method ||
     "Card"
-  const displayOrderId = getOrderDisplayId(order, orderId)
   const customer = getCustomerDetails(order)
 
   return (
