@@ -264,7 +264,7 @@ const normalizeZoneIdValue = (value) => {
 const getTodayLocalYMD = () => formatDateToLocalYMD(new Date())
 
 // Helper functions for localStorage
-const saveOnboardingToLocalStorage = (step1, step2, step3, step4, currentStep) => {
+const saveOnboardingToLocalStorage = (step1, step2, step3, step4, currentStep, phoneContext = "") => {
   try {
     // Persist only stable URL-based values. File/Blob objects are not serializable and
     // restoring metadata-only placeholders breaks preview/upload flows.
@@ -305,6 +305,7 @@ const saveOnboardingToLocalStorage = (step1, step2, step3, step4, currentStep) =
       step3: serializableStep3,
       step4: step4 || {},
       currentStep,
+      phoneContext: normalizePhoneDigits(phoneContext || step1?.ownerPhone || ""),
       timestamp: Date.now(),
     }
     localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify(dataToSave))
@@ -522,6 +523,30 @@ export default function RestaurantOnboarding() {
   const [zonesLoading, setZonesLoading] = useState(false)
   const [isAutocompleteReady, setIsAutocompleteReady] = useState(false)
 
+  // Browser/device back should move between onboarding steps first.
+  useEffect(() => {
+    if (step > 1) {
+      window.history.pushState({ onboardingStep: step }, "", window.location.href)
+    }
+  }, [step])
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setStep((prev) => {
+        if (prev > 1) {
+          const nextStep = prev - 1
+          window.history.pushState({ onboardingStep: nextStep }, "", window.location.href)
+          window.scrollTo({ top: 0, behavior: "instant" })
+          return nextStep
+        }
+        return prev
+      })
+    }
+
+    window.addEventListener("popstate", handlePopState)
+    return () => window.removeEventListener("popstate", handlePopState)
+  }, [])
+
   const [step1, setStep1] = useState({
     restaurantName: "",
     pureVegRestaurant: null,
@@ -611,7 +636,8 @@ export default function RestaurantOnboarding() {
 
   // Load from localStorage on mount and check URL parameter
   useEffect(() => {
-    setVerifiedPhoneNumber(getVerifiedPhoneFromStoredRestaurant())
+    const verifiedPhone = getVerifiedPhoneFromStoredRestaurant()
+    setVerifiedPhoneNumber(verifiedPhone)
 
     // Check if step is specified in URL (from OTP login redirect)
     const stepParam = searchParams.get("step")
@@ -623,7 +649,15 @@ export default function RestaurantOnboarding() {
     }
 
     const localData = loadOnboardingFromLocalStorage()
-    if (localData) {
+    const savedPhone = normalizePhoneDigits(localData?.phoneContext || localData?.step1?.ownerPhone || "")
+    const currentPhone = normalizePhoneDigits(verifiedPhone)
+    const hasPhoneMismatch = Boolean(savedPhone && currentPhone && savedPhone !== currentPhone)
+    if (hasPhoneMismatch) {
+      clearOnboardingFromLocalStorage()
+      clearOnboardingFileCache()
+    }
+
+    if (localData && !hasPhoneMismatch) {
       if (localData.step1) {
         setStep1({
           restaurantName: localData.step1.restaurantName || "",
@@ -707,6 +741,7 @@ export default function RestaurantOnboarding() {
     }
     const restoreFiles = async () => {
       try {
+        if (hasPhoneMismatch) return
         const [profileImg, panImg, gstImg, fssaiImg] = await Promise.all([
           getFileFromDB("profileImage"),
           getFileFromDB("panImage"),
@@ -776,9 +811,9 @@ export default function RestaurantOnboarding() {
   // Save to localStorage whenever step data changes
   useEffect(() => {
     if (hasRestored) {
-      saveOnboardingToLocalStorage(step1, step2, step3, step4, step)
+      saveOnboardingToLocalStorage(step1, step2, step3, step4, step, verifiedPhoneNumber)
     }
-  }, [step1, step2, step3, step4, step, hasRestored])
+  }, [step1, step2, step3, step4, step, hasRestored, verifiedPhoneNumber])
 
   // Clear location search input DOM when formattedAddress is empty
   useEffect(() => {
@@ -875,7 +910,7 @@ export default function RestaurantOnboarding() {
           mapsScriptLoadedRef.current = true
           return true
         }
-        const apiKey = getGoogleMapsApiKey()
+        const apiKey = await getGoogleMapsApiKey()
         if (!apiKey) return false
 
         const existing = document.getElementById("restaurant-onboarding-maps-script")
@@ -1001,23 +1036,70 @@ export default function RestaurantOnboarding() {
       return id === step1.zoneId
     })
 
-    if (selectedZone?.location?.latitude && selectedZone?.location?.longitude) {
-      try {
+    try {
+      const bounds = new window.google.maps.LatLngBounds()
+      let hasValidBounds = false
+
+      // 1) GeoJSON polygon coordinates: zone.location.coordinates[0] = [[lng, lat], ...]
+      const geoCoords = selectedZone?.location?.coordinates?.[0]
+      if (Array.isArray(geoCoords)) {
+        geoCoords.forEach((point) => {
+          if (!Array.isArray(point) || point.length < 2) return
+          const lng = parseFloat(point[0])
+          const lat = parseFloat(point[1])
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+          bounds.extend({ lat, lng })
+          hasValidBounds = true
+        })
+      }
+
+      // 2) Array of coordinate objects: zone.coordinates = [{ latitude/lat, longitude/lng }, ...]
+      if (!hasValidBounds && Array.isArray(selectedZone?.coordinates)) {
+        selectedZone.coordinates.forEach((pt) => {
+          const lat = parseFloat(pt?.latitude ?? pt?.lat)
+          const lng = parseFloat(pt?.longitude ?? pt?.lng)
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+          bounds.extend({ lat, lng })
+          hasValidBounds = true
+        })
+      }
+
+      // 3) Fallback to center+radius if polygon points are unavailable
+      if (!hasValidBounds && selectedZone?.location?.latitude && selectedZone?.location?.longitude) {
         const center = {
           lat: parseFloat(selectedZone.location.latitude),
           lng: parseFloat(selectedZone.location.longitude),
         }
-        const radius = (selectedZone.radius || 10) * 1000 // default 10km
-        const circle = new window.google.maps.Circle({ center, radius })
+        if (Number.isFinite(center.lat) && Number.isFinite(center.lng)) {
+          const radius = (selectedZone.radius || 10) * 1000
+          const circle = new window.google.maps.Circle({ center, radius })
+          const circleBounds = circle.getBounds()
+          if (circleBounds) {
+            placesAutocompleteRef.current.setOptions({
+              bounds: circleBounds,
+              strictBounds: true,
+              componentRestrictions: { country: "in" },
+            })
+            return
+          }
+        }
+      }
+
+      if (hasValidBounds) {
         placesAutocompleteRef.current.setOptions({
-          bounds: circle.getBounds(),
+          bounds,
           strictBounds: true,
           componentRestrictions: { country: "in" },
         })
-      } catch (err) {
-        debugWarn("Failed to set Autocomplete bounds for zone:", err)
+      } else {
+        placesAutocompleteRef.current.setOptions({
+          bounds: null,
+          strictBounds: false,
+          componentRestrictions: { country: "in" },
+        })
       }
-    } else {
+    } catch (err) {
+      debugWarn("Failed to set Autocomplete bounds for zone:", err)
       placesAutocompleteRef.current.setOptions({
         bounds: null,
         strictBounds: false,
@@ -1420,13 +1502,9 @@ export default function RestaurantOnboarding() {
     }
 
     if (validationErrors.length > 0) {
-      // Show error toast for each validation error
-      validationErrors.forEach((error, index) => {
-        setTimeout(() => {
-          toast.error(error, {
-            duration: 4000,
-          })
-        }, index * 100)
+      // Show only the first validation error so users can fix fields one-by-one.
+      toast.error(validationErrors[0], {
+        duration: 4000,
       })
       debugLog('? Validation failed:', validationErrors)
       return

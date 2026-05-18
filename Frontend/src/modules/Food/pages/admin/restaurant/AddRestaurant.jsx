@@ -11,6 +11,7 @@ import { toast } from "sonner"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => { console.warn(...args) }
 const debugError = (...args) => { console.error(...args) }
+const MIN_LOCATION_SEARCH_CHARS = 3
 
 
 const cuisinesOptions = [
@@ -698,16 +699,31 @@ export default function AddRestaurant() {
 
         // 4. Check for any existing script and force libraries=places
         const scripts = Array.from(document.getElementsByTagName("script"))
-        const mapsScript = scripts.find(s => s.src?.includes("maps.googleapis.com/maps/api/js"))
-        
-        if (mapsScript && !mapsScript.src.includes("libraries=places")) {
-          mapsScript.remove()
-        } else if (mapsScript && mapsScript.src.includes("libraries=places")) {
-           for (let i = 0; i < 60; i++) {
+        const mapsScript = scripts.find((s) => s.src?.includes("maps.googleapis.com/maps/api/js"))
+
+        if (mapsScript) {
+          let existingKey = ""
+          let hasPlacesLibrary = false
+          try {
+            const existingUrl = new URL(mapsScript.src)
+            existingKey = String(existingUrl.searchParams.get("key") || "").trim()
+            const libraries = String(existingUrl.searchParams.get("libraries") || "")
+            hasPlacesLibrary = libraries.split(",").map((v) => v.trim()).includes("places")
+          } catch {
+            existingKey = ""
+            hasPlacesLibrary = false
+          }
+
+          // Reuse only when both key and libraries match; otherwise reload with current key.
+          if (!hasPlacesLibrary || existingKey !== apiKey) {
+            mapsScript.remove()
+          } else {
+            for (let i = 0; i < 60; i++) {
               if (window.google?.maps?.places?.Autocomplete) return true
               if (cancelled) return false
-              await new Promise(r => setTimeout(r, 100))
-           }
+              await new Promise((r) => setTimeout(r, 100))
+            }
+          }
         }
 
         // 5. Create and append new script
@@ -795,6 +811,16 @@ export default function AddRestaurant() {
         })
         
         const pacContainerFix = () => {
+          const query = String(inputElement?.value || "").trim()
+          if (query.length < MIN_LOCATION_SEARCH_CHARS) {
+            const containers = document.querySelectorAll('.pac-container')
+            containers.forEach((container) => {
+              container.style.display = 'none'
+              container.style.visibility = 'hidden'
+            })
+            return
+          }
+
           const applyFix = () => {
             const containers = document.querySelectorAll('.pac-container');
             if (containers.length > 0) {
@@ -836,7 +862,7 @@ export default function AddRestaurant() {
   useEffect(() => {
     if (step !== 1) return
     const q = String(locationSearchValue || "").trim()
-    if (q.length < 3) {
+    if (q.length < MIN_LOCATION_SEARCH_CHARS) {
       setLocationSuggestions([])
       setIsSearchingLocation(false)
       return
@@ -959,7 +985,19 @@ export default function AddRestaurant() {
             <Input
               ref={locationSearchInputRef}
               value={locationSearchValue}
-              onChange={(e) => setLocationSearchValue(e.target.value)}
+              onChange={(e) => {
+                const nextValue = e.target.value
+                setLocationSearchValue(nextValue)
+                if (String(nextValue || "").trim().length < MIN_LOCATION_SEARCH_CHARS) {
+                  setLocationSuggestions([])
+                  setIsSearchingLocation(false)
+                  const containers = document.querySelectorAll('.pac-container')
+                  containers.forEach((container) => {
+                    container.style.display = 'none'
+                    container.style.visibility = 'hidden'
+                  })
+                }
+              }}
               className="mt-1 bg-white text-sm"
               placeholder="Search and select restaurant address..."
             />
@@ -1009,7 +1047,7 @@ export default function AddRestaurant() {
           )}
           
           <p className="text-[11px] text-gray-500 mt-1">
-            Search to auto-fill Area, City, State, Pincode and coordinates.
+            Type at least 3 characters to search and auto-fill Area, City, State, Pincode and coordinates.
           </p>
         </div>
         <div>

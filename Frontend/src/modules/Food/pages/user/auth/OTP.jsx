@@ -51,10 +51,11 @@ export default function OTP() {
     } else if (data.phone) {
       setContactType("phone")
       // Extract and format phone number for display
-      const phoneMatch = data.phone?.match(/(\+\d+)\s*(.+)/)
-      if (phoneMatch) {
-        const formattedPhone = `${phoneMatch[1]}-${phoneMatch[2].replace(/\D/g, "")}`
-        setContactInfo(formattedPhone)
+      const cleanPhone = data.phone.replace(/\s+/g, "")
+      if (cleanPhone.startsWith("+") && cleanPhone.length > 10) {
+        const countryCode = cleanPhone.slice(0, cleanPhone.length - 10)
+        const number = cleanPhone.slice(cleanPhone.length - 10)
+        setContactInfo(`${countryCode}-${number}`)
       } else {
         setContactInfo(data.phone || "")
       }

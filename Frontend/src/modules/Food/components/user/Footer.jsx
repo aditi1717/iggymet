@@ -55,7 +55,7 @@ export default function Footer() {
       { name: "Help Center", href: "/user/help" },
       { name: "Contact Us", href: "/user/help" },
       { name: "Privacy Policy", href: "/profile/privacy" },
-      { name: "Terms of Service", href: "/profile/terms" },
+      { name: "Terms and Conditions", href: "/profile/terms" },
     ],
     user: [
       { name: "My Account", href: "/user/profile" },
@@ -205,7 +205,7 @@ export default function Footer() {
         >
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-center md:text-left" style={{ color: BRAND_THEME.tokens.footer.mutedText }}>
-              � {currentYear} {companyName}. All rights reserved.
+              © {currentYear} {companyName}. All rights reserved.
             </p>
             <div className="flex items-center gap-1 text-sm" style={{ color: BRAND_THEME.tokens.footer.mutedText }}>
               <span>Made with</span>

@@ -88,6 +88,9 @@ export default function BottomNavigation() {
           )}
         </Link>
 
+        {/* Divider */}
+        <div className={`h-8 w-px ${navigation.divider}`} />
+
         {/* Profile Tab */}
         <Link
           to="/food/user/profile"

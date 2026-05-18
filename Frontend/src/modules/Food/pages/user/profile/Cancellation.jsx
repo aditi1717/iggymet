@@ -98,7 +98,7 @@ export default function Cancellation() {
 
         <p className="text-center mt-10 text-[10px] text-gray-400 font-black uppercase tracking-[0.2em] leading-relaxed">
           Last updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} <br />
-          © {new Date().getFullYear()} Iggymet. All Rights Reserved.
+          Â© {new Date().getFullYear()} Iggymet. All Rights Reserved.
         </p>
       </div>
     </AnimatedPage>
