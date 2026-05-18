@@ -55,10 +55,12 @@ export default function Restaurants() {
     const fetchRestaurants = async () => {
       try {
         setLoading(true)
-        const params = { limit: 300, _ts: Date.now() }
-        if (zoneId) {
-          params.zoneId = zoneId
+        if (!zoneId) {
+          setRestaurants([])
+          return
         }
+        const params = { limit: 300, _ts: Date.now() }
+        params.zoneId = zoneId
         const response = await restaurantAPI.getRestaurants(params, { noCache: true })
         const list =
           response?.data?.data?.restaurants ||

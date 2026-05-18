@@ -75,6 +75,24 @@ export default function CategoryPage() {
   const deferredSearchQuery = useDeferredValue(searchQuery)
   const BACKEND_ORIGIN = useMemo(() => API_BASE_URL.replace(/\/api\/?$/, ""), [])
   const slugify = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+  const normalizeZoneValue = (value) => {
+    if (!value) return ""
+    if (typeof value === "string") return value.trim()
+    return String(value?._id || value?.id || "").trim()
+  }
+  const getRestaurantZoneId = (restaurant) =>
+    normalizeZoneValue(
+      restaurant?.zoneId ||
+      restaurant?.serviceZoneId ||
+      restaurant?.location?.zoneId ||
+      restaurant?.zone?._id ||
+      restaurant?.zone?.id
+    )
+  const isRestaurantInSelectedZone = (restaurant) => {
+    const selectedZoneId = normalizeZoneValue(zoneId)
+    if (!selectedZoneId) return false
+    return getRestaurantZoneId(restaurant) === selectedZoneId
+  }
   const normalizeCategoryToken = (value) =>
     String(value || "")
       .toLowerCase()
@@ -251,9 +269,14 @@ export default function CategoryPage() {
       return []
     }
 
+    const inZoneRestaurants = Array.isArray(restaurants) ? restaurants : []
+    if (inZoneRestaurants.length === 0) {
+      return []
+    }
+
     const restaurantsById = new Map()
     const restaurantsByName = new Map()
-    ;(Array.isArray(restaurants) ? restaurants : []).forEach((restaurant) => {
+    inZoneRestaurants.forEach((restaurant) => {
       const idCandidates = [
         restaurant?.restaurantId,
         restaurant?.id,
@@ -294,29 +317,31 @@ export default function CategoryPage() {
           restaurantsByName.get(restaurantName.toLowerCase()) ||
           null
 
-        const fallbackRestaurantName = restaurantName || "Restaurant"
-        const fallbackSlug = slugify(fallbackRestaurantName)
+        if (!matchedRestaurant) {
+          return null
+        }
+
         const fallbackImage = normalizeImageUrl(food?.image)
 
         return {
-          ...(matchedRestaurant || {}),
-          id: `${restaurantId || fallbackSlug || "restaurant"}-${String(food?.id || food?._id || index)}`,
-          restaurantId: restaurantId || matchedRestaurant?.restaurantId || matchedRestaurant?.id || null,
-          mongoId: matchedRestaurant?.mongoId || matchedRestaurant?.id || null,
-          slug: matchedRestaurant?.slug || fallbackSlug,
-          name: matchedRestaurant?.name || fallbackRestaurantName,
-          image: matchedRestaurant?.image || fallbackImage,
-          images: Array.isArray(matchedRestaurant?.images) && matchedRestaurant.images.length > 0
+          ...matchedRestaurant,
+          id: `${matchedRestaurant.restaurantId || matchedRestaurant.id || restaurantId || "restaurant"}-${String(food?.id || food?._id || index)}`,
+          restaurantId: matchedRestaurant.restaurantId || matchedRestaurant.id || restaurantId || null,
+          mongoId: matchedRestaurant.mongoId || matchedRestaurant.id || null,
+          slug: matchedRestaurant.slug || slugify(matchedRestaurant.name || restaurantName || "restaurant"),
+          name: matchedRestaurant.name || restaurantName || "Restaurant",
+          image: matchedRestaurant.image || fallbackImage,
+          images: Array.isArray(matchedRestaurant.images) && matchedRestaurant.images.length > 0
             ? matchedRestaurant.images
             : (fallbackImage ? [fallbackImage] : []),
-          cuisine: matchedRestaurant?.cuisine || null,
-          rating: matchedRestaurant?.rating || null,
-          deliveryTime: matchedRestaurant?.deliveryTime || null,
-          distance: matchedRestaurant?.distance || null,
-          offer: matchedRestaurant?.offer || null,
-          featuredDish: matchedRestaurant?.featuredDish || food?.name || null,
-          featuredPrice: matchedRestaurant?.featuredPrice || Number(food?.price || 0),
-          menu: matchedRestaurant?.menu || null,
+          cuisine: matchedRestaurant.cuisine || null,
+          rating: matchedRestaurant.rating || null,
+          deliveryTime: matchedRestaurant.deliveryTime || null,
+          distance: matchedRestaurant.distance || null,
+          offer: matchedRestaurant.offer || null,
+          featuredDish: matchedRestaurant.featuredDish || food?.name || null,
+          featuredPrice: matchedRestaurant.featuredPrice || Number(food?.price || 0),
+          menu: matchedRestaurant.menu || null,
           dishId: String(food?.id || food?._id || `${restaurantId}-${index}`),
           categoryDish: food,
           categoryDishName: food?.name || "Unnamed Item",
@@ -325,6 +350,7 @@ export default function CategoryPage() {
           categoryDishFoodType: food?.foodType || "Non-Veg",
         }
       })
+      .filter(Boolean)
   }
 
   const normalizeImageUrl = (value) => {
@@ -805,9 +831,11 @@ export default function CategoryPage() {
     const fetchRestaurants = async () => {
       try {
         setLoadingRestaurants(true)
-        // IMPORTANT: Do NOT pass zoneId as a hard filter.
-        // UX is "show all restaurants", and we only style out-of-service state.
-        const params = {}
+        if (!zoneId) {
+          setRestaurantsData([])
+          return
+        }
+        const params = { zoneId }
         const response = await restaurantAPI.getRestaurants(params)
 
         if (response.data && response.data.success && response.data.data && response.data.data.restaurants) {
@@ -839,7 +867,7 @@ export default function CategoryPage() {
             .filter((restaurant) => {
               const displayName = String(restaurant.restaurantName || restaurant.name || "").trim()
               const hasName = displayName.length > 0
-              return hasName
+              return hasName && isRestaurantInSelectedZone(restaurant)
             })
             .map((restaurant) => {
               let deliveryTime = restaurant.estimatedDeliveryTime || null
@@ -896,6 +924,7 @@ export default function CategoryPage() {
                 slug: restaurant.slug || (restaurant.restaurantName || restaurant.name)?.toLowerCase().replace(/\s+/g, '-'),
                 restaurantId: restaurantId,
                 mongoId: restaurant._id || null,
+                zoneId: getRestaurantZoneId(restaurant),
                 hasPaneer: false,
                 category: 'all',
               }

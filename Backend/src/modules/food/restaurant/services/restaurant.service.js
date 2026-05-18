@@ -224,14 +224,21 @@ const buildZoneRestaurantFilter = async (zoneIdRaw) => {
         return null;
     }
 
-    const zoneClauses = [{ zoneId: new mongoose.Types.ObjectId(trimmedZoneId) }];
+    const targetZoneId = new mongoose.Types.ObjectId(trimmedZoneId);
     const zoneDoc = await FoodZone.findOne({ _id: trimmedZoneId, isActive: true }).lean();
     const polygon = zoneToPolygon(zoneDoc);
+
+    const clauses = [{ zoneId: targetZoneId }];
     if (polygon) {
-        zoneClauses.push({ location: { $geoWithin: { $geometry: polygon } } });
+        clauses.push({
+            $and: [
+                { $or: [{ zoneId: { $exists: false } }, { zoneId: null }] },
+                { location: { $geoWithin: { $geometry: polygon } } }
+            ]
+        });
     }
 
-    return { $or: zoneClauses };
+    return { $or: clauses };
 };
 
 const notifyAdminsAboutRestaurantProfileReview = async (restaurantId, restaurantName) => {
@@ -1222,6 +1229,7 @@ export const listApprovedRestaurants = async (query = {}) => {
         status: 1,
         pureVegRestaurant: 1,
         createdAt: 1,
+        zoneId: 1,
         location: 1,
         openingTime: 1,
         closingTime: 1,
@@ -1305,6 +1313,7 @@ export const listApprovedRestaurants = async (query = {}) => {
         restaurantId: r._id,
         id: r._id,
         name: r.restaurantName || '',
+        zoneId: r.zoneId ? String(r.zoneId?._id || r.zoneId) : '',
         rating: normalizeRatingValue(r.rating),
         totalRatings: normalizeTotalRatingsValue(r.totalRatings),
         profileImage: r.profileImage ? { url: r.profileImage } : null,

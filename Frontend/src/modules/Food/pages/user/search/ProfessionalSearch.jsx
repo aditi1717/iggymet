@@ -58,11 +58,18 @@ export default function ProfessionalSearch() {
   useEffect(() => {
     const savedHistory = localStorage.getItem(SEARCH_HISTORY_KEY)
     if (savedHistory) setHistory(JSON.parse(savedHistory))
-    fetchCategories()
   }, [])
+
+  useEffect(() => {
+    fetchCategories()
+  }, [zoneId])
 
   const fetchCategories = async () => {
     try {
+      if (!zoneId) {
+        setCategories([])
+        return
+      }
       const res = await searchAPI.getAdminCategories({ zoneId })
       if (res.data?.success) setCategories(res.data.data.categories)
     } catch (err) {
@@ -78,6 +85,10 @@ export default function ProfessionalSearch() {
 
   const performSearch = useCallback(async (searchTerm, catId) => {
     if (!searchTerm && !catId) {
+      setResults({ restaurants: [], dishes: [] })
+      return
+    }
+    if (!zoneId) {
       setResults({ restaurants: [], dishes: [] })
       return
     }
@@ -106,6 +117,13 @@ export default function ProfessionalSearch() {
       setLoading(false)
     }
   }, [userCoords, zoneId])
+
+  useEffect(() => {
+    if (!zoneId) {
+      setResults({ restaurants: [], dishes: [] })
+      setCategories([])
+    }
+  }, [zoneId])
 
   useEffect(() => {
     performSearch(debouncedQuery, selectedCategoryId)

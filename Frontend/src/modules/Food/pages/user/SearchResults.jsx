@@ -183,13 +183,13 @@ export default function SearchResults() {
   useEffect(() => {
     const fetchRestaurants = async () => {
       try {
+        if (!zoneId) {
+          setRestaurantsData([])
+          return
+        }
         setLoadingRestaurants(true)
         debugLog('?? Fetching restaurants from API...')
-        // Optional: Add zoneId if available (for sorting/filtering, but show all restaurants)
-        const params = {}
-        if (zoneId) {
-          params.zoneId = zoneId
-        }
+        const params = { zoneId }
         const response = await restaurantAPI.getRestaurants(params)
 
         debugLog('?? Full API Response:', response)

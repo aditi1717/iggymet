@@ -1180,7 +1180,6 @@ export default function Home() {
     removeFavorite,
     isFavorite,
     getFavorites,
-    getDefaultAddress,
   } = profileContext;
   const { addToCart, cart } = useCart();
   const { location, loading, requestLocation } = useLocation();
@@ -1292,9 +1291,15 @@ export default function Home() {
   const formatSavedAddress = useCallback((address) => {
     if (!address) return "";
 
+    const isCoordinateText = (value) =>
+      /^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(String(value || "").trim());
+    const isDisplayText = (value) => {
+      const text = String(value || "").trim();
+      return text && text !== "Select location" && !isCoordinateText(text);
+    };
+
     if (
-      address.formattedAddress &&
-      address.formattedAddress !== "Select location"
+      isDisplayText(address.formattedAddress)
     ) {
       return address.formattedAddress;
     }
@@ -1307,58 +1312,17 @@ export default function Home() {
     if (address.zipCode) parts.push(address.zipCode);
 
     if (parts.length > 0) return parts.join(", ");
-    if (address.address && address.address !== "Select location")
+    if (isDisplayText(address.address))
       return address.address;
 
     return "";
   }, []);
 
   const savedAddressText = useMemo(() => {
-    const defaultAddress = getDefaultAddress?.();
-    return formatSavedAddress(defaultAddress);
-  }, [getDefaultAddress, formatSavedAddress]);
+    return formatSavedAddress(location);
+  }, [location, formatSavedAddress]);
 
-  const defaultSavedAddress = useMemo(
-    () => getDefaultAddress?.() || null,
-    [getDefaultAddress],
-  );
-
-  const defaultSavedAddressLocation = useMemo(() => {
-    const coords = defaultSavedAddress?.location?.coordinates;
-    if (Array.isArray(coords) && coords.length >= 2) {
-      const lng = parseFloat(coords[0]);
-      const lat = parseFloat(coords[1]);
-      if (Number.isFinite(lat) && Number.isFinite(lng)) {
-        return { latitude: lat, longitude: lng };
-      }
-    }
-
-    const lat = parseFloat(
-      defaultSavedAddress?.latitude || defaultSavedAddress?.lat,
-    );
-    const lng = parseFloat(
-      defaultSavedAddress?.longitude || defaultSavedAddress?.lng,
-    );
-    if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      return { latitude: lat, longitude: lng };
-    }
-
-    return null;
-  }, [defaultSavedAddress]);
-
-  const {
-    isOutOfService: isSavedAddressOutOfService,
-    loading: savedAddressZoneLoading,
-    error: savedAddressZoneError,
-  } = useZone(defaultSavedAddressLocation);
-
-  const hasSavedAddress = Boolean(defaultSavedAddress && savedAddressText);
-  const shouldShowOutOfZoneHome =
-    hasSavedAddress &&
-    Boolean(defaultSavedAddressLocation) &&
-    !savedAddressZoneLoading &&
-    !savedAddressZoneError &&
-    isSavedAddressOutOfService;
+  const effectiveZoneId = zoneId;
 
   // Mock points value - replace with actual points from context/store
   const userPoints = 99;
@@ -1435,6 +1399,13 @@ export default function Home() {
       try {
         setLoadingRestaurants(true);
 
+        // Enforce strict zone-based listing:
+        // if zone is not resolved/in service, do not fetch broad restaurant data.
+        if (!effectiveZoneId) {
+          setRestaurantsData([]);
+          return;
+        }
+
         // Backend disconnected - new backend in progress. Skip health check.
 
         // Build query parameters from filters
@@ -1503,9 +1474,7 @@ export default function Home() {
 
         // Homepage must refetch immediately when the selected/current address
         // resolves to a different delivery zone.
-        if (zoneId) {
-          params.zoneId = zoneId;
-        }
+        params.zoneId = effectiveZoneId;
 
         cacheKey = buildHomeRestaurantCacheKey(params);
         const now = Date.now();
@@ -1845,7 +1814,7 @@ export default function Home() {
       buildRestaurantImageCandidates,
       location?.latitude,
       location?.longitude,
-      zoneId,
+      effectiveZoneId,
     ],
   );
 
@@ -2623,17 +2592,6 @@ export default function Home() {
 
   return (
     <div className={`relative min-h-screen ${BRAND_THEME.tokens.homepage.shared.pageBackground} pb-16 md:pb-6 overflow-x-clip`}>
-      {shouldShowOutOfZoneHome && (
-        <div className="fixed inset-0 z-[90] pointer-events-none">
-          <div className="absolute inset-0 bg-slate-300/35 backdrop-blur-[1px]" />
-          <div className="absolute top-20 left-1/2 -translate-x-1/2 px-4">
-            <div className="rounded-xl border border-red-200 bg-red-50/95 text-red-700 px-4 py-2 shadow-sm text-sm sm:text-base font-semibold max-w-[calc(100vw-2rem)] text-center">
-              You are out of zone
-            </div>
-          </div>
-        </div>
-      )}
-
       {activeTab === "food" && (
         <FoodHeroHeaderShell
           stickyHeaderRef={stickyHeaderRef}

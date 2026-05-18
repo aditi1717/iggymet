@@ -468,8 +468,12 @@ export default function Under250() {
   useEffect(() => {
     const fetchRestaurantsUnder250 = async () => {
       try {
+        if (!zoneId) {
+          setUnder250Restaurants([])
+          return
+        }
         setLoadingRestaurants(true)
-        const response = await restaurantAPI.getRestaurants(zoneId ? { zoneId } : {})
+        const response = await restaurantAPI.getRestaurants({ zoneId })
         const restaurantsRaw = Array.isArray(response?.data?.data?.restaurants)
           ? response.data.data.restaurants
           : []

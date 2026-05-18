@@ -64,6 +64,15 @@ const foodTheme = {
   inactiveBorder: "rgba(255,255,255,0.12)",
 };
 
+const isCoordinateText = (value) =>
+  /^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(String(value || "").trim());
+
+const cleanLocationText = (value) => {
+  const text = String(value || "").trim();
+  if (!text || text === "Select location" || isCoordinateText(text)) return "";
+  return text;
+};
+
 export default function HomeHeader({
   activeTab,
   setActiveTab,
@@ -110,9 +119,16 @@ export default function HomeHeader({
       ? scrolledHeaderColor || "transparent"
       : "transparent";
   const locationTitle =
-    savedAddressText || location?.area || location?.city || "Select Location";
+    cleanLocationText(savedAddressText) ||
+    cleanLocationText(location?.area) ||
+    cleanLocationText(location?.city) ||
+    cleanLocationText(location?.address) ||
+    "Select Location";
   const locationSubtitle =
-    location?.address || location?.city || "Tap to choose delivery location";
+    cleanLocationText(location?.address) ||
+    cleanLocationText(location?.formattedAddress) ||
+    cleanLocationText(location?.city) ||
+    "Tap to choose delivery location";
   const headerTextClass = isScrolledFoodHeader ? "text-slate-900 dark:text-white" : "text-white";
   const headerSubtleTextClass = isScrolledFoodHeader ? "text-slate-500 dark:text-slate-400" : "text-white/80";
   const floatingIconButtonClass = isScrolledFoodHeader

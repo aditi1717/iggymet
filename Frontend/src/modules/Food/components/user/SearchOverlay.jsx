@@ -4,6 +4,8 @@ import { X, Search, Clock, Loader2 } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import { Input } from "@food/components/ui/input"
 import { searchAPI } from "@/services/api"
+import { useLocation } from "@food/hooks/useLocation"
+import { useZone } from "@food/hooks/useZone"
 import BRAND_THEME from "@/config/brandTheme"
 
 const SEARCH_HISTORY_KEY = "user_recent_searches_v1"
@@ -12,6 +14,8 @@ export default function SearchOverlay({ isOpen, onClose, searchValue, onSearchCh
   const { searchOverlay } = BRAND_THEME.tokens
   const { brand } = BRAND_THEME.colors
   const navigate = useNavigate()
+  const { location } = useLocation()
+  const { zoneId } = useZone(location)
   const inputRef = useRef(null)
   const [filteredFoods, setFilteredFoods] = useState([])
   const [recentSuggestions, setRecentSuggestions] = useState([])
@@ -71,12 +75,23 @@ export default function SearchOverlay({ isOpen, onClose, searchValue, onSearchCh
       setLoadingFoods(false)
       return
     }
+    if (!zoneId) {
+      setFilteredFoods([])
+      setLoadingFoods(false)
+      return
+    }
 
     const requestId = ++searchRequestIdRef.current
     const timer = setTimeout(async () => {
       setLoadingFoods(true)
       try {
-        const res = await searchAPI.unifiedSearch({ q: term, limit: 60 })
+        const res = await searchAPI.unifiedSearch({
+          q: term,
+          limit: 60,
+          lat: location?.latitude,
+          lng: location?.longitude,
+          zoneId,
+        })
         const restaurants = res?.data?.data?.restaurants || []
         const normalizedFoods = restaurants
           .map((item, index) => {
@@ -115,7 +130,7 @@ export default function SearchOverlay({ isOpen, onClose, searchValue, onSearchCh
     }, 250)
 
     return () => clearTimeout(timer)
-  }, [isOpen, searchValue])
+  }, [isOpen, searchValue, location?.latitude, location?.longitude, zoneId])
 
   const saveRecentSearch = (term) => {
     const value = String(term || "").trim()
