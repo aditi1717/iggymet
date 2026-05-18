@@ -2,7 +2,6 @@ import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import Lenis from "lenis"
 import BottomNavOrders from "@food/components/restaurant/BottomNavOrders"
-import NewOrderNotification from "@food/components/restaurant/NewOrderNotification"
 import { useRestaurantNotifications } from "@food/hooks/useRestaurantNotifications"
 import { 
   Home,
@@ -566,14 +565,6 @@ export default function OrdersPage() {
       
       {/* Menu Overlay */}
 
-      {/* New Order Notification */}
-      <NewOrderNotification
-        order={notificationOrder}
-        onClose={clearNewOrder}
-        onViewOrder={(order) => {
-          navigate(`/food/restaurant/orders/${order.orderMongoId || order._id || order.id || order.orderId}`)
-        }}
-      />
     </div>
   )
 }

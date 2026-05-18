@@ -5,10 +5,7 @@ import AuthRedirect from "@food/components/AuthRedirect"
 import Loader from "@food/components/Loader"
 import PushSoundEnableButton from "@food/components/PushSoundEnableButton"
 import AppMaintenanceOverlay from "@food/components/common/AppMaintenanceOverlay"
-import NewOrderNotification from "@food/components/restaurant/NewOrderNotification"
 import { registerWebPushForCurrentModule } from "@food/utils/firebaseMessaging"
-import { isModuleAuthenticated } from "@food/utils/auth"
-import { useRestaurantNotifications } from "@food/hooks/useRestaurantNotifications"
 
 // Lazy Loading Components
 const UserRouter = lazy(() => import("@food/components/user/UserRouter"))
@@ -34,94 +31,6 @@ function ScrollToTop() {
   return null;
 }
 
-function RestaurantGlobalNotificationListenerInner() {
-  const {
-    newOrder,
-    clearNewOrder,
-    cancelledOrderId,
-    cancelledOrderInfo,
-    clearCancelledOrderId,
-  } = useRestaurantNotifications()
-
-  useEffect(() => {
-    if (!cancelledOrderId || !newOrder) return
-
-    const eventKeys = [
-      ...(Array.isArray(cancelledOrderInfo?.orderKeys) ? cancelledOrderInfo.orderKeys : []),
-      cancelledOrderId,
-    ]
-      .filter(Boolean)
-      .map((value) => String(value).trim())
-      .filter(Boolean)
-
-    const orderKeys = [
-      newOrder?.orderMongoId,
-      newOrder?.order_mongo_id,
-      newOrder?.orderId,
-      newOrder?.order_id,
-      newOrder?._id,
-      newOrder?.id,
-      newOrder?.mongoId,
-    ]
-      .filter(Boolean)
-      .map((value) => String(value).trim())
-      .filter(Boolean)
-
-    if (eventKeys.some((key) => orderKeys.includes(key))) {
-      clearNewOrder()
-      clearCancelledOrderId()
-    }
-  }, [cancelledOrderId, cancelledOrderInfo, clearCancelledOrderId, clearNewOrder, newOrder])
-
-  const notificationOrder = newOrder
-    ? {
-        ...newOrder,
-        orderMongoId: newOrder.orderMongoId || newOrder.order_mongo_id || newOrder._id || newOrder.id,
-        total: newOrder.total ?? newOrder.pricing?.total ?? 0,
-        customerAddress: newOrder.customerAddress || newOrder.deliveryAddress || newOrder.address,
-      }
-    : null
-
-  return (
-    <NewOrderNotification
-      order={notificationOrder}
-      onClose={clearNewOrder}
-    />
-  )
-}
-
-function RestaurantGlobalNotificationListener() {
-  const location = useLocation()
-  const isRestaurantRoute =
-    location.pathname.startsWith("/food/restaurant") &&
-    !location.pathname.startsWith("/food/restaurants")
-  const isRestaurantAuthRoute =
-    location.pathname === "/food/restaurant/login" ||
-    location.pathname === "/food/restaurant/auth/sign-in" ||
-    location.pathname === "/food/restaurant/signup" ||
-    location.pathname === "/food/restaurant/signup-email" ||
-    location.pathname === "/food/restaurant/forgot-password" ||
-    location.pathname === "/food/restaurant/otp" ||
-    location.pathname === "/food/restaurant/welcome" ||
-    location.pathname === "/food/restaurant/auth/google-callback"
-  const isOrderManagedRoute =
-    location.pathname === "/food/restaurant" ||
-    location.pathname === "/food/restaurant/orders" ||
-    location.pathname.startsWith("/food/restaurant/orders/")
-
-  const shouldListen =
-    isRestaurantRoute &&
-    !isRestaurantAuthRoute &&
-    !isOrderManagedRoute &&
-    isModuleAuthenticated("restaurant")
-
-  if (!shouldListen) {
-    return null
-  }
-
-  return <RestaurantGlobalNotificationListenerInner />
-}
-
 export default function App() {
   const location = useLocation()
 
@@ -132,7 +41,6 @@ export default function App() {
   return (
     <>
       <ScrollToTop />
-      <RestaurantGlobalNotificationListener />
       <PushSoundEnableButton />
       <AppMaintenanceOverlay />
       <Suspense fallback={<Loader />}>

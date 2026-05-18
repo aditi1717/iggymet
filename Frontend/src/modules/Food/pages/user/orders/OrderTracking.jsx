@@ -1547,8 +1547,18 @@ export default function OrderTracking() {
             }
             title="Delivery at Location"
             subtitle={(() => {
-              // Priority 1: Use order address formattedAddress (live location address)
-              if (order?.address?.formattedAddress && order.address.formattedAddress !== "Select location") {
+              const isCoordinateLikeText = (value) => {
+                const text = String(value || "").trim()
+                if (!text) return false
+                return /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(text)
+              }
+
+              // Priority 1: Use order address formattedAddress (live location address) if it is NOT coordinate-like
+              if (
+                order?.address?.formattedAddress &&
+                order.address.formattedAddress !== "Select location" &&
+                !isCoordinateLikeText(order.address.formattedAddress)
+              ) {
                 return order.address.formattedAddress
               }
 
@@ -1565,8 +1575,12 @@ export default function OrderTracking() {
                 }
               }
 
-              // Priority 3: Use defaultAddress formattedAddress (live location address)
-              if (defaultAddress?.formattedAddress && defaultAddress.formattedAddress !== "Select location") {
+              // Priority 3: Use defaultAddress formattedAddress (live location address) if it is NOT coordinate-like
+              if (
+                defaultAddress?.formattedAddress &&
+                defaultAddress.formattedAddress !== "Select location" &&
+                !isCoordinateLikeText(defaultAddress.formattedAddress)
+              ) {
                 return defaultAddress.formattedAddress
               }
 
@@ -1581,6 +1595,11 @@ export default function OrderTracking() {
                 if (defaultAddressParts.length > 0) {
                   return defaultAddressParts.join(', ')
                 }
+              }
+
+              // Fallback: If it's a coordinate but we have no other parts, return it, otherwise 'Add delivery address'
+              if (order?.address?.formattedAddress && order.address.formattedAddress !== "Select location") {
+                return order.address.formattedAddress
               }
 
               return 'Add delivery address'

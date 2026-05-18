@@ -1191,6 +1191,14 @@ export default function Home() {
     loading: zoneLoading,
     error: zoneError,
   } = useZone(location);
+  const cachedZoneId = useMemo(() => {
+    try {
+      return localStorage.getItem("userZoneId") || null;
+    } catch {
+      return null;
+    }
+  }, [zoneId, zoneStatus, location?.latitude, location?.longitude]);
+  const resolvedZoneId = zoneId || cachedZoneId;
   const [showToast, setShowToast] = useState(false);
   const [showManageCollections, setShowManageCollections] = useState(false);
   const [selectedRestaurantSlug, setSelectedRestaurantSlug] = useState(null);
@@ -1199,7 +1207,7 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false
     const run = async () => {
-      const zoneKey = String(zoneId || "global")
+      const zoneKey = String(resolvedZoneId || "global")
       try {
         // Dedupe repeated calls (StrictMode + zone settling). Cache per zoneKey and share in-flight request.
         const cached = publicCategoriesCacheRef.current.get(zoneKey)
@@ -1217,7 +1225,9 @@ export default function Home() {
 
         setLoadingRealCategories(true)
         const promise = (async () => {
-          const res = await adminAPI.getPublicCategories(zoneId ? { zoneId } : {})
+          const res = await adminAPI.getPublicCategories(
+            resolvedZoneId ? { zoneId: resolvedZoneId } : {}
+          )
           const list =
             res?.data?.data?.categories ||
             res?.data?.categories ||
@@ -1256,7 +1266,7 @@ export default function Home() {
     return () => {
       cancelled = true
     }
-  }, [zoneId, normalizeImageUrl])
+  }, [resolvedZoneId, normalizeImageUrl])
 
   // Memoize cartCount to prevent recalculation on every render - use cart directly
   const cartCount = useMemo(
@@ -1322,7 +1332,7 @@ export default function Home() {
     return formatSavedAddress(location);
   }, [location, formatSavedAddress]);
 
-  const effectiveZoneId = zoneId;
+  const effectiveZoneId = resolvedZoneId;
 
   // Mock points value - replace with actual points from context/store
   const userPoints = 99;
@@ -1402,6 +1412,9 @@ export default function Home() {
         // Enforce strict zone-based listing:
         // if zone is not resolved/in service, do not fetch broad restaurant data.
         if (!effectiveZoneId) {
+          if (zoneLoading || zoneStatus === "loading") {
+            return;
+          }
           setRestaurantsData([]);
           return;
         }
@@ -1815,6 +1828,8 @@ export default function Home() {
       location?.latitude,
       location?.longitude,
       effectiveZoneId,
+      zoneLoading,
+      zoneStatus,
     ],
   );
 
