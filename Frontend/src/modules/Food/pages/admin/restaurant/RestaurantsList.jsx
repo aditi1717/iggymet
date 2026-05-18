@@ -581,7 +581,7 @@ export default function RestaurantsList() {
     const longitude = (hasValidNumbers && !looksUnset) ? lngNum : ""
 
     return {
-      zoneId: restaurant?.zoneId || restaurant?.location?.zoneId || "",
+      zoneId: (zid => typeof zid === "object" ? (zid?._id || zid?.id) : zid)(restaurant?.zoneId || restaurant?.location?.zoneId) || "",
       latitude: latitude || "",
       longitude: longitude || "",
       formattedAddress: loc.formattedAddress || loc.address || "",
@@ -688,7 +688,7 @@ export default function RestaurantsList() {
       setLocationForm((prev) => ({
         ...prev,
         formattedAddress: parsed.formattedAddress || prev.formattedAddress,
-        addressLine1: parsed.formattedAddress || prev.addressLine1,
+        addressLine1: prev.addressLine1, // Do not overwrite manual shop/building no
         area: parsed.area || prev.area,
         city: parsed.city || prev.city,
         state: parsed.state || prev.state,
@@ -696,8 +696,98 @@ export default function RestaurantsList() {
         latitude: parsed.latitude !== "" ? parsed.latitude : prev.latitude,
         longitude: parsed.longitude !== "" ? parsed.longitude : prev.longitude,
       }))
+
+      if (locationSearchInputRef.current) {
+        locationSearchInputRef.current.value = parsed.pincode || ""
+      }
     })
+
+    // Zone bias logic
+    const updateSearchBounds = () => {
+      const currentZoneId = locationForm.zoneId
+      if (!currentZoneId || !Array.isArray(zones)) {
+        placesAutocompleteRef.current.setOptions({ bounds: null, strictBounds: false })
+        return
+      }
+      const zoneData = zones.find(z => (z._id || z.id) === currentZoneId)
+      if (!zoneData) return
+
+      const bounds = new window.google.maps.LatLngBounds()
+      let hasPoints = false
+
+      // 1. Support GeoJSON format: zoneData.location.coordinates[0] = [[lng, lat], ...]
+      const geoCoords = zoneData?.location?.coordinates?.[0]
+      if (Array.isArray(geoCoords) && Array.isArray(geoCoords[0])) {
+        geoCoords.forEach(pt => {
+          bounds.extend({ lng: pt[0], lat: pt[1] })
+          hasPoints = true
+        })
+      } 
+      // 2. Support array of objects: zoneData.coordinates = [{latitude, longitude}, ...]
+      else if (Array.isArray(zoneData.coordinates) && (zoneData.coordinates[0]?.latitude || zoneData.coordinates[0]?.lat)) {
+        zoneData.coordinates.forEach(pt => {
+          const lat = pt.latitude || pt.lat
+          const lng = pt.longitude || pt.lng
+          bounds.extend({ lat: Number(lat), lng: Number(lng) })
+          hasPoints = true
+        })
+      }
+      // 3. Support legacy single point
+      else if (zoneData.location?.latitude && zoneData.location?.longitude) {
+        bounds.extend({ lat: Number(zoneData.location.latitude), lng: Number(zoneData.location.longitude) })
+        hasPoints = true
+      }
+
+      if (hasPoints) {
+        placesAutocompleteRef.current.setOptions({ bounds: bounds, strictBounds: true })
+      } else {
+        placesAutocompleteRef.current.setOptions({ bounds: null, strictBounds: false })
+      }
+    }
+
+    updateSearchBounds()
   }
+
+  useEffect(() => {
+    if (isEditingLocation && placesAutocompleteRef.current) {
+      const currentZoneId = locationForm.zoneId
+      const zoneData = zones.find(z => (z._id || z.id) === currentZoneId)
+      
+      const bounds = new window.google.maps.LatLngBounds()
+      let hasPoints = false
+
+      if (zoneData) {
+        // 1. Support GeoJSON format
+        const geoCoords = zoneData?.location?.coordinates?.[0]
+        if (Array.isArray(geoCoords) && Array.isArray(geoCoords[0])) {
+          geoCoords.forEach(pt => {
+            bounds.extend({ lng: pt[0], lat: pt[1] })
+            hasPoints = true
+          })
+        } 
+        // 2. Support array of objects
+        else if (Array.isArray(zoneData.coordinates) && (zoneData.coordinates[0]?.latitude || zoneData.coordinates[0]?.lat)) {
+          zoneData.coordinates.forEach(pt => {
+            const lat = pt.latitude || pt.lat
+            const lng = pt.longitude || pt.lng
+            bounds.extend({ lat: Number(lat), lng: Number(lng) })
+            hasPoints = true
+          })
+        }
+        // 3. Support legacy single point
+        else if (zoneData.location?.latitude && zoneData.location?.longitude) {
+          bounds.extend({ lat: Number(zoneData.location.latitude), lng: Number(zoneData.location.longitude) })
+          hasPoints = true
+        }
+      }
+
+      if (hasPoints) {
+        placesAutocompleteRef.current.setOptions({ bounds: bounds, strictBounds: true })
+      } else {
+        placesAutocompleteRef.current.setOptions({ bounds: null, strictBounds: false })
+      }
+    }
+  }, [locationForm.zoneId, zones, isEditingLocation])
 
   const handleOutletSlotTimeChange = (slotId, field, value) => {
     setOutletTimingsError("")
@@ -998,6 +1088,7 @@ export default function RestaurantsList() {
       nextForm.closingTime = ""
     }
     setDetailsForm(nextForm)
+    setLocationForm(normalizeLocationFormFromRestaurant(source))
     setProfileImageFile(null)
     setProfileImagePreview(getPrimaryRestaurantImage(source))
     setIsEditingLocation(true)
@@ -1006,6 +1097,7 @@ export default function RestaurantsList() {
 
   const handleCancelEditDetails = () => {
     setIsEditingDetails(false)
+    setIsEditingLocation(false)
     setProfileImageFile(null)
     setProfileImagePreview("")
     setOutletTimingsError("")
@@ -1052,17 +1144,57 @@ export default function RestaurantsList() {
         openingTime: normalizedOpeningTime,
         closingTime: normalizedClosingTime,
         isActive: detailsForm.isActive,
+        zoneId: locationForm.zoneId, // Include zoneId in main payload
       }
 
       if (profileImage) {
         payload.profileImage = profileImage
       }
 
-      const [response] = await Promise.all([
+      const latitude = Number(locationForm.latitude)
+      const longitude = Number(locationForm.longitude)
+      let locationPayload = null
+
+      // Create location payload if we have coordinates, even if formattedAddress is missing
+      if (locationForm.zoneId && Number.isFinite(latitude) && Number.isFinite(longitude)) {
+        locationPayload = {
+          zoneId: locationForm.zoneId,
+          latitude,
+          longitude,
+          coordinates: [longitude, latitude],
+          formattedAddress: locationForm.formattedAddress || "",
+          address: locationForm.formattedAddress || "",
+          addressLine1: locationForm.addressLine1 || "",
+          addressLine2: locationForm.addressLine2 || "",
+          area: locationForm.area || "",
+          city: locationForm.city || "",
+          state: locationForm.state || "",
+          landmark: locationForm.landmark || "",
+          pincode: locationForm.pincode || "",
+          zipCode: locationForm.pincode || "",
+          postalCode: locationForm.pincode || "",
+        }
+      }
+
+      // Also include location in the main payload for broader backend compatibility
+      if (locationPayload) {
+        payload.location = locationPayload
+      }
+
+      const requests = [
         adminAPI.updateRestaurant(restaurantId, payload),
         adminAPI.saveRestaurantOutletTimings(restaurantId, outletTimingsPayload),
-      ])
-      const updatedRestaurant = response?.data?.data?.restaurant
+      ]
+
+      if (locationPayload) {
+        requests.push(adminAPI.updateRestaurantLocation(restaurantId, locationPayload))
+      }
+
+      const results = await Promise.all(requests)
+      const response = results[0]
+      const locationResponse = locationPayload ? results[results.length - 1] : null
+      
+      const updatedRestaurant = response?.data?.data?.restaurant || locationResponse?.data?.data?.restaurant
 
       if (updatedRestaurant) {
         setRestaurantDetails(updatedRestaurant)
@@ -1089,6 +1221,7 @@ export default function RestaurantsList() {
       }
 
       setIsEditingDetails(false)
+      setIsEditingLocation(false)
       setProfileImageFile(null)
       setOutletTimingsError("")
       alert("Restaurant details updated successfully")
@@ -1773,6 +1906,149 @@ export default function RestaurantsList() {
                       <label htmlFor="restaurant-status-active" className="text-sm text-slate-700">
                         Restaurant is active
                       </label>
+                    </div>
+                    <div className="md:col-span-2 space-y-4 pt-6 border-t border-slate-200">
+                      <h4 className="text-base font-bold text-slate-900 uppercase tracking-widest">Location Information</h4>
+                      <div className="space-y-3 border border-indigo-100 bg-indigo-50/40 rounded-xl p-4">
+                        <p className="text-xs text-indigo-700 font-semibold">
+                          Update restaurant location using dropdown (accurate) + select service zone.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="md:col-span-2">
+                            <label className="block text-xs text-slate-600 mb-1 font-semibold">Service Zone*</label>
+                            <select
+                              value={locationForm.zoneId || ""}
+                              onChange={(e) => {
+                                const newZoneId = e.target.value;
+                                setLocationForm((prev) => ({
+                                  ...prev,
+                                  zoneId: newZoneId,
+                                  latitude: "",
+                                  longitude: "",
+                                  formattedAddress: "",
+                                  addressLine1: "",
+                                  addressLine2: "",
+                                  area: "",
+                                  city: "",
+                                  state: "",
+                                  landmark: "",
+                                  pincode: "",
+                                }));
+                                if (locationSearchInputRef.current) {
+                                  locationSearchInputRef.current.value = "";
+                                }
+                              }}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
+                            >
+                              <option value="">{zonesLoading ? "Loading zones..." : "Select a zone"}</option>
+                              {zones.map((z) => (
+                                <option key={z._id || z.id} value={z._id || z.id}>
+                                  {z.name || z.zoneName || z.serviceLocation || "Zone"}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <label className="block text-xs text-slate-600 mb-1 font-semibold">Search location*</label>
+                            <input
+                              ref={locationSearchInputRef}
+                              type="text"
+                              onChange={(e) => {
+                                if (!e.target.value) {
+                                  setLocationForm((prev) => ({
+                                    ...prev,
+                                    latitude: "",
+                                    longitude: "",
+                                    formattedAddress: "",
+                                    addressLine1: "",
+                                    addressLine2: "",
+                                    area: "",
+                                    city: "",
+                                    state: "",
+                                    pincode: "",
+                                  }));
+                                }
+                              }}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
+                              placeholder="Start typing and choose from dropdown..."
+                            />
+                          </div>
+
+
+
+                          <div className="md:col-span-2">
+                            <label className="block text-xs text-slate-500 mb-1">Shop no. / Building no. / Apartment*</label>
+                            <input
+                              type="text"
+                              value={locationForm.addressLine1}
+                              onChange={(e) => setLocationForm((prev) => ({ ...prev, addressLine1: e.target.value }))}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
+                              placeholder="e.g., Shop 42 or Building 7A"
+                            />
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <label className="block text-xs text-slate-500 mb-1">Floor / tower*</label>
+                            <input
+                              type="text"
+                              value={locationForm.addressLine2}
+                              onChange={(e) => setLocationForm((prev) => ({ ...prev, addressLine2: e.target.value }))}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
+                              placeholder="Floor / tower info"
+                            />
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <label className="block text-xs text-slate-500 mb-1">Nearby landmark*</label>
+                            <input
+                              type="text"
+                              value={locationForm.landmark}
+                              onChange={(e) => setLocationForm((prev) => ({ ...prev, landmark: e.target.value }))}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
+                              placeholder="e.g. Near HDFC Bank"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs text-slate-500 mb-1">Area</label>
+                            <input
+                              type="text"
+                              value={locationForm.area}
+                              readOnly
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-slate-500 mb-1">City</label>
+                            <input
+                              type="text"
+                              value={locationForm.city}
+                              readOnly
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-slate-500 mb-1">State</label>
+                            <input
+                              type="text"
+                              value={locationForm.state}
+                              readOnly
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-slate-500 mb-1">Pincode</label>
+                            <input
+                              type="text"
+                              value={locationForm.pincode}
+                              readOnly
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm"
+                            />
+                          </div>
+                        </div>
+                        {locationEditError && <p className="text-xs text-red-600">{locationEditError}</p>}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2513,111 +2789,6 @@ export default function RestaurantsList() {
                             <p className="font-medium text-slate-900">{r.onboarding.completedSteps} / 4</p>
                           </div>
                         )}
-                      </div>
-                    </div>
-                  )}
-
-                  {isEditingLocation && (
-                    <div className="pt-6 border-t border-slate-200">
-                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Location Editor</h4>
-                      <div className="space-y-3 border border-indigo-100 bg-indigo-50/40 rounded-xl p-4">
-                        <p className="text-xs text-indigo-700 font-semibold">
-                          Update restaurant location using dropdown (accurate) + select service zone.
-                        </p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div className="md:col-span-2">
-                            <label className="block text-xs text-slate-600 mb-1 font-semibold">Service Zone*</label>
-                            <select
-                              value={locationForm.zoneId || ""}
-                              onChange={(e) => setLocationForm((prev) => ({ ...prev, zoneId: e.target.value }))}
-                              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
-                            >
-                              <option value="">{zonesLoading ? "Loading zones..." : "Select a zone"}</option>
-                              {zones.map((z) => (
-                                <option key={z._id || z.id} value={z._id || z.id}>
-                                  {z.name || z.zoneName || z.serviceLocation || "Zone"}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div className="md:col-span-2">
-                            <label className="block text-xs text-slate-600 mb-1 font-semibold">Search location*</label>
-                            <input
-                              ref={locationSearchInputRef}
-                              type="text"
-                              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
-                              placeholder="Start typing and choose from dropdown..."
-                            />
-                            <p className="text-[11px] text-slate-500 mt-1">
-                              Select from dropdown to auto-fill address and coordinates.
-                            </p>
-                          </div>
-
-                          <div className="md:col-span-2">
-                            <label className="block text-xs text-slate-500 mb-1">Formatted Address</label>
-                            <input
-                              type="text"
-                              value={locationForm.formattedAddress}
-                              readOnly
-                              className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-slate-500 mb-1">Area</label>
-                            <input
-                              type="text"
-                              value={locationForm.area}
-                              readOnly
-                              className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-slate-500 mb-1">City</label>
-                            <input
-                              type="text"
-                              value={locationForm.city}
-                              readOnly
-                              className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-slate-500 mb-1">State</label>
-                            <input
-                              type="text"
-                              value={locationForm.state}
-                              readOnly
-                              className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-slate-500 mb-1">Pincode</label>
-                            <input
-                              type="text"
-                              value={locationForm.pincode}
-                              readOnly
-                              className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm"
-                            />
-                          </div>
-                          <div className="md:col-span-2">
-                            <label className="block text-xs text-slate-500 mb-1">Landmark (optional)</label>
-                            <input
-                              type="text"
-                              value={locationForm.landmark}
-                              onChange={(e) => setLocationForm((prev) => ({ ...prev, landmark: e.target.value }))}
-                              className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm"
-                            />
-                          </div>
-                        </div>
-
-                        {locationEditError && <p className="text-xs text-red-600">{locationEditError}</p>}
-                        <button
-                          onClick={handleSaveLocation}
-                          disabled={savingLocation}
-                          className={`inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-semibold text-white ${savingLocation ? "bg-indigo-300 cursor-not-allowed" : "bg-indigo-600 hover:bg-indigo-700"}`}
-                        >
-                          {savingLocation ? "Saving..." : "Save Location"}
-                        </button>
                       </div>
                     </div>
                   )}

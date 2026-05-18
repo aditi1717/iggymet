@@ -22,7 +22,8 @@ import {
   Clock,
   ChevronRight,
   TrendingUp,
-  Tag
+  Tag,
+  Search
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { restaurantAPI } from "@food/api"
@@ -92,6 +93,43 @@ const normalizeProfileZoneId = (value) => {
   if (!value) return ""
   if (typeof value === "object") return getZoneIdValue(value)
   return String(value).trim()
+}
+
+const PROFILE_DRAFT_KEY = "iggymet_restaurant_profile_draft"
+
+const saveProfileToLocalStorage = (data) => {
+  try {
+    // Only save serializable data
+    const serializable = { ...data }
+    // Filter out File objects from images
+    if (serializable.kycInfo) {
+      if (serializable.kycInfo.panImage instanceof File) serializable.kycInfo.panImage = null
+      if (serializable.kycInfo.gstImage instanceof File) serializable.kycInfo.gstImage = null
+      if (serializable.kycInfo.fssaiImage instanceof File) serializable.kycInfo.fssaiImage = null
+    }
+    if (serializable.imageInfo) {
+      if (serializable.imageInfo.profileImage instanceof File) serializable.imageInfo.profileImage = null
+      serializable.imageInfo.menuImages = (serializable.imageInfo.menuImages || []).filter(img => !(img instanceof File))
+    }
+    localStorage.setItem(PROFILE_DRAFT_KEY, JSON.stringify(serializable))
+  } catch (err) {
+    console.warn("Failed to save profile draft to localStorage:", err)
+  }
+}
+
+const loadProfileFromLocalStorage = () => {
+  try {
+    const stored = localStorage.getItem(PROFILE_DRAFT_KEY)
+    return stored ? JSON.parse(stored) : null
+  } catch {
+    return null
+  }
+}
+
+const clearProfileFromLocalStorage = () => {
+  try {
+    localStorage.removeItem(PROFILE_DRAFT_KEY)
+  } catch { }
 }
 
 const RestaurantProfile = () => {
@@ -179,6 +217,27 @@ const RestaurantProfile = () => {
     loadZones()
   }, [])
 
+  // Auto-save changes to localStorage (excluding binary files)
+  useEffect(() => {
+    if (!loading) {
+      saveProfileToLocalStorage({
+        basicInfo,
+        location,
+        opsInfo,
+        kycInfo,
+        bankInfo,
+        imageInfo
+      })
+    }
+  }, [basicInfo, location, opsInfo, kycInfo, bankInfo, imageInfo, loading])
+
+  // Sync search input value with state
+  useEffect(() => {
+    if (editStates.location && location.formattedAddress && locationSearchInputRef.current) {
+      locationSearchInputRef.current.value = location.formattedAddress
+    }
+  }, [editStates.location, location.formattedAddress])
+
   const loadZones = async () => {
     try {
       setZonesLoading(true)
@@ -201,118 +260,113 @@ const RestaurantProfile = () => {
     let cancelled = false
 
     const init = async () => {
-      const apiKey = await getGoogleMapsApiKey()
-      if (!apiKey) {
-        console.error("Google Maps API key is missing")
-        return
+      // Wait for the ref to be attached
+      for (let i = 0; i < 20; i++) {
+        if (locationSearchInputRef.current) break
+        await new Promise((r) => setTimeout(r, 50))
       }
+      if (!locationSearchInputRef.current || cancelled) return
 
       const loadMaps = async () => {
-        if (window.google?.maps?.places?.Autocomplete) return true
-        
-        const existingScript = document.getElementById("restaurant-onboarding-maps-script")
-        if (existingScript) {
-          for (let i = 0; i < 50; i++) {
-            if (window.google?.maps?.places?.Autocomplete) return true
+        if (mapsScriptLoadedRef.current && window.google?.maps?.places?.Autocomplete) return true
+        if (window.google?.maps?.places?.Autocomplete) {
+          mapsScriptLoadedRef.current = true
+          return true
+        }
+        const apiKey = await getGoogleMapsApiKey()
+        if (!apiKey) return false
+
+        const existing = document.getElementById("restaurant-profile-maps-script")
+        if (existing) {
+          for (let i = 0; i < 30; i += 1) {
+            if (window.google?.maps?.places?.Autocomplete) {
+              mapsScriptLoadedRef.current = true
+              return true
+            }
             await new Promise((r) => setTimeout(r, 100))
           }
-          return !!window.google?.maps?.places?.Autocomplete
+          return false
         }
 
-        return new Promise((resolve) => {
-          const script = document.createElement("script")
-          script.id = "restaurant-onboarding-maps-script"
-          script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=weekly`
-          script.async = true
-          script.defer = true
-          script.onload = () => resolve(true)
-          script.onerror = () => resolve(false)
-          document.head.appendChild(script)
-        })
+        try {
+          await new Promise((resolve, reject) => {
+            const script = document.createElement("script")
+            script.id = "restaurant-profile-maps-script"
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=weekly`
+            script.async = true
+            script.defer = true
+            script.onload = () => {
+              mapsScriptLoadedRef.current = true
+              resolve(true)
+            }
+            script.onerror = reject
+            document.head.appendChild(script)
+          })
+          return !!window.google?.maps?.places?.Autocomplete
+        } catch (err) {
+          console.error("Error loading Google Maps script:", err)
+          return false
+        }
       }
 
       const ok = await loadMaps()
       if (!ok || cancelled || !locationSearchInputRef.current) return
-
-      // Ensure input is enabled and ready
-      await new Promise(r => setTimeout(r, 200))
-
-      if (placesAutocompleteRef.current) {
-        // Remove existing pac-containers to avoid duplicates
-        const containers = document.querySelectorAll('.pac-container')
-        containers.forEach(c => c.remove())
-        placesAutocompleteRef.current = null
-      }
+      if (placesAutocompleteRef.current) return
 
       placesAutocompleteRef.current = new window.google.maps.places.Autocomplete(
         locationSearchInputRef.current,
         {
-          fields: ["formatted_address", "address_components", "geometry"],
           componentRestrictions: { country: "in" },
-          strictBounds: true,
-        }
+          fields: ["address_components", "formatted_address", "geometry", "name"],
+        },
       )
-
-      // Apply initial bounds if zone is selected
-      if (location.zoneId) {
-        const zone = zones.find(z => String(z._id || z.id) === String(location.zoneId))
-        if (zone?.coordinates?.length >= 3) {
-          const bounds = new window.google.maps.LatLngBounds()
-          zone.coordinates.forEach(coord => {
-            bounds.extend({ lat: Number(coord.latitude), lng: Number(coord.longitude) })
-          })
-          placesAutocompleteRef.current.setBounds(bounds)
-        }
-      }
-
-      const parsePlace = (place) => {
-        const comps = Array.isArray(place?.address_components) ? place.address_components : []
-        const get = (types) => comps.find((c) => types.some((t) => c.types?.includes(t)))?.long_name || ""
-        return {
-          formattedAddress: place?.formatted_address || "",
-          area: get(["sublocality_level_1", "sublocality", "neighborhood"]) || get(["locality"]),
-          city: get(["locality"]) || get(["administrative_area_level_2"]),
-          state: get(["administrative_area_level_1"]),
-          pincode: get(["postal_code"]),
-          latitude: place?.geometry?.location?.lat?.(),
-          longitude: place?.geometry?.location?.lng?.(),
-        }
-      }
 
       placesAutocompleteRef.current.addListener("place_changed", () => {
         const place = placesAutocompleteRef.current.getPlace()
         if (!place.geometry) return
 
-        const parsed = parsePlace(place)
+        const get = (types) =>
+          place.address_components?.find((c) => types.some((t) => c.types.includes(t)))
+            ?.long_name || ""
 
-        if (parsed.latitude && parsed.longitude && selectedZoneRef.current) {
-          const zoneCoords = selectedZoneRef.current.coordinates
-          if (Array.isArray(zoneCoords) && zoneCoords.length >= 3) {
-            const isInside = isPointInPolygon(parsed.latitude, parsed.longitude, zoneCoords)
-            if (!isInside) {
-              toast.error(`Selected location is outside your service zone.`)
-              return
-            }
-          }
-        }
+        const formattedAddress = place.formatted_address || ""
+        const area =
+          get(["sublocality_level_1"]) ||
+          get(["sublocality"]) ||
+          get(["locality"])
+        const city =
+          get(["locality"]) ||
+          get(["administrative_area_level_2"])
+        const state = get(["administrative_area_level_1"])
+        const pincode = get(["postal_code"])
+        const lat = place?.geometry?.location?.lat?.()
+        const lng = place?.geometry?.location?.lng?.()
 
         setLocation((prev) => ({
           ...prev,
-          formattedAddress: parsed.formattedAddress || prev.formattedAddress,
-          addressLine1: prev.addressLine1 || parsed.formattedAddress || "",
-          area: parsed.area || prev.area,
-          city: parsed.city || prev.city,
-          state: parsed.state || prev.state,
-          pincode: parsed.pincode || prev.pincode,
-          latitude: parsed.latitude !== undefined ? parsed.latitude : prev.latitude,
-          longitude: parsed.longitude !== undefined ? parsed.longitude : prev.longitude,
+          formattedAddress,
+          area,
+          city,
+          state,
+          pincode,
+          latitude: Number.isFinite(lat) ? Number(lat.toFixed(6)) : prev.latitude,
+          longitude: Number.isFinite(lng) ? Number(lng.toFixed(6)) : prev.longitude,
         }))
+
+        if (locationSearchInputRef.current) {
+          locationSearchInputRef.current.value = pincode || ""
+        }
       })
     }
 
-    init()
+    init().catch((err) => {
+      console.error("Failed to load Google Places for profile:", err)
+    })
 
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      placesAutocompleteRef.current = null
+    }
   }, [editStates.location])
 
   useEffect(() => {
@@ -338,13 +392,12 @@ const RestaurantProfile = () => {
     }
   }, [editStates.location, location.zoneId, zones])
 
-  const fetchInitialData = async () => {
+  const fetchInitialData = async (ignoreDraft = false) => {
     try {
       const response = await restaurantAPI.getCurrentRestaurant()
       const data = response?.data?.data?.restaurant || response?.data?.restaurant
       
       if (data) {
-        // Map Basic Info
         setBasicInfo({
           name: data.restaurantName || data.name || "",
           pureVegRestaurant: !!data.pureVegRestaurant,
@@ -354,7 +407,6 @@ const RestaurantProfile = () => {
           primaryContactNumber: data.primaryContactNumber || "",
         })
 
-        // Map Location
         setLocation({
           addressLine1: data.addressLine1 || data.location?.addressLine1 || "",
           addressLine2: data.addressLine2 || data.location?.addressLine2 || "",
@@ -369,7 +421,6 @@ const RestaurantProfile = () => {
           formattedAddress: data.location?.formattedAddress || data.formattedAddress || "",
         })
 
-        // Map Operations
         setOpsInfo({
           cuisines: Array.isArray(data.cuisines) ? data.cuisines : (data.cuisines ? String(data.cuisines).split(",").map(c => c.trim()) : []),
           estimatedDeliveryTime: data.estimatedDeliveryTime || "",
@@ -377,7 +428,6 @@ const RestaurantProfile = () => {
           offer: data.offer || "",
         })
 
-        // Map KYC
         setKycInfo({
           panNumber: data.panNumber || "",
           nameOnPan: data.nameOnPan || "",
@@ -392,7 +442,6 @@ const RestaurantProfile = () => {
           fssaiImage: data.fssaiImage || null,
         })
 
-        // Map Bank
         setBankInfo({
           accountNumber: data.accountNumber || "",
           ifscCode: data.ifscCode || "",
@@ -400,11 +449,23 @@ const RestaurantProfile = () => {
           accountType: data.accountType || "Saving",
         })
 
-        // Map Images
         setImageInfo({
           profileImage: data.profileImage || null,
           menuImages: data.menuImages || [],
         })
+      }
+
+      // Merge with local draft BEFORE ending loading to avoid auto-save race
+      if (!ignoreDraft) {
+        const localDraft = loadProfileFromLocalStorage()
+        if (localDraft) {
+          if (localDraft.basicInfo) setBasicInfo(prev => ({ ...prev, ...localDraft.basicInfo }))
+          if (localDraft.location) setLocation(prev => ({ ...prev, ...localDraft.location }))
+          if (localDraft.opsInfo) setOpsInfo(prev => ({ ...prev, ...localDraft.opsInfo }))
+          if (localDraft.kycInfo) setKycInfo(prev => ({ ...prev, ...localDraft.kycInfo }))
+          if (localDraft.bankInfo) setBankInfo(prev => ({ ...prev, ...localDraft.bankInfo }))
+          if (localDraft.imageInfo) setImageInfo(prev => ({ ...prev, ...localDraft.imageInfo }))
+        }
       }
     } catch (error) {
       console.error("Failed to fetch restaurant data:", error)
@@ -415,6 +476,12 @@ const RestaurantProfile = () => {
   }
 
   const toggleEdit = (section) => {
+    const isCancelling = editStates[section]
+    if (isCancelling) {
+      // Revert by clearing local draft and re-fetching server data
+      clearProfileFromLocalStorage()
+      fetchInitialData(true) // Pass true to ignore draft
+    }
     setEditStates(prev => ({ ...prev, [section]: !prev[section] }))
   }
 
@@ -564,7 +631,56 @@ const RestaurantProfile = () => {
 
       toast.success(`${section.charAt(0).toUpperCase() + section.slice(1)} info updated!`)
       setEditStates(prev => ({ ...prev, [section]: false }))
-      fetchInitialData() // Refresh to get server values
+      
+      // Update local state immediately with the response data to avoid empty display
+      if (updatedData) {
+        if (section === 'basic') {
+          setBasicInfo({
+            name: updatedData.restaurantName || updatedData.name || "",
+            pureVegRestaurant: !!updatedData.pureVegRestaurant,
+            ownerName: updatedData.ownerName || "",
+            ownerEmail: updatedData.ownerEmail || "",
+            ownerPhone: updatedData.ownerPhone || "",
+            primaryContactNumber: updatedData.primaryContactNumber || "",
+          })
+        } else if (section === 'location') {
+          setLocation(prev => ({
+            ...prev,
+            area: updatedData.area || updatedData.location?.area || prev.area,
+            city: updatedData.city || updatedData.location?.city || prev.city,
+            state: updatedData.state || updatedData.location?.state || prev.state,
+            pincode: updatedData.pincode || updatedData.location?.pincode || prev.pincode,
+            formattedAddress: updatedData.location?.formattedAddress || updatedData.formattedAddress || prev.formattedAddress
+          }))
+        } else if (section === 'operations') {
+          setOpsInfo({
+            cuisines: Array.isArray(updatedData.cuisines) ? updatedData.cuisines : [],
+            estimatedDeliveryTime: updatedData.estimatedDeliveryTime || "",
+            featuredDish: updatedData.featuredDish || "",
+            offer: updatedData.offer || "",
+          })
+        } else if (section === 'kyc' || section === 'fssai') {
+          setKycInfo(prev => ({
+            ...prev,
+            panNumber: updatedData.panNumber || prev.panNumber,
+            nameOnPan: updatedData.nameOnPan || prev.nameOnPan,
+            gstNumber: updatedData.gstNumber || prev.gstNumber,
+            fssaiNumber: updatedData.fssaiNumber || prev.fssaiNumber,
+          }))
+        } else if (section === 'bank') {
+          setBankInfo({
+            accountNumber: updatedData.accountNumber || "",
+            ifscCode: updatedData.ifscCode || "",
+            accountHolderName: updatedData.accountHolderName || "",
+            accountType: updatedData.accountType || "Saving",
+          })
+        }
+      }
+
+      // Clear draft after successful save
+      clearProfileFromLocalStorage()
+      
+      fetchInitialData(true) // Refresh to get full fresh data (ignore draft)
     } catch (error) {
       console.error(`Failed to save ${section} section:`, error)
       toast.error(getProfileUpdateErrorMessage(error))
@@ -841,7 +957,26 @@ const RestaurantProfile = () => {
               <Label className="text-xs font-bold text-slate-500 ml-1">Service zone*</Label>
               <select
                 value={location.zoneId || ""}
-                onChange={(e) => setLocation({ ...location, zoneId: e.target.value })}
+                onChange={(e) => {
+                  const newZoneId = e.target.value
+                  if (locationSearchInputRef.current) {
+                    locationSearchInputRef.current.value = ""
+                  }
+                  setLocation((prev) => ({
+                    ...prev,
+                    zoneId: newZoneId,
+                    formattedAddress: "",
+                    addressLine1: "",
+                    addressLine2: "",
+                    area: "",
+                    city: "",
+                    state: "",
+                    pincode: "",
+                    landmark: "",
+                    latitude: "",
+                    longitude: "",
+                  }))
+                }}
                 className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm focus:ring-2 focus:ring-[#005128] transition-all"
                 disabled={zonesLoading || !editStates.location}
               >
@@ -860,78 +995,96 @@ const RestaurantProfile = () => {
             </div>
 
             <div className="space-y-2">
-              <div className="relative">
+              <div className="relative group">
+                <div className="absolute left-3 top-3">
+                  <Search className="w-4 h-4 text-slate-400 group-focus-within:text-[#005128] transition-colors" />
+                </div>
                 <Input 
                   ref={locationSearchInputRef}
                   disabled={!editStates.location}
-                  className="rounded-xl bg-slate-50/50 pr-10"
+                  className="rounded-xl bg-slate-50/50 pl-10 pr-10 border-slate-200 focus:ring-[#005128] h-11"
                   placeholder="Search location (area, street, etc.)"
+                  onChange={(e) => {
+                    if (!e.target.value.trim()) {
+                      setLocation((prev) => ({
+                        ...prev,
+                        latitude: "",
+                        longitude: "",
+                        area: "",
+                        city: "",
+                        pincode: "",
+                        state: "",
+                        formattedAddress: ""
+                      }))
+                    }
+                  }}
                 />
-                {editStates.location && (!!location.latitude || !!location.longitude) && (
-                  <button 
-                    onClick={() => {
-                      if (locationSearchInputRef.current) locationSearchInputRef.current.value = "";
-                      setLocation({...location, latitude: "", longitude: "", area: "", city: "", state: "", pincode: "", formattedAddress: ""});
-                    }}
-                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
+                <div className="absolute right-3 top-3 flex items-center gap-2">
+                  <Info className="w-4 h-4 text-slate-400 hover:text-slate-600 transition-colors cursor-help" />
+                  {editStates.location && (!!location.latitude || !!location.longitude) && (
+                    <button 
+                      onClick={() => {
+                        if (locationSearchInputRef.current) locationSearchInputRef.current.value = "";
+                        setLocation({...location, latitude: "", longitude: "", area: "", city: "", state: "", pincode: "", formattedAddress: ""});
+                      }}
+                      className="p-0.5 hover:bg-slate-100 rounded-md transition-colors text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
-              <p className="text-[10px] text-slate-400 ml-1">Select a suggestion to auto-fill area/city/state/pincode.</p>
+              <p className="text-[10px] text-slate-400 ml-1 font-medium">Select a suggestion to auto-fill locality, city, and pincode.</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input 
-                value={location.addressLine1} 
-                onChange={e => setLocation({...location, addressLine1: e.target.value})}
-                disabled={!editStates.location}
-                className="rounded-xl bg-slate-50/50"
-                placeholder="Shop no. / building no. (optional)"
-              />
-              <Input 
-                value={location.addressLine2} 
-                onChange={e => setLocation({...location, addressLine2: e.target.value})}
-                disabled={!editStates.location}
-                className="rounded-xl bg-slate-50/50"
-                placeholder="Floor / tower (optional)"
-              />
-              <Input 
-                value={location.landmark} 
-                onChange={e => setLocation({...location, landmark: e.target.value})}
-                disabled={!editStates.location}
-                className="rounded-xl bg-slate-50/50"
-                placeholder="Nearby landmark (optional)"
-              />
-              <Input 
-                value={location.area} 
-                onChange={e => !isAutofilled && setLocation({...location, area: e.target.value})}
-                disabled={!editStates.location || isAutofilled}
-                className="rounded-xl bg-slate-50/50"
-                placeholder="Area / Sector / Locality*"
-              />
-              <Input 
-                value={location.city} 
-                onChange={e => !isAutofilled && setLocation({...location, city: e.target.value})}
-                disabled={!editStates.location || isAutofilled}
-                className="rounded-xl bg-slate-50/50"
-                placeholder="City"
-              />
-              <Input 
-                value={location.state} 
-                onChange={e => !isAutofilled && setLocation({...location, state: e.target.value})}
-                disabled={!editStates.location || isAutofilled}
-                className="rounded-xl bg-slate-50/50"
-                placeholder="State"
-              />
-              <Input 
-                value={location.pincode} 
-                onChange={e => !isAutofilled && setLocation({...location, pincode: e.target.value})}
-                disabled={!editStates.location || isAutofilled}
-                className="rounded-xl bg-slate-50/50"
-                placeholder="Pincode"
-              />
+              <div className="space-y-1">
+                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight ml-1">Shop no. / Building no. / Apartment*</Label>
+                <Input 
+                  value={location.addressLine1} 
+                  onChange={e => setLocation({...location, addressLine1: e.target.value})}
+                  disabled={!editStates.location}
+                  className="rounded-xl bg-slate-50/50"
+                  placeholder="e.g., Shop 42 or Building 7A"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight ml-1">Floor / tower*</Label>
+                <Input 
+                  value={location.addressLine2} 
+                  onChange={e => setLocation({...location, addressLine2: e.target.value})}
+                  disabled={!editStates.location}
+                  className="rounded-xl bg-slate-50/50"
+                  placeholder="Floor / tower info"
+                />
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight ml-1">Nearby landmark*</Label>
+                <Input 
+                  value={location.landmark} 
+                  onChange={e => setLocation({...location, landmark: e.target.value})}
+                  disabled={!editStates.location}
+                  className="rounded-xl bg-slate-50/50 h-11"
+                  placeholder="e.g. Near HDFC Bank"
+                />
+              </div>
+              {/* Read-only components once autofilled by Google search */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col justify-center min-h-[52px]">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Locality / Area</span>
+                <span className="text-sm font-medium text-slate-700 mt-0.5">{location.area || "—"}</span>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col justify-center min-h-[52px]">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">City</span>
+                <span className="text-sm font-medium text-slate-700 mt-0.5">{location.city || "—"}</span>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col justify-center min-h-[52px]">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">State</span>
+                <span className="text-sm font-medium text-slate-700 mt-0.5">{location.state || "—"}</span>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col justify-center min-h-[52px]">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Pincode</span>
+                <span className="text-sm font-medium text-slate-700 mt-0.5">{location.pincode || "—"}</span>
+              </div>
             </div>
           </div>
         </motion.section>

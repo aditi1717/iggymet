@@ -26,9 +26,9 @@ import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
 import DocumentUploadActions from "@food/components/DocumentUploadActions"
 import { isFlutterBridgeAvailable, openCamera } from "@food/utils/imageUploadUtils"
 import BRAND_THEME from "@/config/brandTheme"
-const debugLog = (...args) => {}
-const debugWarn = (...args) => {}
-const debugError = (...args) => {}
+const debugLog = (...args) => { }
+const debugWarn = (...args) => { }
+const debugError = (...args) => { }
 
 
 const daysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -59,6 +59,33 @@ const FEATURED_DISH_NAME_REGEX = /^[A-Za-z ]+$/
 const LOCAL_IMAGE_FILE_ACCEPT = ".jpg,.jpeg,.png,.webp,.heic,.heif"
 const GALLERY_IMAGE_ACCEPT =
   ".jpg,.jpeg,.png,.webp,.heic,.heif,image/jpeg,image/png,image/webp,image/heic,image/heif"
+
+/**
+ * Robust de-duplication for files and URLs in menu images.
+ */
+const getUniqueImages = (existing, newItems) => {
+  const result = [...(existing || [])];
+  const itemsToAdd = Array.isArray(newItems) ? newItems : [newItems];
+
+  itemsToAdd.forEach(item => {
+    if (!item) return;
+    const isDuplicate = result.some(r => {
+      if (r === item) return true;
+      // Compare File objects by name and size
+      if (isUploadableFile(r) && isUploadableFile(item)) {
+        return r.name === item.name && r.size === item.size;
+      }
+      // Compare URLs
+      const urlR = typeof r === 'string' ? r : (r?.url || '');
+      const urlItem = typeof item === 'string' ? item : (item?.url || '');
+      if (urlR && urlItem && urlR === urlItem) return true;
+      return false;
+    });
+    if (!isDuplicate) result.push(item);
+  });
+  return result;
+};
+
 let onboardingFileCache = {
   step2: {
     menuImages: [],
@@ -248,7 +275,7 @@ const saveOnboardingToLocalStorage = (step1, step2, step3, step4, currentStep) =
       ),
       profileImage:
         !isUploadableFile(step2.profileImage) &&
-        (step2.profileImage?.url || (typeof step2.profileImage === "string" && step2.profileImage.startsWith("http")))
+          (step2.profileImage?.url || (typeof step2.profileImage === "string" && step2.profileImage.startsWith("http")))
           ? step2.profileImage
           : null,
     }
@@ -257,17 +284,17 @@ const saveOnboardingToLocalStorage = (step1, step2, step3, step4, currentStep) =
       ...step3,
       panImage:
         !isUploadableFile(step3.panImage) &&
-        (step3.panImage?.url || (typeof step3.panImage === "string" && step3.panImage.startsWith("http")))
+          (step3.panImage?.url || (typeof step3.panImage === "string" && step3.panImage.startsWith("http")))
           ? step3.panImage
           : null,
       gstImage:
         !isUploadableFile(step3.gstImage) &&
-        (step3.gstImage?.url || (typeof step3.gstImage === "string" && step3.gstImage.startsWith("http")))
+          (step3.gstImage?.url || (typeof step3.gstImage === "string" && step3.gstImage.startsWith("http")))
           ? step3.gstImage
           : null,
       fssaiImage:
         !isUploadableFile(step3.fssaiImage) &&
-        (step3.fssaiImage?.url || (typeof step3.fssaiImage === "string" && step3.fssaiImage.startsWith("http")))
+          (step3.fssaiImage?.url || (typeof step3.fssaiImage === "string" && step3.fssaiImage.startsWith("http")))
           ? step3.fssaiImage
           : null,
     }
@@ -474,7 +501,7 @@ export default function RestaurantOnboarding() {
       await restaurantAPI.logout()
       clearModuleAuth("restaurant")
       clearAuthData()
-      localStorage.removeItem("restaurant_onboarding")
+      localStorage.removeItem(ONBOARDING_STORAGE_KEY)
       window.dispatchEvent(new Event("restaurantAuthChanged"))
       navigate("/food/restaurant/login", { replace: true })
     } catch (error) {
@@ -489,9 +516,11 @@ export default function RestaurantOnboarding() {
   const [verifiedPhoneNumber, setVerifiedPhoneNumber] = useState("")
   const [keyboardInset, setKeyboardInset] = useState(0)
   const [isEditing, setIsEditing] = useState(true)
+  const [isRegistered, setIsRegistered] = useState(false)
   const [isFssaiCalendarOpen, setIsFssaiCalendarOpen] = useState(false)
   const [zones, setZones] = useState([])
   const [zonesLoading, setZonesLoading] = useState(false)
+  const [isAutocompleteReady, setIsAutocompleteReady] = useState(false)
 
   const [step1, setStep1] = useState({
     restaurantName: "",
@@ -629,13 +658,13 @@ export default function RestaurantOnboarding() {
         const restoredProfileImage =
           localData.step2.profileImage?.url ||
             (typeof localData.step2.profileImage === "string" &&
-            localData.step2.profileImage.startsWith("http"))
+              localData.step2.profileImage.startsWith("http"))
             ? localData.step2.profileImage
             : null
         const cachedProfileImage = onboardingFileCache.step2.profileImage || null
 
         setStep2({
-          menuImages: [...restoredMenuImages, ...cachedMenuImages],
+          menuImages: getUniqueImages(restoredMenuImages, cachedMenuImages),
           profileImage: cachedProfileImage || restoredProfileImage,
           cuisines: localData.step2.cuisines || [],
           openingTime: normalizeTimeValue(localData.step2.openingTime),
@@ -692,7 +721,10 @@ export default function RestaurantOnboarding() {
           onboardingFileCache.step2.profileImage = profileImg
         }
         if (menuFilesFromDB.length) {
-          setStep2(prev => ({ ...prev, menuImages: [...prev.menuImages, ...menuFilesFromDB] }))
+          setStep2(prev => ({
+            ...prev,
+            menuImages: getUniqueImages(prev.menuImages, menuFilesFromDB)
+          }))
           onboardingFileCache.step2.menuImages = menuFilesFromDB
         }
         if (panImg) {
@@ -748,6 +780,27 @@ export default function RestaurantOnboarding() {
     }
   }, [step1, step2, step3, step4, step, hasRestored])
 
+  // Clear location search input DOM when formattedAddress is empty
+  useEffect(() => {
+    if (locationSearchInputRef.current && !step1.location?.formattedAddress) {
+      locationSearchInputRef.current.value = "";
+    }
+  }, [step1.location?.formattedAddress])
+
+  // Cleanup: Ensure Shop No doesn't accidentally hold the full address from search
+  useEffect(() => {
+    if (
+      step1.location?.addressLine1 &&
+      step1.location?.formattedAddress &&
+      step1.location.addressLine1 === step1.location.formattedAddress
+    ) {
+      setStep1((prev) => ({
+        ...prev,
+        location: { ...prev.location, addressLine1: "" },
+      }))
+    }
+  }, [step1.location?.formattedAddress, step1.location?.addressLine1])
+
   useEffect(() => {
     syncOnboardingFileCache(step2, step3)
 
@@ -800,6 +853,198 @@ export default function RestaurantOnboarding() {
     }
   }, [])
 
+  // --- Step-specific side effects moved to top level for React Hook stability ---
+
+  // Initialize Google Places Autocomplete for Step 1 location search.
+  useEffect(() => {
+    if (step !== 1) return
+
+    let cancelled = false
+
+    const init = async () => {
+      // Wait for the ref to be attached (up to 1s)
+      for (let i = 0; i < 20; i++) {
+        if (locationSearchInputRef.current) break
+        await new Promise((r) => setTimeout(r, 50))
+      }
+      if (!locationSearchInputRef.current || cancelled) return
+
+      const loadMaps = async () => {
+        if (mapsScriptLoadedRef.current && window.google?.maps?.places?.Autocomplete) return true
+        if (window.google?.maps?.places?.Autocomplete) {
+          mapsScriptLoadedRef.current = true
+          return true
+        }
+        const apiKey = getGoogleMapsApiKey()
+        if (!apiKey) return false
+
+        const existing = document.getElementById("restaurant-onboarding-maps-script")
+        if (existing) {
+          for (let i = 0; i < 30; i += 1) {
+            if (window.google?.maps?.places?.Autocomplete) {
+              mapsScriptLoadedRef.current = true
+              return true
+            }
+            await new Promise((r) => setTimeout(r, 100))
+          }
+          return false
+        }
+
+        try {
+          await new Promise((resolve, reject) => {
+            const script = document.createElement("script")
+            script.id = "restaurant-onboarding-maps-script"
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=weekly`
+            script.async = true
+            script.defer = true
+            script.onload = () => {
+              mapsScriptLoadedRef.current = true
+              resolve(true)
+            }
+            script.onerror = reject
+            document.head.appendChild(script)
+          })
+          return !!window.google?.maps?.places?.Autocomplete
+        } catch (err) {
+          debugWarn("Error loading Google Maps script:", err)
+          return false
+        }
+      }
+
+      const ok = await loadMaps()
+      if (!ok || cancelled || !locationSearchInputRef.current) return
+      if (placesAutocompleteRef.current) return
+
+      placesAutocompleteRef.current = new window.google.maps.places.Autocomplete(
+        locationSearchInputRef.current,
+        {
+          componentRestrictions: { country: "in" },
+          fields: ["address_components", "formatted_address", "geometry", "name"],
+        },
+      )
+      setIsAutocompleteReady(true)
+
+      placesAutocompleteRef.current.addListener("place_changed", () => {
+        const place = placesAutocompleteRef.current.getPlace()
+        if (!place.geometry) return
+
+        const get = (types) =>
+          place.address_components?.find((c) => types.some((t) => c.types.includes(t)))
+            ?.long_name || ""
+
+        const formattedAddress = place.formatted_address || ""
+        const area =
+          get(["sublocality_level_1"]) ||
+          get(["sublocality"]) ||
+          get(["locality"])
+        const city =
+          get(["locality"]) ||
+          get(["administrative_area_level_2"])
+        const state = get(["administrative_area_level_1"])
+        const pincode = get(["postal_code"])
+        const lat = place?.geometry?.location?.lat?.()
+        const lng = place?.geometry?.location?.lng?.()
+
+        const locationData = {
+          formattedAddress,
+          area,
+          city,
+          state,
+          pincode,
+          latitude: Number.isFinite(lat) ? Number(lat.toFixed(6)) : "",
+          longitude: Number.isFinite(lng) ? Number(lng.toFixed(6)) : "",
+        };
+
+        setStep1((prev) => ({
+          ...prev,
+          location: {
+            ...prev.location,
+            ...locationData,
+            addressLine1: "", // Keep Shop No empty for manual entry
+          },
+        }))
+
+        if (locationSearchInputRef.current) {
+          locationSearchInputRef.current.value = pincode || ""
+        }
+      })
+    }
+
+    init().catch((err) => {
+      debugWarn("Failed to load Google Places for onboarding:", err)
+    })
+
+    return () => {
+      cancelled = true
+      placesAutocompleteRef.current = null
+      setIsAutocompleteReady(false)
+    }
+  }, [step])
+
+  // Update Google Places Autocomplete restrictions when zone changes
+  useEffect(() => {
+    if (step !== 1 || !placesAutocompleteRef.current || !window.google?.maps || !isAutocompleteReady) return
+
+    debugLog("?? Updating Autocomplete restrictions for zone:", step1.zoneId)
+
+    if (!step1.zoneId) {
+      placesAutocompleteRef.current.setOptions({
+        bounds: null,
+        strictBounds: false,
+        componentRestrictions: { country: "in" },
+      })
+      return
+    }
+
+    const selectedZone = zones.find((z) => {
+      const id = String(z?._id || z?.id || "")
+      return id === step1.zoneId
+    })
+
+    if (selectedZone?.location?.latitude && selectedZone?.location?.longitude) {
+      try {
+        const center = {
+          lat: parseFloat(selectedZone.location.latitude),
+          lng: parseFloat(selectedZone.location.longitude),
+        }
+        const radius = (selectedZone.radius || 10) * 1000 // default 10km
+        const circle = new window.google.maps.Circle({ center, radius })
+        placesAutocompleteRef.current.setOptions({
+          bounds: circle.getBounds(),
+          strictBounds: true,
+          componentRestrictions: { country: "in" },
+        })
+      } catch (err) {
+        debugWarn("Failed to set Autocomplete bounds for zone:", err)
+      }
+    } else {
+      placesAutocompleteRef.current.setOptions({
+        bounds: null,
+        strictBounds: false,
+        componentRestrictions: { country: "in" },
+      })
+    }
+  }, [step1.zoneId, zones, step, isAutocompleteReady])
+
+  // Load zones for onboarding dropdown (public endpoint).
+  useEffect(() => {
+    if (step !== 1) return
+    let cancelled = false
+    setZonesLoading(true)
+    zoneAPI.getPublicZones()
+      .then((res) => {
+        const list = res?.data?.data?.zones || res?.data?.zones || []
+        if (!cancelled) setZones(Array.isArray(list) ? list : [])
+      })
+      .catch(() => {
+        if (!cancelled) setZones([])
+      })
+      .finally(() => {
+        if (!cancelled) setZonesLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [step])
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -807,9 +1052,10 @@ export default function RestaurantOnboarding() {
         // Use restaurantAPI.getCurrentRestaurant() to fetch real data
         const res = await restaurantAPI.getCurrentRestaurant()
         const data = res?.data?.data?.restaurant || res?.data?.restaurant
-        
+
         if (data) {
           setIsEditing(false)
+          setIsRegistered(true)
           // Map Step 1
           setStep1((prev) => ({
             restaurantName: data.name || data.restaurantName || "",
@@ -834,52 +1080,55 @@ export default function RestaurantOnboarding() {
           }))
 
           // Map Step 2
-          setStep2({
-            menuImages: data.menuImages || [],
-            profileImage: data.profileImage || null,
-            cuisines: data.cuisines || [],
-            openingTime: normalizeTimeValue(data.openingTime),
-            closingTime: normalizeTimeValue(data.closingTime),
-            openDays: data.openDays || [],
-          })
+          setStep2((prev) => ({
+            ...prev,
+            menuImages: data.menuImages || prev.menuImages || [],
+            profileImage: data.profileImage || prev.profileImage || null,
+            cuisines: data.cuisines || prev.cuisines || [],
+            openingTime: normalizeTimeValue(data.openingTime) || prev.openingTime,
+            closingTime: normalizeTimeValue(data.closingTime) || prev.closingTime,
+            openDays: data.openDays || prev.openDays || [],
+          }))
 
           // Map Step 3
-          setStep3({
-            panNumber: data.panNumber || "",
-            nameOnPan: data.nameOnPan || "",
-            panImage: data.panImage || null,
-            gstRegistered: !!data.gstRegistered,
-            gstNumber: data.gstNumber || "",
-            gstLegalName: data.gstLegalName || "",
-            gstAddress: data.gstAddress || "",
-            gstImage: data.gstImage || null,
-            fssaiNumber: data.fssaiNumber || "",
-            fssaiExpiry: data.fssaiExpiry ? String(data.fssaiExpiry).split('T')[0] : "",
-            fssaiImage: data.fssaiImage || null,
-            accountNumber: data.accountNumber || "",
-            confirmAccountNumber: data.accountNumber || "",
-            ifscCode: (data.ifscCode || "").toUpperCase(),
-            accountHolderName: data.accountHolderName || "",
-            accountType: normalizeAccountTypeValue(data.accountType || ""),
-          })
+          setStep3((prev) => ({
+            ...prev,
+            panNumber: data.panNumber || prev.panNumber || "",
+            nameOnPan: data.nameOnPan || prev.nameOnPan || "",
+            panImage: data.panImage || prev.panImage || null,
+            gstRegistered: data.gstRegistered !== undefined ? !!data.gstRegistered : prev.gstRegistered,
+            gstNumber: data.gstNumber || prev.gstNumber || "",
+            gstLegalName: data.gstLegalName || prev.gstLegalName || "",
+            gstAddress: data.gstAddress || prev.gstAddress || "",
+            gstImage: data.gstImage || prev.gstImage || null,
+            fssaiNumber: data.fssaiNumber || prev.fssaiNumber || "",
+            fssaiExpiry: data.fssaiExpiry ? String(data.fssaiExpiry).split('T')[0] : prev.fssaiExpiry || "",
+            fssaiImage: data.fssaiImage || prev.fssaiImage || null,
+            accountNumber: data.accountNumber || prev.accountNumber || "",
+            confirmAccountNumber: data.accountNumber || prev.confirmAccountNumber || "",
+            ifscCode: (data.ifscCode || prev.ifscCode || "").toUpperCase(),
+            accountHolderName: data.accountHolderName || prev.accountHolderName || "",
+            accountType: normalizeAccountTypeValue(data.accountType || prev.accountType || ""),
+          }))
 
           // Map Step 4
-          setStep4({
-            estimatedDeliveryTime: data.estimatedDeliveryTime || "",
-            featuredDish: data.featuredDish || "",
-            featuredPrice: data.featuredPrice || "",
-            offer: data.offer || "",
-          })
+          setStep4((prev) => ({
+            ...prev,
+            estimatedDeliveryTime: data.estimatedDeliveryTime || prev.estimatedDeliveryTime || "",
+            featuredDish: data.featuredDish || prev.featuredDish || "",
+            featuredPrice: data.featuredPrice || prev.featuredPrice || "",
+            offer: data.offer || prev.offer || "",
+          }))
 
           // Only determine step automatically if not specified in URL
           const stepParam = searchParams.get("step")
           if (!stepParam) {
             // If already registered/pending, stay on step 1 for editing
             if (data.status === "approved" || data.status === "pending") {
-               setStep(1)
+              setStep(1)
             } else {
-               const stepToShow = determineStepToShow({ step1: data, step2: data, step3: data, step4: data })
-               setStep(stepToShow)
+              const stepToShow = determineStepToShow({ step1: data, step2: data, step3: data, step4: data })
+              setStep(stepToShow)
             }
           }
         } else {
@@ -1273,14 +1522,27 @@ export default function RestaurantOnboarding() {
         formData.append("featuredDish", step4.featuredDish || "")
         formData.append("offer", step4.offer || "")
 
-        await restaurantAPI.register(formData)
+        // Logging for verification
+        debugLog("?? Submitting restaurant data:", {
+          openingTime: normalizeTimeValue(step2.openingTime),
+          closingTime: normalizeTimeValue(step2.closingTime),
+          openDays: (step2.openDays || []).join(",")
+        });
+
+        if (isRegistered) {
+          debugLog("?? Updating existing restaurant profile");
+          await restaurantAPI.updateProfile(formData);
+        } else {
+          debugLog("?? Registering new restaurant");
+          await restaurantAPI.register(formData);
+        }
 
         // Clear localStorage when onboarding is complete
         clearOnboardingFromLocalStorage()
         clearOnboardingFileCache()
         try {
           localStorage.setItem("restaurant_pendingPhone", normalizePhoneDigits(step1.ownerPhone))
-        } catch {}
+        } catch { }
 
         toast.success("Registration submitted. Awaiting admin approval.", { duration: 4000 })
         navigate("/food/restaurant/pending-verification", {
@@ -1324,6 +1586,12 @@ export default function RestaurantOnboarding() {
             <Input
               value={step1.restaurantName || ""}
               onChange={(e) => setStep1({ ...step1, restaurantName: e.target.value })}
+              onKeyDown={(e) => {
+                // Allow letters, numbers, spaces and common symbols
+                if (e.key.length === 1 && !/^[A-Za-z0-9\s.,&'-]$/.test(e.key)) {
+                  e.preventDefault()
+                }
+              }}
               className="mt-1 bg-white text-sm text-black placeholder-black"
               placeholder="Customers will see this name"
               disabled={!isEditing}
@@ -1335,22 +1603,20 @@ export default function RestaurantOnboarding() {
               <button
                 type="button"
                 onClick={() => isEditing && setStep1({ ...step1, pureVegRestaurant: true })}
-                className={`px-3 py-1.5 text-xs rounded-full border ${
-                  step1.pureVegRestaurant === true
+                className={`px-3 py-1.5 text-xs rounded-full border ${step1.pureVegRestaurant === true
                     ? "bg-green-600 text-white border-green-600"
                     : "bg-white text-gray-700 border-gray-200"
-                } ${!isEditing ? "opacity-70 cursor-not-allowed" : ""}`}
+                  } ${!isEditing ? "opacity-70 cursor-not-allowed" : ""}`}
               >
                 Yes, Pure Veg
               </button>
               <button
                 type="button"
                 onClick={() => isEditing && setStep1({ ...step1, pureVegRestaurant: false })}
-                className={`px-3 py-1.5 text-xs rounded-full border ${
-                  step1.pureVegRestaurant === false
+                className={`px-3 py-1.5 text-xs rounded-full border ${step1.pureVegRestaurant === false
                     ? "text-white border-transparent"
                     : "bg-white text-gray-700 border-gray-200"
-                } ${!isEditing ? "opacity-70 cursor-not-allowed" : ""}`}
+                  } ${!isEditing ? "opacity-70 cursor-not-allowed" : ""}`}
                 style={step1.pureVegRestaurant === false ? { background: BRAND_THEME.gradients.primary } : undefined}
               >
                 No, Mixed Menu
@@ -1374,8 +1640,13 @@ export default function RestaurantOnboarding() {
             <Input
               value={step1.ownerName || ""}
               onChange={(e) => {
-                const sanitized = e.target.value.replace(/\d/g, "")
+                const sanitized = e.target.value.replace(/[^A-Za-z\s.'-]/g, "")
                 setStep1({ ...step1, ownerName: sanitized })
+              }}
+              onKeyDown={(e) => {
+                if (e.key.length === 1 && !/^[A-Za-z\s.'-]$/.test(e.key)) {
+                  e.preventDefault()
+                }
               }}
               className="mt-1 bg-white text-sm text-black placeholder-black"
               placeholder="Owner full name"
@@ -1462,7 +1733,28 @@ export default function RestaurantOnboarding() {
             <Label className="text-xs text-gray-700">Service zone*</Label>
             <select
               value={step1.zoneId || ""}
-              onChange={(e) => setStep1({ ...step1, zoneId: e.target.value })}
+              onChange={(e) => {
+                const newZoneId = e.target.value
+                if (locationSearchInputRef.current) {
+                  locationSearchInputRef.current.value = ""
+                }
+                setStep1((prev) => ({
+                  ...prev,
+                  zoneId: newZoneId,
+                  location: {
+                    formattedAddress: "",
+                    addressLine1: "",
+                    addressLine2: "",
+                    area: "",
+                    city: "",
+                    state: "",
+                    pincode: "",
+                    landmark: "",
+                    latitude: "",
+                    longitude: "",
+                  },
+                }))
+              }}
               className="mt-1 w-full h-9 rounded-md border border-input bg-white px-3 text-sm"
               disabled={zonesLoading || !isEditing}
             >
@@ -1481,38 +1773,55 @@ export default function RestaurantOnboarding() {
               Choose the service zone where your restaurant will be available.
             </p>
           </div>
-          <div>
-            <Label className="text-xs text-gray-700">Search location*</Label>
+          <div className="p-3 bg-brand-50/50 rounded-lg border-2 border-brand-200 shadow-sm ring-2 ring-brand-100/50">
+            <Label className="text-xs font-bold text-brand-700 mb-1.5 block">Search & Set Restaurant Location*</Label>
             <Input
               ref={locationSearchInputRef}
-              className="mt-1 bg-white text-sm text-black! dark:text-white! placeholder:text-gray-500 dark:placeholder:text-gray-400 caret-black dark:caret-white"
+              className="mt-1 bg-white text-sm text-black! dark:text-white! placeholder:text-gray-500 dark:placeholder:text-gray-400 caret-black dark:caret-white border-brand-500 border-2 ring-2 ring-brand-100 focus:border-brand-600 focus:ring-brand-200 font-bold transition-all shadow-sm"
               style={{ color: "#000", WebkitTextFillColor: "#000" }}
-              placeholder="Start typing your restaurant address..."
+              placeholder="Search your restaurant address here..."
+              defaultValue={step1.location?.formattedAddress || ""}
+              disabled={!isEditing}
+              onChange={(e) => {
+                if (!e.target.value.trim()) {
+                  setStep1((prev) => ({
+                    ...prev,
+                    location: {
+                      formattedAddress: "",
+                      addressLine1: "",
+                      addressLine2: "",
+                      area: "",
+                      city: "",
+                      state: "",
+                      pincode: "",
+                      landmark: "",
+                      latitude: "",
+                      longitude: "",
+                    },
+                  }))
+                }
+              }}
             />
-            <p className="text-[11px] text-gray-500 mt-1">
-              Select a suggestion to auto-fill address details.
+            <p className="text-[10px] text-brand-600 mt-2 font-medium">
+              Start typing and select from the list to auto-fill details below.
             </p>
           </div>
-          <div>
-            <Label className="text-xs text-gray-700">Full Address*</Label>
+
+          <div className="space-y-1">
+            <Label className="text-xs text-gray-700">Shop no. / Building no. / Apartment*</Label>
             <Input
-              value={step1.location?.formattedAddress || ""}
-              disabled
-              className="mt-1 bg-gray-50 text-sm cursor-not-allowed opacity-100 text-black"
-              placeholder="Address will be filled from search"
+              value={step1.location?.addressLine1 || ""}
+              onChange={(e) =>
+                setStep1({
+                  ...step1,
+                  location: { ...step1.location, addressLine1: e.target.value },
+                })
+              }
+              className="bg-white text-sm"
+              placeholder="e.g., Shop 42 or Building 7A"
+              disabled={!isEditing}
             />
           </div>
-          <Input
-            value={step1.location?.addressLine1 || ""}
-            onChange={(e) =>
-              setStep1({
-                ...step1,
-                location: { ...step1.location, addressLine1: e.target.value },
-              })
-            }
-            className="bg-white text-sm"
-            placeholder="Shop no. / building no.*"
-          />
           <Input
             value={step1.location?.addressLine2 || ""}
             onChange={(e) =>
@@ -1523,6 +1832,7 @@ export default function RestaurantOnboarding() {
             }
             className="bg-white text-sm"
             placeholder="Floor / tower*"
+            disabled={!isEditing}
           />
           <Input
             value={step1.location?.landmark || ""}
@@ -1534,37 +1844,26 @@ export default function RestaurantOnboarding() {
             }
             className="bg-white text-sm"
             placeholder="Nearby landmark*"
+            disabled={!isEditing}
           />
-          <Input
-            value={step1.location?.area || ""}
-            onChange={(e) =>
-              setStep1({
-                ...step1,
-                location: { ...step1.location, area: e.target.value },
-              })
-            }
-            className="bg-white text-sm"
-            placeholder="Area / Sector / Locality*"
-          />
-          <Input
-            value={step1.location?.city || ""}
-            disabled
-            className="mt-1 bg-gray-50 text-sm cursor-not-allowed opacity-100 text-black"
-            placeholder="City*"
-          />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-              value={step1.location?.state || ""}
-              disabled
-              className="mt-1 bg-gray-50 text-sm cursor-not-allowed opacity-100 text-black"
-              placeholder="State*"
-            />
-            <Input
-              value={step1.location?.pincode || ""}
-              disabled
-              className="mt-1 bg-gray-50 text-sm cursor-not-allowed opacity-100 text-black"
-              placeholder="Pincode*"
-            />
+          {/* Auto-filled Location Details as non-input blocks (Always visible) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+            <div className="p-2.5 bg-gray-50 border border-gray-200 rounded-md text-[13px] text-gray-600 flex flex-col min-h-[52px]">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Locality / Area</span>
+              <span className="mt-0.5">{step1.location?.area || "—"}</span>
+            </div>
+            <div className="p-2.5 bg-gray-50 border border-gray-200 rounded-md text-[13px] text-gray-600 flex flex-col min-h-[52px]">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">City</span>
+              <span className="mt-0.5">{step1.location?.city || "—"}</span>
+            </div>
+            <div className="p-2.5 bg-gray-50 border border-gray-200 rounded-md text-[13px] text-gray-600 flex flex-col min-h-[52px]">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">State</span>
+              <span className="mt-0.5">{step1.location?.state || "—"}</span>
+            </div>
+            <div className="p-2.5 bg-gray-50 border border-gray-200 rounded-md text-[13px] text-gray-600 flex flex-col min-h-[52px]">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Pincode</span>
+              <span className="mt-0.5">{step1.location?.pincode || "—"}</span>
+            </div>
           </div>
           <p className="text-[11px] text-gray-500 mt-1">
             Please ensure that this address is the same as mentioned on your FSSAI license.
@@ -1574,140 +1873,6 @@ export default function RestaurantOnboarding() {
     </div>
   )
 
-  // Initialize Google Places Autocomplete for Step 1 location search.
-  useEffect(() => {
-    if (step !== 1) return
-
-    let cancelled = false
-
-    const init = async () => {
-      // Wait for the ref to be attached (up to 1s)
-      for (let i = 0; i < 20; i++) {
-        if (locationSearchInputRef.current) break
-        await new Promise((r) => setTimeout(r, 50))
-      }
-      if (!locationSearchInputRef.current || cancelled) return
-
-      const loadMaps = async () => {
-        if (mapsScriptLoadedRef.current && window.google?.maps?.places?.Autocomplete) return true
-        if (window.google?.maps?.places?.Autocomplete) {
-          mapsScriptLoadedRef.current = true
-          return true
-        }
-        const apiKey = await getGoogleMapsApiKey()
-        if (!apiKey) return false
-
-        const existing = document.getElementById("restaurant-onboarding-maps-script")
-        if (existing) {
-          for (let i = 0; i < 30; i += 1) {
-            if (window.google?.maps?.places?.Autocomplete) {
-              mapsScriptLoadedRef.current = true
-              return true
-            }
-            await new Promise((r) => setTimeout(r, 100))
-          }
-          return false
-        }
-
-        await new Promise((resolve, reject) => {
-          const script = document.createElement("script")
-          script.id = "restaurant-onboarding-maps-script"
-          script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=weekly`
-          script.async = true
-          script.defer = true
-          script.onload = resolve
-          script.onerror = reject
-          document.head.appendChild(script)
-        })
-        mapsScriptLoadedRef.current = true
-        return !!window.google?.maps?.places?.Autocomplete
-      }
-
-      const parsePlace = (place) => {
-        const formattedAddress = place?.formatted_address || ""
-        const comps = Array.isArray(place?.address_components) ? place.address_components : []
-        const get = (types) => comps.find((c) => types.some((t) => c.types?.includes(t)))?.long_name || ""
-        const area =
-          get(["sublocality_level_1", "sublocality", "neighborhood"]) ||
-          get(["locality"])
-        const city =
-          get(["locality"]) ||
-          get(["administrative_area_level_2"])
-        const state = get(["administrative_area_level_1"])
-        const pincode = get(["postal_code"])
-        const lat = place?.geometry?.location?.lat?.()
-        const lng = place?.geometry?.location?.lng?.()
-        return {
-          formattedAddress,
-          area,
-          city,
-          state,
-          pincode,
-          latitude: Number.isFinite(lat) ? Number(lat.toFixed(6)) : "",
-          longitude: Number.isFinite(lng) ? Number(lng.toFixed(6)) : "",
-        }
-      }
-
-      const ok = await loadMaps()
-      if (!ok || cancelled || !locationSearchInputRef.current) return
-      if (placesAutocompleteRef.current) return
-
-      placesAutocompleteRef.current = new window.google.maps.places.Autocomplete(
-        locationSearchInputRef.current,
-        {
-          fields: ["formatted_address", "address_components", "geometry"],
-          componentRestrictions: { country: "in" },
-        }
-      )
-
-      placesAutocompleteRef.current.addListener("place_changed", () => {
-        const place = placesAutocompleteRef.current.getPlace()
-        const parsed = parsePlace(place)
-        setStep1((prev) => ({
-          ...prev,
-          location: {
-            ...prev.location,
-            formattedAddress: parsed.formattedAddress || prev.location.formattedAddress,
-            addressLine1: prev.location.addressLine1 || parsed.formattedAddress || "",
-            area: parsed.area || prev.location.area,
-            city: parsed.city || prev.location.city,
-            state: parsed.state || prev.location.state,
-            pincode: parsed.pincode || prev.location.pincode,
-            latitude: parsed.latitude !== "" ? parsed.latitude : prev.location.latitude,
-            longitude: parsed.longitude !== "" ? parsed.longitude : prev.location.longitude,
-          },
-        }))
-      })
-    }
-
-    init().catch((err) => {
-      debugWarn("Failed to load Google Places for onboarding:", err)
-    })
-
-    return () => {
-      cancelled = true
-      placesAutocompleteRef.current = null
-    }
-  }, [step])
-
-  // Load zones for onboarding dropdown (public endpoint).
-  useEffect(() => {
-    if (step !== 1) return
-    let cancelled = false
-    setZonesLoading(true)
-    zoneAPI.getPublicZones()
-      .then((res) => {
-        const list = res?.data?.data?.zones || res?.data?.zones || []
-        if (!cancelled) setZones(Array.isArray(list) ? list : [])
-      })
-      .catch(() => {
-        if (!cancelled) setZones([])
-      })
-      .finally(() => {
-        if (!cancelled) setZonesLoading(false)
-      })
-    return () => { cancelled = true }
-  }, [step])
 
   const renderStep2 = () => (
     <div className="space-y-6">
@@ -1739,7 +1904,7 @@ export default function RestaurantOnboarding() {
                 if (file) {
                   setStep2((prev) => ({
                     ...prev,
-                    menuImages: [...(prev.menuImages || []), file],
+                    menuImages: getUniqueImages(prev.menuImages, file)
                   }))
                 }
               }}
@@ -1759,7 +1924,7 @@ export default function RestaurantOnboarding() {
                 debugLog('?? Menu images selected:', files.length, 'files')
                 setStep2((prev) => ({
                   ...prev,
-                  menuImages: [...(prev.menuImages || []), ...files], // Append new files to existing ones
+                  menuImages: getUniqueImages(prev.menuImages, files)
                 }))
                 // Reset input to allow selecting same file again
                 e.target.value = ''
@@ -1987,6 +2152,12 @@ export default function RestaurantOnboarding() {
                   .slice(0, 10)
                 setStep3({ ...step3, panNumber: normalized })
               }}
+              onKeyDown={(e) => {
+                const allowed = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter"]
+                if (allowed.includes(e.key)) return
+                if (!/^[A-Za-z0-9]$/.test(e.key)) e.preventDefault()
+                if ((step3.panNumber || "").length >= 10) e.preventDefault()
+              }}
               className="mt-1 bg-white text-sm text-black placeholder-black"
               placeholder="ABCDE1234F"
             />
@@ -1998,9 +2169,14 @@ export default function RestaurantOnboarding() {
               onChange={(e) =>
                 setStep3({
                   ...step3,
-                  nameOnPan: e.target.value.replace(/[^A-Za-z ]/g, ""),
+                  nameOnPan: e.target.value.replace(/[^A-Za-z\s.'-]/g, ""),
                 })
               }
+              onKeyDown={(e) => {
+                if (e.key.length === 1 && !/^[A-Za-z\s.'-]$/.test(e.key)) {
+                  e.preventDefault()
+                }
+              }}
               className="mt-1 bg-white text-sm text-black placeholder-black"
             />
           </div>
@@ -2085,6 +2261,12 @@ export default function RestaurantOnboarding() {
                   gstNumber: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 15),
                 })
               }
+              onKeyDown={(e) => {
+                const allowed = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter"]
+                if (allowed.includes(e.key)) return
+                if (!/^[A-Za-z0-9]$/.test(e.key)) e.preventDefault()
+                if ((step3.gstNumber || "").length >= 15) e.preventDefault()
+              }}
               className="bg-white text-sm"
               placeholder="GST number (15 characters)"
             />
@@ -2093,9 +2275,14 @@ export default function RestaurantOnboarding() {
               onChange={(e) =>
                 setStep3({
                   ...step3,
-                  gstLegalName: e.target.value.replace(/[^A-Za-z ]/g, ""),
+                  gstLegalName: e.target.value.replace(/[^A-Za-z\s.'-]/g, ""),
                 })
               }
+              onKeyDown={(e) => {
+                if (e.key.length === 1 && !/^[A-Za-z\s.'-]$/.test(e.key)) {
+                  e.preventDefault()
+                }
+              }}
               className="bg-white text-sm"
               placeholder="Legal name"
             />
@@ -2159,6 +2346,12 @@ export default function RestaurantOnboarding() {
             onChange={(e) =>
               setStep3({ ...step3, fssaiNumber: e.target.value.replace(/\D/g, "").slice(0, 14) })
             }
+            onKeyDown={(e) => {
+              const allowed = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter"]
+              if (allowed.includes(e.key)) return
+              if (!/^\d$/.test(e.key)) e.preventDefault()
+              if (/^\d$/.test(e.key) && (step3.fssaiNumber || "").length >= 14) e.preventDefault()
+            }}
             className="bg-white text-sm"
             placeholder="FSSAI number (14 digits)"
           />
@@ -2258,6 +2451,12 @@ export default function RestaurantOnboarding() {
             onChange={(e) =>
               setStep3({ ...step3, accountNumber: e.target.value.replace(/\D/g, "").slice(0, 18) })
             }
+            onKeyDown={(e) => {
+              const allowed = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter"]
+              if (allowed.includes(e.key)) return
+              if (!/^\d$/.test(e.key)) e.preventDefault()
+              if (/^\d$/.test(e.key) && (step3.accountNumber || "").length >= 18) e.preventDefault()
+            }}
             className="bg-white text-sm"
             placeholder="Account number"
           />
@@ -2270,6 +2469,12 @@ export default function RestaurantOnboarding() {
               })
             }
             className="bg-white text-sm"
+            onKeyDown={(e) => {
+              const allowed = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter"]
+              if (allowed.includes(e.key)) return
+              if (!/^\d$/.test(e.key)) e.preventDefault()
+              if (/^\d$/.test(e.key) && (step3.confirmAccountNumber || "").length >= 18) e.preventDefault()
+            }}
             placeholder="Re-enter account number"
           />
         </div>
@@ -2286,6 +2491,12 @@ export default function RestaurantOnboarding() {
                 ...step3,
                 ifscCode: enforcedFormat,
               })
+            }}
+            onKeyDown={(e) => {
+              const allowed = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter"]
+              if (allowed.includes(e.key)) return
+              if (!/^[A-Za-z0-9]$/.test(e.key)) e.preventDefault()
+              if ((step3.ifscCode || "").length >= 11) e.preventDefault()
             }}
             className="bg-white text-sm"
             placeholder="IFSC code (e.g., SBIN0001234)"
@@ -2308,9 +2519,14 @@ export default function RestaurantOnboarding() {
           onChange={(e) =>
             setStep3({
               ...step3,
-              accountHolderName: e.target.value.replace(/[^A-Za-z ]/g, ""),
+              accountHolderName: e.target.value.replace(/[^A-Za-z\s.'-]/g, ""),
             })
           }
+          onKeyDown={(e) => {
+            if (e.key.length === 1 && !/^[A-Za-z\s.'-]$/.test(e.key)) {
+              e.preventDefault()
+            }
+          }}
           className="bg-white text-sm"
           placeholder="Account holder name"
         />
@@ -2339,7 +2555,7 @@ export default function RestaurantOnboarding() {
               {[
                 ...ESTIMATED_DELIVERY_TIME_OPTIONS,
                 ...(step4.estimatedDeliveryTime &&
-                !ESTIMATED_DELIVERY_TIME_OPTIONS.includes(step4.estimatedDeliveryTime)
+                  !ESTIMATED_DELIVERY_TIME_OPTIONS.includes(step4.estimatedDeliveryTime)
                   ? [step4.estimatedDeliveryTime]
                   : []),
               ].map((option) => (
@@ -2358,9 +2574,14 @@ export default function RestaurantOnboarding() {
             onChange={(e) =>
               setStep4({
                 ...step4,
-                featuredDish: e.target.value.replace(/[^A-Za-z ]/g, ""),
+                featuredDish: e.target.value.replace(/[^A-Za-z\s.'-]/g, ""),
               })
             }
+            onKeyDown={(e) => {
+              if (e.key.length === 1 && !/^[A-Za-z\s.'-]$/.test(e.key)) {
+                e.preventDefault()
+              }
+            }}
             className="mt-1 bg-white text-sm"
             placeholder="e.g., Butter Chicken Special"
           />
@@ -2484,9 +2705,9 @@ export default function RestaurantOnboarding() {
                 saving || (step === 4 && !isEditing)
                   ? { backgroundColor: "#e5e7eb", color: "#94a3b8" }
                   : {
-                      background: BRAND_THEME.gradients.primary,
-                      boxShadow: `0 10px 28px -18px ${BRAND_THEME.colors.brand.primaryDark}`,
-                    }
+                    background: BRAND_THEME.gradients.primary,
+                    boxShadow: `0 10px 28px -18px ${BRAND_THEME.colors.brand.primaryDark}`,
+                  }
               }
             >
               {step === 4 ? (saving ? "Saving..." : "Finish") : saving ? "Saving..." : "Continue"}

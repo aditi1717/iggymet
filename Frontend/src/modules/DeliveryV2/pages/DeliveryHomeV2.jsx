@@ -21,6 +21,7 @@ import ExploreV2 from '@/modules/DeliveryV2/pages/ExploreV2';
 
 // Utils
 import { getHaversineDistance, calculateETA, calculateHeading } from '@/modules/DeliveryV2/utils/geo';
+import useNotificationInbox from '@food/hooks/useNotificationInbox';
 import { useCompanyName } from "@food/hooks/useCompanyName";
 
 // Icons
@@ -28,7 +29,7 @@ import {
   HelpCircle, AlertTriangle,
   Wallet, History, User as UserIcon, LayoutGrid,
   Plus, Minus, Navigation2, Target, Play, Clock,
-  Contact, Package, RefreshCcw
+  Contact, Package, RefreshCcw, Bell
 } from 'lucide-react';
 
 const INCOMING_ORDER_STORAGE_KEY = 'delivery_v2_incoming_order';
@@ -644,7 +645,9 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const { distanceToTarget } = useProximityCheck();
   const { acceptOrder, rejectOrder, resetTrip } = useOrderManager();
   const { newOrder, clearNewOrder, orderStatusUpdate, clearOrderStatusUpdate, isConnected: isSocketConnected, emitLocation, playNotificationSound } = useDeliveryNotifications();
+import useNotificationInbox from '@food/hooks/useNotificationInbox';
   const companyName = useCompanyName();
+  const { unreadCount: notificationUnreadCount } = useNotificationInbox('delivery', { limit: 10, pollMs: 30000 });
 
   const [incomingOrder, setIncomingOrder] = useState(null);
   const [advancedOrders, setAdvancedOrders] = useState([]);
@@ -1535,6 +1538,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
             </div>
             
             <div className="flex items-center gap-2">
+              <button onClick={() => navigate('/food/delivery/notifications')} className='relative w-[38px] h-[38px] rounded-full bg-orange-50 flex items-center justify-center text-[#EB590E] active:bg-orange-100 transition-colors border border-orange-100'><Bell className='w-[18px] h-[18px]' />{notificationUnreadCount > 0 && (<span className='absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#EB590E] text-[10px] font-bold text-white ring-2 ring-white'>{notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}</span>)}</button>
               <button onClick={() => navigate('/food/delivery/help/tickets')} className="w-[38px] h-[38px] rounded-full bg-red-50 flex items-center justify-center text-red-500 active:bg-red-100 transition-colors border border-red-100"><AlertTriangle className="w-[18px] h-[18px]" /></button>
               <button onClick={() => navigate('/food/delivery/help/id-card')} className="w-[38px] h-[38px] rounded-full bg-brand-50 flex items-center justify-center text-brand-600 active:bg-brand-100 transition-colors border border-brand-100"><Contact className="w-[18px] h-[18px]" /></button>
             </div>

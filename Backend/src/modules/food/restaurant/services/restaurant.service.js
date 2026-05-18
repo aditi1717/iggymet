@@ -463,7 +463,7 @@ export const getCurrentRestaurantProfile = async (restaurantId) => {
                 'zoneId',
                 'profileImage',
                 'coverImages',
-                'menuImages',
+                'menuImages', 'featuredDish', 'offer', 'featuredPrice',
                 'openingTime',
                 'closingTime',
                 'openDays',
@@ -518,7 +518,7 @@ export const updateRestaurantAcceptingOrders = async (restaurantId, isAcceptingO
                 'pureVegRestaurant',
                 'profileImage',
                 'coverImages',
-                'menuImages',
+                'menuImages', 'featuredDish', 'offer', 'featuredPrice',
                 'openingTime',
                 'closingTime',
                 'openDays',
@@ -559,7 +559,7 @@ export const updateRestaurantProfile = async (restaurantId, body = {}, files = {
             'fssaiNumber',
             'fssaiExpiry',
             'fssaiImage',
-            'menuImages'
+            'menuImages', 'featuredDish', 'offer', 'featuredPrice'
         ].join(' '))
         .lean();
 
@@ -754,15 +754,18 @@ export const updateRestaurantProfile = async (restaurantId, body = {}, files = {
         update.closingTime = normalizeRestaurantTime(body.closingTime) || '';
     }
     if (body.openDays !== undefined) {
-        if (!Array.isArray(body.openDays)) {
-            throw new ValidationError('openDays must be an array');
+        if (!Array.isArray(body.openDays) && typeof body.openDays !== 'string') {
+            throw new ValidationError('openDays must be an array or comma-separated string');
         }
-        update.openDays = body.openDays
+        const daysArray = Array.isArray(body.openDays)
+            ? body.openDays
+            : body.openDays.split(',').map(d => d.trim()).filter(Boolean);
+        update.openDays = daysArray
             .map((day) => String(day || '').trim())
             .filter(Boolean)
             .slice(0, 7);
     }
-    if (body.estimatedDeliveryTime !== undefined) {
+    if (body.featuredDish !== undefined) { update.featuredDish = String(body.featuredDish || '').trim(); } if (body.offer !== undefined) { update.offer = String(body.offer || '').trim(); } if (body.featuredPrice !== undefined) { update.featuredPrice = Number(body.featuredPrice) || null; } if (body.estimatedDeliveryTime !== undefined) {
         const estimatedDeliveryTimeText = String(body.estimatedDeliveryTime || '').trim();
         update.estimatedDeliveryTime = estimatedDeliveryTimeText;
         update.estimatedDeliveryTimeMinutes = parseEstimatedDeliveryMinutes(estimatedDeliveryTimeText) ?? undefined;
@@ -930,7 +933,7 @@ export const updateRestaurantProfile = async (restaurantId, body = {}, files = {
                 'pureVegRestaurant',
                 'profileImage',
                 'coverImages',
-                'menuImages',
+                'menuImages', 'featuredDish', 'offer', 'featuredPrice',
                     'openingTime',
                     'closingTime',
                     'openDays',

@@ -1442,7 +1442,7 @@ export async function rejectDeliveryPartnerZoneChange(req, res, next) {
 
 export async function getZones(req, res, next) {
     try {
-        const data = await adminService.getZones();
+        const data = await adminService.getZones(req.query || {}, req.adminAuth || {});
         res.status(200).json({ success: true, message: 'Zones fetched successfully', data });
     } catch (error) {
         next(error);
@@ -1451,7 +1451,7 @@ export async function getZones(req, res, next) {
 
 export async function getZoneById(req, res, next) {
     try {
-        const zone = await adminService.getZoneById(req.params.id);
+        const zone = await adminService.getZoneById(req.params.id, req.adminAuth || {});
         if (!zone) return res.status(404).json({ success: false, message: 'Zone not found' });
         res.status(200).json({ success: true, message: 'Zone fetched successfully', data: { zone } });
     } catch (error) {
