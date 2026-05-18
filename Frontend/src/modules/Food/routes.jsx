@@ -5,6 +5,7 @@ import AuthRedirect from "@food/components/AuthRedirect"
 import Loader from "@food/components/Loader"
 import PushSoundEnableButton from "@food/components/PushSoundEnableButton"
 import AppMaintenanceOverlay from "@food/components/common/AppMaintenanceOverlay"
+import NewOrderNotification from "@food/components/restaurant/NewOrderNotification"
 import { registerWebPushForCurrentModule } from "@food/utils/firebaseMessaging"
 import { isModuleAuthenticated } from "@food/utils/auth"
 import { useRestaurantNotifications } from "@food/hooks/useRestaurantNotifications"
@@ -34,8 +35,59 @@ function ScrollToTop() {
 }
 
 function RestaurantGlobalNotificationListenerInner() {
-  useRestaurantNotifications()
-  return null
+  const {
+    newOrder,
+    clearNewOrder,
+    cancelledOrderId,
+    cancelledOrderInfo,
+    clearCancelledOrderId,
+  } = useRestaurantNotifications()
+
+  useEffect(() => {
+    if (!cancelledOrderId || !newOrder) return
+
+    const eventKeys = [
+      ...(Array.isArray(cancelledOrderInfo?.orderKeys) ? cancelledOrderInfo.orderKeys : []),
+      cancelledOrderId,
+    ]
+      .filter(Boolean)
+      .map((value) => String(value).trim())
+      .filter(Boolean)
+
+    const orderKeys = [
+      newOrder?.orderMongoId,
+      newOrder?.order_mongo_id,
+      newOrder?.orderId,
+      newOrder?.order_id,
+      newOrder?._id,
+      newOrder?.id,
+      newOrder?.mongoId,
+    ]
+      .filter(Boolean)
+      .map((value) => String(value).trim())
+      .filter(Boolean)
+
+    if (eventKeys.some((key) => orderKeys.includes(key))) {
+      clearNewOrder()
+      clearCancelledOrderId()
+    }
+  }, [cancelledOrderId, cancelledOrderInfo, clearCancelledOrderId, clearNewOrder, newOrder])
+
+  const notificationOrder = newOrder
+    ? {
+        ...newOrder,
+        orderMongoId: newOrder.orderMongoId || newOrder.order_mongo_id || newOrder._id || newOrder.id,
+        total: newOrder.total ?? newOrder.pricing?.total ?? 0,
+        customerAddress: newOrder.customerAddress || newOrder.deliveryAddress || newOrder.address,
+      }
+    : null
+
+  return (
+    <NewOrderNotification
+      order={notificationOrder}
+      onClose={clearNewOrder}
+    />
+  )
 }
 
 function RestaurantGlobalNotificationListener() {
@@ -53,6 +105,7 @@ function RestaurantGlobalNotificationListener() {
     location.pathname === "/food/restaurant/welcome" ||
     location.pathname === "/food/restaurant/auth/google-callback"
   const isOrderManagedRoute =
+    location.pathname === "/food/restaurant" ||
     location.pathname === "/food/restaurant/orders" ||
     location.pathname.startsWith("/food/restaurant/orders/")
 

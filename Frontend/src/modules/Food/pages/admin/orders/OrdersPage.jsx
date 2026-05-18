@@ -21,6 +21,16 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
+const getAdminSocketToken = () => {
+  if (typeof localStorage === "undefined") return ""
+  return (
+    localStorage.getItem("auth_admin") ||
+    localStorage.getItem("admin_accessToken") ||
+    localStorage.getItem("token") ||
+    ""
+  )
+}
+
 // Status configuration with titles, colors, and icons
 const statusConfig = {
   "all": { title: "All Orders", color: "emerald", icon: FileText },
@@ -674,21 +684,56 @@ export default function OrdersPage({ statusKey = "all" }) {
   useEffect(() => {
     if (statusKey !== "all") return undefined
 
-    const backendUrl = API_BASE_URL.replace(/\/api\/?$/, "")
+    let backendUrl = API_BASE_URL
+    try {
+      backendUrl = new URL(API_BASE_URL, window.location.origin).origin
+    } catch {
+      backendUrl = String(API_BASE_URL || "")
+        .replace(/\/api\/v\d+\/?$/i, "")
+        .replace(/\/api\/?$/i, "")
+        .replace(/\/+$/, "")
+    }
     // Backend disconnected - do not open Socket.IO (new backend in progress)
     if (!API_BASE_URL || !backendUrl || !backendUrl.startsWith("http")) {
       return undefined
     }
+    const token = getAdminSocketToken()
+    if (!token) return undefined
 
     const socket = io(backendUrl, {
+      path: "/socket.io/",
       transports: ["websocket", "polling"],
+      withCredentials: true,
       reconnection: true,
-      reconnectionAttempts: Infinity,
+      reconnectionAttempts: 20,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 20000,
+      forceNew: true,
+      auth: { token },
+      query: { token },
     })
     socketRef.current = socket
+
+    const getOrderKeys = (order = {}) =>
+      [
+        order?.orderId,
+        order?.order_id,
+        order?.orderMongoId,
+        order?.order_mongo_id,
+        order?._id,
+        order?.id,
+        order?.mongoId,
+      ]
+        .filter(Boolean)
+        .map((value) => String(value).trim())
+        .filter(Boolean)
+
+    const hasMatchingOrderKey = (left = {}, right = {}) => {
+      const leftKeys = getOrderKeys(left)
+      const rightKeys = getOrderKeys(right)
+      return leftKeys.some((key) => rightKeys.includes(key))
+    }
 
     const handleIncomingRealtimeOrder = (payload = {}) => {
       const orderId = payload?.orderId || payload?.orderMongoId || ""
@@ -729,14 +774,35 @@ export default function OrdersPage({ statusKey = "all" }) {
     })
     socket.on("admin_new_order", handleIncomingRealtimeOrder)
     socket.on("play_notification_sound", handleIncomingRealtimeOrder)
+    socket.on("order_status_update", (data = {}) => {
+      fetchOrders({ silent: true, withRingCheck: false })
+      if (activeOrderAlertRef.current && hasMatchingOrderKey(data, activeOrderAlertRef.current)) {
+        stopOrderAlertSound()
+      }
+    })
+    socket.on("order_cancelled", (data = {}) => {
+      fetchOrders({ silent: true, withRingCheck: false })
+      if (activeOrderAlertRef.current && hasMatchingOrderKey(data, activeOrderAlertRef.current)) {
+        stopOrderAlertSound()
+      }
+    })
+    socket.on("order_deleted", (data = {}) => {
+      fetchOrders({ silent: true, withRingCheck: false })
+      if (activeOrderAlertRef.current && hasMatchingOrderKey(data, activeOrderAlertRef.current)) {
+        stopOrderAlertSound()
+      }
+    })
 
     return () => {
       socket.off("admin_new_order", handleIncomingRealtimeOrder)
       socket.off("play_notification_sound", handleIncomingRealtimeOrder)
+      socket.off("order_status_update")
+      socket.off("order_cancelled")
+      socket.off("order_deleted")
       socket.disconnect()
       socketRef.current = null
     }
-  }, [statusKey, fetchOrders, playDefaultRing, showBrowserNotification, startAlertLoop])
+  }, [statusKey, fetchOrders, playDefaultRing, showBrowserNotification, startAlertLoop, stopOrderAlertSound])
 
   useEffect(() => {
     const onVisibilityChange = () => {

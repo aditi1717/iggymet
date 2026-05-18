@@ -23,6 +23,7 @@ import ExploreV2 from '@/modules/DeliveryV2/pages/ExploreV2';
 import { getHaversineDistance, calculateETA, calculateHeading } from '@/modules/DeliveryV2/utils/geo';
 import useNotificationInbox from '@food/hooks/useNotificationInbox';
 import { useCompanyName } from "@food/hooks/useCompanyName";
+import { registerWebPushForCurrentModule } from '@food/utils/firebaseMessaging';
 
 // Icons
 import {
@@ -666,6 +667,10 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   useEffect(() => {
     setCurrentTab(tab);
   }, [tab]);
+
+  useEffect(() => {
+    void registerWebPushForCurrentModule(window.location.pathname);
+  }, []);
 
   const [profileImage, setProfileImage] = useState(null);
 
@@ -1518,6 +1523,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                     const nextState = !isOnline;
                     toggleOnline(); 
                     if (nextState) {
+                      void registerWebPushForCurrentModule(window.location.pathname);
                       navigator.geolocation.getCurrentPosition((pos) => {
                         deliveryAPI.updateLocation(pos.coords.latitude, pos.coords.longitude, true).catch(() => { });
                       }, (err) => console.warn('Online sync pos failed', err), { enableHighAccuracy: true });

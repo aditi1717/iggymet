@@ -571,7 +571,7 @@ export default function OrdersPage() {
         order={notificationOrder}
         onClose={clearNewOrder}
         onViewOrder={(order) => {
-          navigate(`/restaurant/orders/${order.orderMongoId || order.orderId}`)
+          navigate(`/food/restaurant/orders/${order.orderMongoId || order._id || order.id || order.orderId}`)
         }}
       />
     </div>

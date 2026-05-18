@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { Outlet } from "react-router-dom"
 import AdminSidebar from "./AdminSidebar"
 import AdminNavbar from "./AdminNavbar"
+import AdminNewOrderPopup from "./AdminNewOrderPopup"
 import { API_BASE_URL } from "@food/api/config"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -68,6 +69,7 @@ export default function AdminLayout() {
           <Outlet />
         </main>
       </div>
+      <AdminNewOrderPopup />
     </div>
   );
 }

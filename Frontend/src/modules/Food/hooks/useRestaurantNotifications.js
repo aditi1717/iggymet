@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import io from 'socket.io-client';
+import { toast } from 'sonner';
 import { API_BASE_URL } from '@food/api/config';
 import { restaurantAPI } from '@food/api';
 import alertSound from '@food/assets/audio/alert.mp3';
@@ -7,6 +8,30 @@ import { dispatchNotificationInboxRefresh } from '@food/hooks/useNotificationInb
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
+
+const storeRestaurantAdminNotification = (payload = {}) => {
+  if (typeof window === 'undefined') return;
+  const id = `admin-${payload?.ticketId || Date.now()}`;
+  const item = {
+    id,
+    title: payload?.title || 'Notification',
+    message: payload?.message || 'New notification received.',
+    createdAt: payload?.createdAt || new Date().toISOString(),
+    read: false,
+    type: payload?.type || 'admin_notification',
+  };
+
+  try {
+    const saved = localStorage.getItem('restaurant_admin_notifications');
+    const current = saved ? JSON.parse(saved) : [];
+    const rows = Array.isArray(current) ? current : [];
+    const next = [item, ...rows.filter((row) => row?.id !== id)].slice(0, 100);
+    localStorage.setItem('restaurant_admin_notifications', JSON.stringify(next));
+    window.dispatchEvent(new CustomEvent('restaurantNotificationsUpdated'));
+  } catch {
+    // Local notification cache is best-effort only.
+  }
+}
 
 const resolveAudioSource = (source, cacheKey = 'restaurant-alert') => {
   if (!source) return source;
@@ -31,7 +56,7 @@ const buildRestaurantOrderNotification = (orderData = {}) => {
     tag: `restaurant-order-${orderId}`,
     data: {
       orderId,
-      targetUrl: `/restaurant/orders/${orderData.orderMongoId || orderData.orderId || ''}`,
+      targetUrl: `/food/restaurant/orders/${orderData.orderMongoId || orderData._id || orderData.id || orderData.orderId || ''}`,
     },
   };
 }
@@ -44,7 +69,7 @@ const triggerWebViewNativeNotification = async (orderData = {}) => {
     body: `Order #${orderData?.orderId || orderData?.orderMongoId || orderData?.id || ''}`.trim(),
     orderId: orderData?.orderId || orderData?.order_id || '',
     orderMongoId: orderData?.orderMongoId || orderData?.order_mongo_id || '',
-    targetUrl: `/restaurant/orders/${orderData?.orderMongoId || orderData?.orderId || ''}`,
+    targetUrl: `/food/restaurant/orders/${orderData?.orderMongoId || orderData?._id || orderData?.id || orderData?.orderId || ''}`,
   };
 
   try {
@@ -60,8 +85,18 @@ const triggerWebViewNativeNotification = async (orderData = {}) => {
 
       for (const handlerName of handlerNames) {
         try {
-          await window.flutter_inappwebview.callHandler(handlerName, bridgePayload);
-          return true;
+          const result = await window.flutter_inappwebview.callHandler(handlerName, bridgePayload);
+          if (
+            result === true ||
+            result === 'true' ||
+            result === 'ok' ||
+            result === 'played' ||
+            result?.handled === true ||
+            result?.played === true ||
+            result?.success === true
+          ) {
+            return true;
+          }
         } catch {
           // Try next handler name.
         }
@@ -92,6 +127,7 @@ export const useRestaurantNotifications = () => {
   const userInteractedRef = useRef(false); // Track user interaction for autoplay policy
   const audioUnlockAttemptedRef = useRef(false);
   const [restaurantId, setRestaurantId] = useState(null);
+  const joinedRestaurantRoomRef = useRef(null);
   const lastConnectErrorLogRef = useRef(0);
   const lastAlertAtByOrderRef = useRef(new Map());
   const lastBrowserNotificationAtByOrderRef = useRef(new Map());
@@ -128,7 +164,36 @@ export const useRestaurantNotifications = () => {
       .map((value) => String(value).trim())
       .filter(Boolean);
 
+  const hasMatchingOrderKey = (keys = [], payload = null) => {
+    if (!payload || !Array.isArray(keys) || keys.length === 0) return false;
+    const payloadKeys = getOrderKeys(payload);
+    return payloadKeys.some((key) => keys.includes(key));
+  };
+
+  const dispatchOrderNoLongerPending = (orderData = null) => {
+    if (typeof window === 'undefined' || !orderData) return;
+    const orderKeys = getOrderKeys(orderData);
+    if (orderKeys.length === 0) return;
+
+    window.dispatchEvent(
+      new CustomEvent('restaurantOrderStatusUpdated', {
+        detail: {
+          ...orderData,
+          previousOrderStatus: orderData?.orderStatus || orderData?.status || '',
+          orderStatus: 'processed',
+          status: 'processed',
+          orderKeys,
+          message: 'Order is no longer waiting for restaurant review.',
+          source: 'restaurant_pending_recovery',
+        },
+      }),
+    );
+  };
+
   const shouldProcessOrderAlert = (orderData = {}) => {
+    const status = String(orderData?.orderStatus || orderData?.status || "").toLowerCase();
+    if (status && status !== "created" && status !== "confirmed") return false;
+
     const key = getOrderAlertKey(orderData);
     if (!key) return true;
     const now = Date.now();
@@ -216,7 +281,7 @@ export const useRestaurantNotifications = () => {
     }, ALERT_LOOP_INTERVAL_MS);
   };
 
-  const handleIncomingOrderAlert = (orderData) => {
+  const handleIncomingOrderAlert = useCallback((orderData) => {
     if (!shouldProcessOrderAlert(orderData)) {
       return;
     }
@@ -228,15 +293,103 @@ export const useRestaurantNotifications = () => {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
       showBackgroundOrderNotification(orderData);
     }
-  };
+  }, []);
 
-  // Get restaurant ID from API
+  const recoverRestaurantState = useCallback(async () => {
+    if (!restaurantId) return;
+
+    try {
+      const response = await restaurantAPI.getOrders({ page: 1, limit: 30 });
+      const rows =
+        response?.data?.data?.orders ||
+        response?.data?.data?.data?.orders ||
+        [];
+
+      const pendingReview = (rows || [])
+        .filter((o) => {
+          const status = String(o?.orderStatus || o?.status || "").toLowerCase();
+          return status === "created" || status === "confirmed";
+        })
+        .sort((a, b) => {
+          const at = a?.updatedAt || a?.createdAt || 0;
+          const bt = b?.updatedAt || b?.createdAt || 0;
+          return new Date(bt).getTime() - new Date(at).getTime();
+        });
+
+      const pendingOrderKeys = Array.from(
+        new Set(
+          pendingReview
+            .flatMap((order) => getOrderKeys(order))
+            .filter(Boolean),
+        ),
+      );
+
+      if (activeOrderRef.current && !hasMatchingOrderKey(pendingOrderKeys, activeOrderRef.current)) {
+        dispatchOrderNoLongerPending(activeOrderRef.current);
+        stopAlertLoop();
+        activeOrderRef.current = null;
+      }
+
+      if (pendingReview.length === 0) {
+        setNewOrder((prev) => {
+          if (prev) dispatchOrderNoLongerPending(prev);
+          return prev ? null : prev;
+        });
+        return;
+      }
+
+      const latestPendingOrder = pendingReview[0];
+      setNewOrder((prev) => {
+        if (prev && hasMatchingOrderKey(pendingOrderKeys, prev)) {
+          return prev;
+        }
+        if (prev) dispatchOrderNoLongerPending(prev);
+        return latestPendingOrder;
+      });
+      pendingReview.slice(0, 5).forEach((order) => handleIncomingOrderAlert(order));
+    } catch (error) {
+      debugWarn('Restaurant recovery sync failed:', error?.message || error);
+    }
+  }, [restaurantId, handleIncomingOrderAlert]);
+
+  const joinRestaurantRoomIfPossible = useCallback(() => {
+    if (!socketRef.current?.connected || !restaurantId) {
+      return false;
+    }
+
+    if (joinedRestaurantRoomRef.current === restaurantId) {
+      return true;
+    }
+
+    debugLog('Joining restaurant room', {
+      restaurantId,
+      socketId: socketRef.current?.id,
+    });
+    socketRef.current.emit('join-restaurant', restaurantId);
+    joinedRestaurantRoomRef.current = restaurantId;
+    return true;
+  }, [restaurantId]);
+
+  // Get restaurant ID only when restaurant is approved and accepting orders.
   useEffect(() => {
     const fetchRestaurantId = async () => {
       try {
         const response = await restaurantAPI.getCurrentRestaurant();
         if (response.data?.success && response.data.data?.restaurant) {
           const restaurant = response.data.data.restaurant;
+          const isEligible =
+            String(restaurant?.status || '').toLowerCase() === 'approved' &&
+            restaurant?.isAcceptingOrders === true;
+          if (!isEligible) {
+            stopAlertLoop();
+            activeOrderRef.current = null;
+            setNewOrder(null);
+            setRestaurantId(null);
+            if (socketRef.current) {
+              socketRef.current.disconnect();
+            }
+            return;
+          }
           const id = restaurant._id?.toString() || restaurant.restaurantId;
           setRestaurantId(id);
         }
@@ -245,6 +398,26 @@ export const useRestaurantNotifications = () => {
       }
     };
     fetchRestaurantId();
+
+    const handleOnlineStatusChanged = (event) => {
+      const isOnline = event?.detail?.isOnline === true;
+      if (!isOnline) {
+        stopAlertLoop();
+        activeOrderRef.current = null;
+        setNewOrder(null);
+        setRestaurantId(null);
+        if (socketRef.current) {
+          socketRef.current.disconnect();
+        }
+        return;
+      }
+      fetchRestaurantId();
+    };
+
+    window.addEventListener('restaurantOnlineStatusChanged', handleOnlineStatusChanged);
+    return () => {
+      window.removeEventListener('restaurantOnlineStatusChanged', handleOnlineStatusChanged);
+    };
   }, []);
 
   // Reliability fallback:
@@ -254,35 +427,14 @@ export const useRestaurantNotifications = () => {
   useEffect(() => {
     if (!restaurantId) return;
 
-    const ALERT_POLL_MS = 8000;
+    const ALERT_POLL_MS = isConnected ? 30000 : 12000; // 12s if disconnected, 30s if connected
     let isCancelled = false;
 
     const pollOrders = async () => {
       if (isCancelled) return;
 
       try {
-        const response = await restaurantAPI.getOrders({ page: 1, limit: 30 });
-        const rows =
-          response?.data?.data?.orders ||
-          response?.data?.data?.data?.orders ||
-          [];
-
-        // Alert only for orders waiting for restaurant review.
-        const pendingReview = (rows || [])
-          .filter((o) => {
-            const status = String(o?.status || "").toLowerCase();
-            return status === "created" || status === "confirmed";
-          })
-          .sort((a, b) => {
-            const at = a?.updatedAt || a?.createdAt || 0;
-            const bt = b?.updatedAt || b?.createdAt || 0;
-            return new Date(bt).getTime() - new Date(at).getTime();
-          });
-
-        if (pendingReview.length > 0) {
-          // Trigger alerts for newest pending-review orders (dedupe prevents spam).
-          pendingReview.slice(0, 5).forEach((o) => handleIncomingOrderAlert(o));
-        }
+        await recoverRestaurantState();
       } catch (error) {
         // Non-blocking: keep polling.
       }
@@ -296,7 +448,7 @@ export const useRestaurantNotifications = () => {
       isCancelled = true;
       clearInterval(intervalId);
     };
-  }, [restaurantId]);
+  }, [restaurantId, recoverRestaurantState, isConnected]);
 
   useEffect(() => {
     if (!supportsBrowserNotifications()) return;
@@ -331,18 +483,46 @@ export const useRestaurantNotifications = () => {
   useEffect(() => {
     const onVisibilityChange = () => {
       if (typeof document === 'undefined') return;
-      if (document.visibilityState !== 'hidden') return;
-      if (!activeOrderRef.current) return;
 
-      playNotificationSound(activeOrderRef.current);
-      showBackgroundOrderNotification(activeOrderRef.current);
+      if (document.visibilityState === 'hidden') {
+        if (!activeOrderRef.current) return;
+        playNotificationSound(activeOrderRef.current);
+        showBackgroundOrderNotification(activeOrderRef.current);
+        return;
+      }
+
+      if (!socketRef.current?.connected) {
+        socketRef.current?.connect();
+      }
+      joinRestaurantRoomIfPossible();
+      void recoverRestaurantState();
+    };
+
+    const onWindowFocus = () => {
+      if (!socketRef.current?.connected) {
+        socketRef.current?.connect();
+      }
+      joinRestaurantRoomIfPossible();
+      void recoverRestaurantState();
+    };
+
+    const onPageShow = () => {
+      if (!socketRef.current?.connected) {
+        socketRef.current?.connect();
+      }
+      joinRestaurantRoomIfPossible();
+      void recoverRestaurantState();
     };
 
     document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('focus', onWindowFocus);
+    window.addEventListener('pageshow', onPageShow);
     return () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('focus', onWindowFocus);
+      window.removeEventListener('pageshow', onPageShow);
     };
-  }, []);
+  }, [joinRestaurantRoomIfPossible, recoverRestaurantState]);
 
   useEffect(() => {
     if (!API_BASE_URL || !String(API_BASE_URL).trim()) {
@@ -506,17 +686,19 @@ export const useRestaurantNotifications = () => {
     debugLog('?? Is Production Build:', isProductionBuild);
     debugLog('?? Is Production Deployment:', isProductionDeployment);
 
-    // Initialize socket connection (default namespace)
-    // Use polling only to avoid repeated "WebSocket connection failed" when backend is down
+    // Initialize socket connection (default namespace).
+    // Prefer WebSocket for immediate alerts, with polling fallback for restricted networks.
     socketRef.current = io(socketUrl, {
       path: '/socket.io/',
-      transports: ['polling'],
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+      upgrade: true,
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      reconnectionAttempts: Infinity,
+      reconnectionAttempts: 20,
       timeout: 20000,
-      forceNew: false,
+      forceNew: true,
       autoConnect: true,
       auth: {
         token: localStorage.getItem('restaurant_accessToken') || localStorage.getItem('accessToken')
@@ -528,23 +710,27 @@ export const useRestaurantNotifications = () => {
       debugLog('? Socket ID:', socketRef.current.id);
       debugLog('? Socket URL:', socketUrl);
       setIsConnected(true);
+      joinedRestaurantRoomRef.current = null;
       
       // Join restaurant room immediately after connection with retry
       if (restaurantId) {
         const joinRoom = () => {
           debugLog('?? Joining restaurant room with ID:', restaurantId);
           socketRef.current.emit('join-restaurant', restaurantId);
+          joinedRestaurantRoomRef.current = restaurantId;
           
           // Retry join after 2 seconds if no confirmation received
           setTimeout(() => {
             if (socketRef.current?.connected) {
               debugLog('?? Retrying restaurant room join...');
               socketRef.current.emit('join-restaurant', restaurantId);
+              joinedRestaurantRoomRef.current = restaurantId;
             }
           }, 2000);
         };
         
         joinRoom();
+        void recoverRestaurantState();
       } else {
         debugWarn('?? Cannot join restaurant room: restaurantId is missing');
       }
@@ -555,6 +741,7 @@ export const useRestaurantNotifications = () => {
       debugLog('? Restaurant room joined successfully:', data);
       debugLog('? Room:', data?.room);
       debugLog('? Restaurant ID in room:', data?.restaurantId);
+      joinedRestaurantRoomRef.current = data?.restaurantId || restaurantId;
     });
 
     // Listen for connection errors (throttle logs to avoid console spam on reconnect loops)
@@ -584,6 +771,7 @@ export const useRestaurantNotifications = () => {
     socketRef.current.on('disconnect', (reason) => {
       debugLog('? Restaurant Socket disconnected:', reason);
       setIsConnected(false);
+      joinedRestaurantRoomRef.current = null;
       
       if (reason === 'io server disconnect') {
         // Server disconnected the socket, reconnect manually
@@ -600,17 +788,27 @@ export const useRestaurantNotifications = () => {
     socketRef.current.on('reconnect', (attemptNumber) => {
       debugLog(`? Reconnected after ${attemptNumber} attempts`);
       setIsConnected(true);
+      joinedRestaurantRoomRef.current = null;
       
       // Rejoin restaurant room after reconnection
       if (restaurantId) {
         socketRef.current.emit('join-restaurant', restaurantId);
+        joinedRestaurantRoomRef.current = restaurantId;
       }
+      void recoverRestaurantState();
     });
 
     // Listen for new order notifications
     socketRef.current.on('new_order', (orderData) => {
       debugLog('?? New order received:', orderData);
       setNewOrder(orderData);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('restaurantNewOrderReceived', {
+            detail: orderData || {},
+          }),
+        );
+      }
 
       handleIncomingOrderAlert(orderData);
     });
@@ -623,6 +821,16 @@ export const useRestaurantNotifications = () => {
         orderMongoId: data?.orderMongoId || data?.order_mongo_id,
         ...data
       };
+      if (normalizedData?.orderId || normalizedData?.orderMongoId) {
+        setNewOrder((prev) => prev || normalizedData);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('restaurantNewOrderReceived', {
+              detail: normalizedData,
+            }),
+          );
+        }
+      }
       // Force immediate buzz for notification events, even if dedupe would skip.
       activeOrderRef.current = normalizedData || { id: Date.now() };
       playNotificationSound(normalizedData);
@@ -644,12 +852,6 @@ export const useRestaurantNotifications = () => {
         );
       }
       const status = String(data?.orderStatus || data?.status || '').toLowerCase();
-      const dispatchStatus = String(
-        data?.dispatchStatus ||
-          data?.dispatch_status ||
-          data?.dispatch?.status ||
-          '',
-      ).toLowerCase();
       const eventOrderKeys = getOrderKeys(data);
       if (status.includes('cancel')) {
         const orderKeys = eventOrderKeys;
@@ -681,13 +883,7 @@ export const useRestaurantNotifications = () => {
       // If order is no longer waiting for restaurant review, immediately clear
       // the active new-order notification for the same order.
       const isPendingReviewStatus = status === 'created' || status === 'confirmed';
-      const shouldDismissByDispatch =
-        dispatchStatus === 'accepted' ||
-        dispatchStatus === 'unassigned' ||
-        dispatchStatus === 'rejected';
-      const shouldDismissByStatus = status && !isPendingReviewStatus;
-
-      if (eventOrderKeys.length > 0 && (shouldDismissByStatus || shouldDismissByDispatch)) {
+      if (eventOrderKeys.length > 0 && status && !isPendingReviewStatus) {
         if (activeOrderRef.current) {
           const activeOrderKeys = getOrderKeys(activeOrderRef.current);
           const matchesActive = activeOrderKeys.some((key) =>
@@ -710,10 +906,85 @@ export const useRestaurantNotifications = () => {
       }
     });
 
+    // Listen for specialized order cancellation events
+    socketRef.current.on('order_cancelled', (data) => {
+      debugLog('?? Order cancelled event received:', data);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('restaurantOrderStatusUpdated', {
+            detail: { ...data, status: 'cancelled' },
+          }),
+        );
+      }
+      
+      const eventOrderKeys = getOrderKeys(data);
+      if (eventOrderKeys.length > 0) {
+        if (activeOrderRef.current) {
+          const activeOrderKeys = getOrderKeys(activeOrderRef.current);
+          const matchesActive = activeOrderKeys.some((key) =>
+            eventOrderKeys.includes(key),
+          );
+          if (matchesActive) {
+            stopAlertLoop();
+            activeOrderRef.current = null;
+          }
+        }
+
+        setNewOrder((prev) => {
+          if (!prev) return prev;
+          const prevOrderKeys = getOrderKeys(prev);
+          const matchesCurrent = prevOrderKeys.some((key) =>
+            eventOrderKeys.includes(key),
+          );
+          return matchesCurrent ? null : prev;
+        });
+
+        // Also set cancelled order info for toasts/banners
+        const primaryOrderId = eventOrderKeys[0] || '';
+        if (primaryOrderId) {
+          setCancelledOrderId(primaryOrderId);
+          setCancelledOrderInfo({
+            orderId: primaryOrderId,
+            orderKeys: eventOrderKeys,
+            cancelledBy: 'user', // Default to user if from order_cancelled
+            title: data?.title || 'Order Cancelled',
+            message: data?.message || 'Order has been cancelled by the user',
+          });
+        }
+      }
+    });
+
     socketRef.current.on('admin_notification', (payload) => {
       debugLog('?? Admin broadcast received:', payload);
+      toast.message(payload?.title || 'Notification', {
+        description: payload?.message || 'New notification received.',
+        duration: 8000,
+      });
+      storeRestaurantAdminNotification(payload);
       dispatchNotificationInboxRefresh();
     });
+
+    const handleAuthChange = () => {
+      const newToken = localStorage.getItem('restaurant_accessToken') || localStorage.getItem('accessToken');
+      if (socketRef.current && newToken) {
+        socketRef.current.auth.token = newToken;
+        if (!socketRef.current.connected) {
+          socketRef.current.connect();
+        }
+      }
+    };
+
+    const handleAuthRefreshed = (e) => {
+      if (e.detail?.module === 'restaurant' && socketRef.current && e.detail.token) {
+        socketRef.current.auth.token = e.detail.token;
+        if (!socketRef.current.connected) {
+          socketRef.current.connect();
+        }
+      }
+    };
+
+    window.addEventListener('restaurantAuthChanged', handleAuthChange);
+    window.addEventListener('authRefreshed', handleAuthRefreshed);
 
     // Load notification sound
     audioRef.current = new Audio(resolveAudioSource(alertSound));
@@ -722,6 +993,9 @@ export const useRestaurantNotifications = () => {
 
     return () => {
       stopAlertLoop();
+      joinedRestaurantRoomRef.current = null;
+      window.removeEventListener('restaurantAuthChanged', handleAuthChange);
+      window.removeEventListener('authRefreshed', handleAuthRefreshed);
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
@@ -731,7 +1005,19 @@ export const useRestaurantNotifications = () => {
         audioRef.current = null;
       }
     };
-  }, [restaurantId]);
+  }, [restaurantId, recoverRestaurantState]);
+
+  useEffect(() => {
+    if (!restaurantId) {
+      return;
+    }
+
+    joinRestaurantRoomIfPossible();
+
+    if (socketRef.current?.connected) {
+      void recoverRestaurantState();
+    }
+  }, [restaurantId, joinRestaurantRoomIfPossible, recoverRestaurantState]);
 
   // Track user interaction for autoplay policy
   useEffect(() => {
@@ -787,12 +1073,9 @@ export const useRestaurantNotifications = () => {
 
   const playNotificationSound = async (orderData = {}) => {
     try {
-      const usedNativeBridge = await triggerWebViewNativeNotification(orderData);
+      await triggerWebViewNativeNotification(orderData);
       if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
         navigator.vibrate([200, 100, 200, 100, 300]);
-      }
-      if (usedNativeBridge) {
-        return;
       }
 
       if (audioRef.current) {

@@ -65,7 +65,7 @@ export default function NewOrderNotification({ order, onClose, onViewOrder }) {
     if (onViewOrder && order) {
       onViewOrder(order);
     } else if (order) {
-      navigate(`/restaurant/orders/${order.orderMongoId || order.orderId}`);
+      navigate(`/food/restaurant/orders/${order.orderMongoId || order._id || order.id || order.orderId}`);
     }
     if (onClose) onClose();
   };
