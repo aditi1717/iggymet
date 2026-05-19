@@ -100,10 +100,16 @@ router.patch('/profile', authMiddleware, requireRestaurant, uploadFields, async 
 }, updateRestaurantProfileController);
 router.patch('/availability', authMiddleware, requireRestaurant, async (req, res, next) => {
     await invalidateCache('restaurants:*');
+    await invalidateCache('restaurant_detail:*');
     next();
 }, updateRestaurantAcceptingOrdersController);
 router.get('/outlet-timings', authMiddleware, requireRestaurant, getCurrentRestaurantOutletTimingsController);
-router.put('/outlet-timings', authMiddleware, requireRestaurant, upsertCurrentRestaurantOutletTimingsController);
+router.put('/outlet-timings', authMiddleware, requireRestaurant, async (req, res, next) => {
+    await invalidateCache('restaurants:*');
+    await invalidateCache('restaurant_detail:*');
+    await invalidateCache('restaurant_timings:*');
+    next();
+}, upsertCurrentRestaurantOutletTimingsController);
 router.get('/finance', authMiddleware, requireRestaurant, getRestaurantFinanceController);
 router.post(
     '/profile/profile-image',

@@ -20,6 +20,7 @@ import { isModuleAuthenticated } from "@food/utils/auth"
 import { flattenMenuItems, getMenuFromResponse } from "@food/utils/menuItems"
 import { calculateDistance, formatDistance } from "@food/utils/common"
 import { hasFoodVariants, getFoodVariants, buildCartLineId } from "@food/utils/foodVariants"
+import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
 import BRAND_THEME from "@/config/brandTheme"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -762,6 +763,11 @@ export default function Under250() {
       return
     }
 
+    if (item?.restaurantIsOpen === false) {
+      toast.error(item?.restaurantStatusLabel || "Restaurant is currently closed.")
+      return
+    }
+
     // Update local state
     setQuantities((prev) => ({
       ...prev,
@@ -861,11 +867,19 @@ export default function Under250() {
   }, [])
 
   const handleItemClick = (item, restaurant) => {
+    const availability = getRestaurantAvailabilityStatus(restaurant, new Date())
+    if (!availability.isOpen) {
+      toast.error(availability.badgeLabel || "Restaurant is currently closed.")
+      return
+    }
+
     // Add restaurant info to item for display
     const itemWithRestaurant = {
       ...item,
       restaurant: restaurant.name,
       restaurantSlug: restaurant.slug || restaurant.restaurantId || "",
+      restaurantIsOpen: availability.isOpen,
+      restaurantStatusLabel: availability.badgeLabel || "Restaurant is currently closed.",
       description: item.description || `${item.name} from ${restaurant.name}`,
       customisable: item.customisable || hasFoodVariants(item),
       notEligibleForCoupons: item.notEligibleForCoupons || false,
@@ -1149,8 +1163,10 @@ export default function Under250() {
         ) : (
           sortedAndFilteredRestaurants.map((restaurant) => {
             const restaurantSlug = restaurant.slug || restaurant.name.toLowerCase().replace(/\s+/g, "-")
+            const availability = getRestaurantAvailabilityStatus(restaurant, new Date())
+            const isRestaurantUnavailable = isOutOfService || !availability.isOpen
             return (
-              <section key={restaurant.id} className="pt-4 sm:pt-6 md:pt-8 lg:pt-10">
+              <section key={restaurant.id} className={`pt-4 sm:pt-6 md:pt-8 lg:pt-10 ${isRestaurantUnavailable ? 'grayscale opacity-75' : ''}`}>
                 {/* Restaurant Header */}
                 <div className="flex items-start justify-between mb-3 md:mb-4 lg:mb-6">
                   <div className="flex-1">
@@ -1161,6 +1177,11 @@ export default function Under250() {
                       <Clock className="h-4 w-4 md:h-5 md:w-5 lg:h-6 lg:w-6" strokeWidth={1.5} />
                       <span className="font-medium">{restaurant.deliveryTime}</span>
                     </div>
+                    {isRestaurantUnavailable && (
+                      <div className="mt-2 inline-flex rounded-full bg-gray-700 px-3 py-1 text-xs font-semibold text-white">
+                        {availability.badgeLabel || "Closed"}
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-col items-end">
                     <div className="flex items-center gap-1 bg-green-800 text-white px-1 py-1 md:px-2 md:py-1.5 lg:px-3 lg:py-2 rounded-full">
@@ -1196,7 +1217,11 @@ export default function Under250() {
                           <motion.div
                             key={item.id}
                             className="flex-shrink-0 w-[200px] sm:w-[220px] md:w-full bg-white dark:bg-[#1a1a1a] rounded-lg md:rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden cursor-pointer"
-                            onClick={() => handleItemClick(item, restaurant)}
+                            onClick={() => {
+                              if (!isRestaurantUnavailable) {
+                                handleItemClick(item, restaurant)
+                              }
+                            }}
                             initial={{ opacity: 0, y: 20 }}
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true, margin: "-50px" }}
@@ -1286,19 +1311,19 @@ export default function Under250() {
                                   <Button
                                     variant={"outline"}
                                     size="sm"
-                                    disabled={shouldShowGrayscale}
-                                    className={`h-7 md:h-8 lg:h-9 px-3 md:px-4 lg:px-5 text-xs md:text-sm lg:text-base ${shouldShowGrayscale
+                                    disabled={shouldShowGrayscale || isRestaurantUnavailable}
+                                    className={`h-7 md:h-8 lg:h-9 px-3 md:px-4 lg:px-5 text-xs md:text-sm lg:text-base ${(shouldShowGrayscale || isRestaurantUnavailable)
                                       ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 border-gray-300 dark:border-gray-700 cursor-not-allowed opacity-50'
                                       : ''
                                       }`}
-                                    style={shouldShowGrayscale ? undefined : {
+                                    style={(shouldShowGrayscale || isRestaurantUnavailable) ? undefined : {
                                       backgroundColor: `${BRAND_THEME.colors.brand.primary}14`,
                                       color: BRAND_THEME.colors.brand.primary,
                                       border: `1px solid ${BRAND_THEME.colors.brand.primary}`,
                                     }}
                                     onClick={(e) => {
                                       e.stopPropagation()
-                                      if (!shouldShowGrayscale) {
+                                      if (!shouldShowGrayscale && !isRestaurantUnavailable) {
                                         handleItemClick(item, restaurant)
                                       }
                                     }}
@@ -1596,26 +1621,26 @@ export default function Under250() {
               <div className="border-t dark:border-gray-800 border-gray-200 px-4 md:px-6 lg:px-8 xl:px-10 py-4 md:py-5 lg:py-6 bg-white dark:bg-[#1a1a1a]">
                 <div className="flex items-center gap-4 md:gap-5 lg:gap-6">
                   {/* Quantity Selector */}
-                  <div className={`flex items-center gap-3 md:gap-4 lg:gap-5 border-2 rounded-lg md:rounded-xl px-3 md:px-4 lg:px-5 h-[44px] md:h-[50px] lg:h-[56px] ${shouldShowGrayscale
+                  <div className={`flex items-center gap-3 md:gap-4 lg:gap-5 border-2 rounded-lg md:rounded-xl px-3 md:px-4 lg:px-5 h-[44px] md:h-[50px] lg:h-[56px] ${(shouldShowGrayscale || selectedItem?.restaurantIsOpen === false)
                     ? 'border-gray-300 dark:border-gray-700 opacity-50'
                     : 'border-gray-300 dark:border-gray-700'
                     }`}>
                     <button
                       onClick={(e) => {
-                        if (!shouldShowGrayscale) {
+                        if (!shouldShowGrayscale && selectedItem?.restaurantIsOpen !== false) {
                           e.stopPropagation()
                           setItemDetailQuantity((prev) => Math.max(1, prev - 1))
                         }
                       }}
-                      disabled={itemDetailQuantity <= 1 || shouldShowGrayscale}
-                      className={`${shouldShowGrayscale
+                      disabled={itemDetailQuantity <= 1 || shouldShowGrayscale || selectedItem?.restaurantIsOpen === false}
+                      className={`${(shouldShowGrayscale || selectedItem?.restaurantIsOpen === false)
                         ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
                         : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 disabled:text-gray-300 dark:disabled:text-gray-600 disabled:cursor-not-allowed'
                         }`}
                     >
                       <Minus className="h-5 w-5 md:h-6 md:w-6 lg:h-7 lg:w-7" />
                     </button>
-                    <span className={`text-lg md:text-xl lg:text-2xl font-semibold min-w-[2rem] md:min-w-[2.5rem] lg:min-w-[3rem] text-center ${shouldShowGrayscale
+                    <span className={`text-lg md:text-xl lg:text-2xl font-semibold min-w-[2rem] md:min-w-[2.5rem] lg:min-w-[3rem] text-center ${(shouldShowGrayscale || selectedItem?.restaurantIsOpen === false)
                       ? 'text-gray-400 dark:text-gray-600'
                       : 'text-gray-900 dark:text-white'
                       }`}>
@@ -1623,13 +1648,13 @@ export default function Under250() {
                     </span>
                     <button
                       onClick={(e) => {
-                        if (!shouldShowGrayscale) {
+                        if (!shouldShowGrayscale && selectedItem?.restaurantIsOpen !== false) {
                           e.stopPropagation()
                           setItemDetailQuantity((prev) => prev + 1)
                         }
                       }}
-                      disabled={shouldShowGrayscale}
-                      className={shouldShowGrayscale
+                      disabled={shouldShowGrayscale || selectedItem?.restaurantIsOpen === false}
+                      className={(shouldShowGrayscale || selectedItem?.restaurantIsOpen === false)
                         ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
                         : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                       }
@@ -1640,23 +1665,23 @@ export default function Under250() {
 
                   {/* Add Item Button */}
                   <Button
-                    className={`flex-1 h-[44px] md:h-[50px] lg:h-[56px] rounded-lg md:rounded-xl font-semibold flex items-center justify-center gap-2 text-sm md:text-base lg:text-lg transition-all ${shouldShowGrayscale
+                    className={`flex-1 h-[44px] md:h-[50px] lg:h-[56px] rounded-lg md:rounded-xl font-semibold flex items-center justify-center gap-2 text-sm md:text-base lg:text-lg transition-all ${(shouldShowGrayscale || selectedItem?.restaurantIsOpen === false)
                       ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-600 cursor-not-allowed opacity-50'
                       : 'text-white shadow-lg active:scale-[0.98]'
                       }`}
                     style={
-                      shouldShowGrayscale
+                      (shouldShowGrayscale || selectedItem?.restaurantIsOpen === false)
                         ? undefined
                         : { background: BRAND_THEME.gradients.primary }
                     }
                     onClick={(e) => {
-                      if (!shouldShowGrayscale) {
+                      if (!shouldShowGrayscale && selectedItem?.restaurantIsOpen !== false) {
                         const variant = getVariantForDish(selectedItem, selectedVariantId)
                         updateItemQuantity(selectedItem, itemDetailQuantity, e, variant)
                         closeItemDetail()
                       }
                     }}
-                    disabled={shouldShowGrayscale}
+                    disabled={shouldShowGrayscale || selectedItem?.restaurantIsOpen === false}
                   >
                     <span>Add item</span>
                     <div className="flex items-center gap-1 md:gap-2">

@@ -279,7 +279,9 @@ function RestaurantDetailsContent() {
         try {
           // First, try to get restaurant directly by slug/ID (no zoneId needed)
           try {
-            response = await restaurantAPI.getRestaurantById(slug)
+            response = await restaurantAPI.getRestaurantById(slug, {
+              params: { _ts: Date.now() },
+            })
             if (response?.data?.success && response?.data?.data) {
               apiRestaurant = response.data.data
               debugLog('? Found restaurant in restaurant API by slug/ID:', apiRestaurant)
@@ -308,7 +310,10 @@ function RestaurantDetailsContent() {
 
                   if (matchingRestaurant) {
                     // Get full restaurant details by ID
-                    const fullResponse = await restaurantAPI.getRestaurantById(matchingRestaurant._id || matchingRestaurant.restaurantId)
+                    const fullResponse = await restaurantAPI.getRestaurantById(
+                      matchingRestaurant._id || matchingRestaurant.restaurantId,
+                      { params: { _ts: Date.now() } },
+                    )
                     if (fullResponse.data && fullResponse.data.success && fullResponse.data.data) {
                       apiRestaurant = fullResponse.data.data
                       debugLog('? Found restaurant in restaurant API by name search:', apiRestaurant)
@@ -601,6 +606,21 @@ function RestaurantDetailsContent() {
             // Availability fields for grayscale styling
             isActive: actualRestaurant?.isActive !== false, // Default to true if not specified
             isAcceptingOrders: actualRestaurant?.isAcceptingOrders !== false, // Default to true if not specified
+            availabilityStatus: actualRestaurant?.availabilityStatus || apiRestaurant?.availabilityStatus || null,
+            availability: actualRestaurant?.availability || apiRestaurant?.availability || null,
+            isOnline: actualRestaurant?.isOnline ?? apiRestaurant?.isOnline,
+            currentStatus: actualRestaurant?.currentStatus || apiRestaurant?.currentStatus || null,
+            isOpen: actualRestaurant?.isOpen ?? apiRestaurant?.isOpen,
+            openNow: actualRestaurant?.openNow ?? apiRestaurant?.openNow,
+            isOpenNow: actualRestaurant?.isOpenNow ?? apiRestaurant?.isOpenNow,
+            isRestaurantOpen: actualRestaurant?.isRestaurantOpen ?? apiRestaurant?.isRestaurantOpen,
+            todayOpen: actualRestaurant?.todayOpen ?? apiRestaurant?.todayOpen,
+            isOpenToday: actualRestaurant?.isOpenToday ?? apiRestaurant?.isOpenToday,
+            closedToday: actualRestaurant?.closedToday ?? apiRestaurant?.closedToday,
+            isClosedToday: actualRestaurant?.isClosedToday ?? apiRestaurant?.isClosedToday,
+            dayOff: actualRestaurant?.dayOff ?? apiRestaurant?.dayOff,
+            isDayOff: actualRestaurant?.isDayOff ?? apiRestaurant?.isDayOff,
+            offToday: actualRestaurant?.offToday ?? apiRestaurant?.offToday,
           }
 
           debugLog('? Transformed restaurant:', transformedRestaurant)
@@ -2249,7 +2269,7 @@ function RestaurantDetailsContent() {
               <span>{restaurant?.deliveryTime || "25-30 mins"}</span>
             </div>
             <Badge className={`${isRestaurantOffline ? "bg-rose-600" : "bg-emerald-600"} text-white`}>
-              {isRestaurantOffline ? "Offline" : "Open now"}
+              {isRestaurantOffline ? (availabilityStatus.badgeLabel || "Closed") : "Open now"}
             </Badge>
           </div>
 

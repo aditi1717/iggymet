@@ -80,6 +80,40 @@ const getPreviousDayName = (dayName) => {
   return DAY_NAMES[(index + DAY_NAMES.length - 1) % DAY_NAMES.length]
 }
 
+const isTruthyClosedStatus = (value) => {
+  const normalized = String(value || "").trim().toLowerCase()
+  return (
+    normalized === "closed" ||
+    normalized === "offline" ||
+    normalized === "inactive" ||
+    normalized === "off"
+  )
+}
+
+const hasExplicitClosedFlag = (restaurant) => {
+  if (!restaurant || typeof restaurant !== "object") return false
+  if (restaurant?.availability?.isOnline === false) return true
+  if (restaurant.isOnline === false) return true
+  if (restaurant.isOpen === false) return true
+  if (restaurant.openNow === false) return true
+  if (restaurant.isOpenNow === false) return true
+  if (restaurant.isRestaurantOpen === false) return true
+  if (restaurant.todayOpen === false) return true
+  if (restaurant.isOpenToday === false) return true
+  if (restaurant.closedToday === true) return true
+  if (restaurant.isClosedToday === true) return true
+  if (restaurant.dayOff === true) return true
+  if (restaurant.isDayOff === true) return true
+  if (restaurant.offToday === true) return true
+  if (isTruthyClosedStatus(restaurant.status)) return true
+  if (isTruthyClosedStatus(restaurant.availabilityStatus)) return true
+  if (isTruthyClosedStatus(restaurant?.availability?.status)) return true
+  if (isTruthyClosedStatus(restaurant.currentStatus)) return true
+  if (restaurant?.outletTimings?.isOpen === false) return true
+  if (restaurant?.outletTimings?.today?.isOpen === false) return true
+  return false
+}
+
 const extractDaySlots = (timingInput) => {
   const timings = Array.isArray(timingInput) ? timingInput : [timingInput].filter(Boolean)
   const allNormalizedSlots = []
@@ -234,8 +268,22 @@ export const getRestaurantAvailabilityStatus = (restaurant, now = new Date(), op
   }
 
   const ignoreOperationalStatus = options?.ignoreOperationalStatus === true
+  const availabilityStatus = String(
+    restaurant?.availabilityStatus ||
+    restaurant?.availability?.status ||
+    ""
+  ).trim().toLowerCase()
+  const hasOnlineFlag =
+    restaurant?.availability?.isOnline === true ||
+    restaurant?.availability?.isOnline === false ||
+    restaurant?.isOnline === true ||
+    restaurant?.isOnline === false
+  const isOnlineByFlag = hasOnlineFlag
+    ? (restaurant?.availability?.isOnline ?? restaurant?.isOnline) !== false
+    : true
+  const isOfflineByStatus = availabilityStatus === "offline" || availabilityStatus === "closed"
   const isActive = restaurant.isActive !== false
-  const isAcceptingOrders = restaurant.isAcceptingOrders !== false
+  const isAcceptingOrders = restaurant.isAcceptingOrders !== false && isOnlineByFlag && !isOfflineByStatus
 
   if (!ignoreOperationalStatus && !isActive) {
     const display = getDisplayStatus({ isOpen: false, reason: "inactive" })
@@ -259,6 +307,20 @@ export const getRestaurantAvailabilityStatus = (restaurant, now = new Date(), op
       isAcceptingOrders,
       isWithinTimings: false,
       reason: "not-accepting-orders",
+      badgeLabel: display.badgeLabel,
+      detailLabel: display.detailLabel,
+      state: display.state,
+    }
+  }
+
+  if (hasExplicitClosedFlag(restaurant)) {
+    const display = getDisplayStatus({ isOpen: false, reason: "closed-day", nextWorkingDay: getNextDayName(DAY_NAMES[now.getDay()]) })
+    return {
+      isOpen: false,
+      isActive,
+      isAcceptingOrders,
+      isWithinTimings: false,
+      reason: "closed-flag",
       badgeLabel: display.badgeLabel,
       detailLabel: display.detailLabel,
       state: display.state,
@@ -297,45 +359,6 @@ export const getRestaurantAvailabilityStatus = (restaurant, now = new Date(), op
 
   const isTodayMarkedClosed = hasTodayTiming && todayTimingEntries.every((entry) => entry?.isOpen === false)
   if (isTodayMarkedClosed) {
-    const prevSlots = extractDaySlots(previousDayTiming)
-    const nowMinutes = now.getHours() * 60 + now.getMinutes()
-    const activeFromPreviousDay = prevSlots.find((slot) =>
-      slot.closingMinutes < slot.openingMinutes && nowMinutes <= slot.closingMinutes
-    )
-
-    if (activeFromPreviousDay) {
-      const minutesUntilClose = getMinutesUntilClosing(
-        nowMinutes,
-        activeFromPreviousDay.openingMinutes,
-        activeFromPreviousDay.closingMinutes
-      )
-      const formattedOpeningTime = formatTimeLabel(activeFromPreviousDay.openingTime)
-      const formattedClosingTime = formatTimeLabel(activeFromPreviousDay.closingTime)
-      const closingCountdownLabel = formatClosingCountdown(minutesUntilClose, activeFromPreviousDay.closingTime)
-      const display = getDisplayStatus({
-        isOpen: true,
-        formattedOpeningTime,
-        formattedClosingTime,
-        closingCountdownLabel,
-      })
-      return {
-        isOpen: true,
-        isActive,
-        isAcceptingOrders,
-        isWithinTimings: true,
-        openingTime: activeFromPreviousDay.openingTime,
-        closingTime: activeFromPreviousDay.closingTime,
-        formattedOpeningTime,
-        formattedClosingTime,
-        minutesUntilClose,
-        closingCountdownLabel,
-        reason: "open",
-        badgeLabel: display.badgeLabel,
-        detailLabel: display.detailLabel,
-        state: display.state,
-      }
-    }
-
     const display = getDisplayStatus({
       isOpen: false,
       reason: "day-closed",

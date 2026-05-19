@@ -1691,6 +1691,10 @@ export default function Home() {
                 location: restaurant.location, // Store location for distance recalculation
                 isActive: restaurant.isActive !== false, // Default to true if not specified
                 isAcceptingOrders: restaurant.isAcceptingOrders !== false, // Default to true if not specified
+                availabilityStatus: restaurant.availabilityStatus || null,
+                availability: restaurant.availability || null,
+                isOnline: restaurant.isOnline,
+                currentStatus: restaurant.currentStatus || null,
                 openDays: Array.isArray(restaurant.openDays)
                   ? restaurant.openDays
                   : [],
@@ -1709,12 +1713,10 @@ export default function Home() {
               const aAvailable = getRestaurantAvailabilityStatus(
                 a,
                 new Date(),
-                { ignoreOperationalStatus: true },
               ).isOpen;
               const bAvailable = getRestaurantAvailabilityStatus(
                 b,
                 new Date(),
-                { ignoreOperationalStatus: true },
               ).isOpen;
 
               if (aAvailable !== bAvailable) {
@@ -2222,12 +2224,10 @@ export default function Home() {
         const aAvailable = getRestaurantAvailabilityStatus(
           a,
           new Date(availabilityTick),
-          { ignoreOperationalStatus: true },
         ).isOpen;
         const bAvailable = getRestaurantAvailabilityStatus(
           b,
           new Date(availabilityTick),
-          { ignoreOperationalStatus: true },
         ).isOpen;
 
         if (aAvailable !== bAvailable) {
@@ -2879,7 +2879,6 @@ export default function Home() {
                   const availability = getRestaurantAvailabilityStatus(
                     restaurant,
                     new Date(availabilityTick),
-                    { ignoreOperationalStatus: true },
                   );
                   // Direct favorite check - isFavorite is already memoized in context
                   const favorite = isFavorite(restaurantSlug);
@@ -2991,7 +2990,7 @@ export default function Home() {
                                         className={`inline-flex rounded-full px-3 py-1 text-[10px] font-medium uppercase tracking-widest shadow-sm ${availability.isOpen ? "bg-emerald-500 text-white" : "bg-gray-400 text-white"}`}>
                                         {availability.isOpen
                                           ? "Open now"
-                                          : "Offline"}
+                                          : (availability.badgeLabel || "Closed")}
                                       </span>
                                       {availability.isOpen &&
                                         availability.closingCountdownLabel && (

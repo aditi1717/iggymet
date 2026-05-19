@@ -54,9 +54,7 @@ const FoodRestaurantCard = memo(function FoodRestaurantCard({
       ? restaurant.slug.trim()
       : fallbackSlugSource.toLowerCase().replace(/\s+/g, "-");
 
-  const availability = getRestaurantAvailabilityStatus(restaurant, new Date(availabilityTick), {
-    ignoreOperationalStatus: true,
-  });
+  const availability = getRestaurantAvailabilityStatus(restaurant, new Date(availabilityTick));
   const favorite = isFavorite(restaurantSlug);
 
   return (
@@ -118,7 +116,7 @@ const FoodRestaurantCard = memo(function FoodRestaurantCard({
                           availability.isOpen ? "bg-emerald-500 text-white" : "bg-gray-400 text-white"
                         }`}
                       >
-                        {availability.isOpen ? "Open now" : "Offline"}
+                        {availability.isOpen ? "Open now" : (availability.badgeLabel || "Closed")}
                       </span>
                       {availability.isOpen && availability.closingCountdownLabel && (
                         <div className="flex items-center gap-1.5 rounded-full border border-amber-100 bg-amber-50 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-amber-700">
