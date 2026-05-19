@@ -94,6 +94,8 @@ const normalizeProfileZoneId = (value) => {
   return String(value).trim()
 }
 
+const getTrimmedValue = (value) => String(value ?? "").trim()
+
 const PROFILE_DRAFT_KEY = "iggymet_restaurant_profile_draft"
 
 const saveProfileToLocalStorage = (data) => {
@@ -527,6 +529,17 @@ const RestaurantProfile = () => {
       const selectedZoneId = normalizeProfileZoneId(location.zoneId)
       const selectedZone = zones.find((zone) => getZoneIdValue(zone) === selectedZoneId)
       if (!selectedZoneId || !selectedZone) return toast.error("Please select a valid service zone")
+      if (!getTrimmedValue(location.formattedAddress)) return toast.error("Please search and select restaurant location")
+      if (!getTrimmedValue(location.addressLine1)) return toast.error("Shop / building details are required")
+      if (!getTrimmedValue(location.addressLine2)) return toast.error("Floor / tower details are required")
+      if (!getTrimmedValue(location.landmark)) return toast.error("Nearby landmark is required")
+      if (!getTrimmedValue(location.area)) return toast.error("Locality / area is required")
+      if (!getTrimmedValue(location.city)) return toast.error("City is required")
+      if (!getTrimmedValue(location.state)) return toast.error("State is required")
+      if (!/^\d{6}$/.test(getTrimmedValue(location.pincode))) return toast.error("Valid 6-digit pincode is required")
+      if (!Number.isFinite(Number(location.latitude)) || !Number.isFinite(Number(location.longitude))) {
+        return toast.error("Please select a valid location from suggestions")
+      }
     }
 
     setSavingSection(section)
@@ -545,16 +558,16 @@ const RestaurantProfile = () => {
         requestPayload = {
           zoneId: normalizeProfileZoneId(location.zoneId),
           location: {
-            addressLine1: location.addressLine1,
-            addressLine2: location.addressLine2,
-            area: location.area,
-            city: location.city,
-            state: location.state,
-            pincode: location.pincode,
-            landmark: location.landmark,
+            addressLine1: getTrimmedValue(location.addressLine1),
+            addressLine2: getTrimmedValue(location.addressLine2),
+            area: getTrimmedValue(location.area),
+            city: getTrimmedValue(location.city),
+            state: getTrimmedValue(location.state),
+            pincode: getTrimmedValue(location.pincode),
+            landmark: getTrimmedValue(location.landmark),
             latitude: location.latitude,
             longitude: location.longitude,
-            formattedAddress: location.formattedAddress || "",
+            formattedAddress: getTrimmedValue(location.formattedAddress),
           },
         }
       } else if (section === 'operations') {
@@ -978,6 +991,7 @@ const RestaurantProfile = () => {
                 }}
                 className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm focus:ring-2 focus:ring-[#005128] transition-all"
                 disabled={zonesLoading || !editStates.location}
+                required
               >
                 <option value="">{zonesLoading ? "Loading zones..." : "Select a zone"}</option>
                 {zones.map((z) => {
@@ -1003,6 +1017,7 @@ const RestaurantProfile = () => {
                   disabled={!editStates.location}
                   className="rounded-xl bg-slate-50/50 pl-10 pr-10 border-slate-200 focus:ring-[#005128] h-11"
                   placeholder="Search location (area, street, etc.)"
+                  required
                   onChange={(e) => {
                     if (!e.target.value.trim()) {
                       setLocation((prev) => ({
@@ -1044,6 +1059,7 @@ const RestaurantProfile = () => {
                   disabled={!editStates.location}
                   className="rounded-xl bg-slate-50/50"
                   placeholder="e.g., Shop 42 or Building 7A"
+                  required
                 />
               </div>
               <div className="space-y-1">
@@ -1054,6 +1070,7 @@ const RestaurantProfile = () => {
                   disabled={!editStates.location}
                   className="rounded-xl bg-slate-50/50"
                   placeholder="Floor / tower info"
+                  required
                 />
               </div>
               <div className="space-y-1 md:col-span-2">
@@ -1064,6 +1081,7 @@ const RestaurantProfile = () => {
                   disabled={!editStates.location}
                   className="rounded-xl bg-slate-50/50 h-11"
                   placeholder="e.g. Near HDFC Bank"
+                  required
                 />
               </div>
               {/* Read-only components once autofilled by Google search */}

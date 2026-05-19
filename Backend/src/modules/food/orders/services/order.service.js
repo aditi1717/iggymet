@@ -1894,7 +1894,7 @@ export async function getOrderById(
   const order = await FoodOrder.findOne(identity)
     .populate(
       "restaurantId",
-      "restaurantName profileImage area city location rating totalRatings ownerPhone primaryContactNumber phone contactNumber mobile",
+      "restaurantName name profileImage address addressLine1 addressLine2 area city state zipCode pincode postalCode location rating totalRatings ownerPhone primaryContactNumber phone contactNumber mobile",
     )
     .populate("dispatch.deliveryPartnerId", "name phone rating totalRatings")
     .populate("userId", "name phone email")

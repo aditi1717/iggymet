@@ -28,6 +28,87 @@ const emptyForm = {
   upiId: "",
 }
 
+const DELIVERY_EDIT_FILES_DB = "DeliveryEditProfileFiles"
+const DELIVERY_EDIT_FILES_STORE = "files"
+const UPI_QR_DRAFT_KEY = "editDeliveryUpiQrCode"
+const UPI_QR_EDITING_KEY = "deliveryEditBankDraftActive"
+const PROFILE_PHOTO_DRAFT_KEY = "editDeliveryProfilePhoto"
+const PROFILE_PHOTO_EDITING_KEY = "deliveryEditProfilePhotoDraftActive"
+
+const isUploadableFile = (value) => {
+  if (!value || typeof value !== "object") return false
+  if (typeof File !== "undefined" && value instanceof File) return true
+  if (typeof Blob !== "undefined" && value instanceof Blob) return true
+  return (
+    typeof value.size === "number" &&
+    (typeof value.slice === "function" || typeof value.arrayBuffer === "function")
+  )
+}
+
+const openDeliveryEditFilesDB = () =>
+  new Promise((resolve, reject) => {
+    try {
+      const request = indexedDB.open(DELIVERY_EDIT_FILES_DB, 1)
+      request.onupgradeneeded = (e) => {
+        const db = e.target.result
+        if (!db.objectStoreNames.contains(DELIVERY_EDIT_FILES_STORE)) {
+          db.createObjectStore(DELIVERY_EDIT_FILES_STORE)
+        }
+      }
+      request.onsuccess = (e) => resolve(e.target.result)
+      request.onerror = (e) => reject(e.target.error)
+    } catch (err) {
+      reject(err)
+    }
+  })
+
+const saveEditFileToDB = async (key, file) => {
+  if (!isUploadableFile(file) || typeof indexedDB === "undefined") return
+  try {
+    const db = await openDeliveryEditFilesDB()
+    const tx = db.transaction(DELIVERY_EDIT_FILES_STORE, "readwrite")
+    tx.objectStore(DELIVERY_EDIT_FILES_STORE).put(file, key)
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => reject(tx.error || new Error("IndexedDB write failed"))
+      tx.onabort = () => reject(tx.error || new Error("IndexedDB write aborted"))
+    })
+  } catch {
+    // Best-effort only. The live preview still works even if draft persistence fails.
+  }
+}
+
+const getEditFileFromDB = async (key) => {
+  if (typeof indexedDB === "undefined") return null
+  try {
+    const db = await openDeliveryEditFilesDB()
+    const tx = db.transaction(DELIVERY_EDIT_FILES_STORE, "readonly")
+    const request = tx.objectStore(DELIVERY_EDIT_FILES_STORE).get(key)
+    return new Promise((resolve) => {
+      request.onsuccess = () => resolve(request.result || null)
+      request.onerror = () => resolve(null)
+    })
+  } catch {
+    return null
+  }
+}
+
+const deleteEditFileFromDB = async (key) => {
+  if (typeof indexedDB === "undefined") return
+  try {
+    const db = await openDeliveryEditFilesDB()
+    const tx = db.transaction(DELIVERY_EDIT_FILES_STORE, "readwrite")
+    tx.objectStore(DELIVERY_EDIT_FILES_STORE).delete(key)
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => reject(tx.error || new Error("IndexedDB delete failed"))
+      tx.onabort = () => reject(tx.error || new Error("IndexedDB delete aborted"))
+    })
+  } catch {
+    // Stale drafts can be overwritten next time.
+  }
+}
+
 export const EditDeliveryBoy = () => {
   const navigate = useNavigate()
   const goBack = useDeliveryBackNavigation()
@@ -45,6 +126,7 @@ export const EditDeliveryBoy = () => {
   const [zoneId, setZoneId] = useState("")
   const [form, setForm] = useState(emptyForm)
   const [editingBasic, setEditingBasic] = useState(false)
+  const [editingProfilePhoto, setEditingProfilePhoto] = useState(false)
   const [editingVehicle, setEditingVehicle] = useState(false)
   const [editingDocuments, setEditingDocuments] = useState(false)
   const [editingBank, setEditingBank] = useState(false)
@@ -53,6 +135,7 @@ export const EditDeliveryBoy = () => {
   const [upiQrFile, setUpiQrFile] = useState(null)
   const [upiQrUploadState, setUpiQrUploadState] = useState("")
   const [profileImageRefreshKey, setProfileImageRefreshKey] = useState(0)
+  const [profilePhotoFile, setProfilePhotoFile] = useState(null)
   const [profilePhotoPreviewUrl, setProfilePhotoPreviewUrl] = useState("")
   const [profilePhotoUploadState, setProfilePhotoUploadState] = useState("")
 
@@ -132,6 +215,27 @@ export const EditDeliveryBoy = () => {
         try {
           setLoading(true)
           await refresh()
+          if (!mounted) return
+          if (sessionStorage.getItem(UPI_QR_EDITING_KEY) === "true") {
+            const draftFile = await getEditFileFromDB(UPI_QR_DRAFT_KEY)
+            if (!mounted) return
+            if (draftFile) {
+              setEditingBank(true)
+              setUpiQrFile(draftFile)
+              setUpiQrPreviewUrl(URL.createObjectURL(draftFile))
+              setUpiQrUploadState("selected")
+            }
+          }
+          if (sessionStorage.getItem(PROFILE_PHOTO_EDITING_KEY) === "true") {
+            const draftFile = await getEditFileFromDB(PROFILE_PHOTO_DRAFT_KEY)
+            if (!mounted) return
+            if (draftFile) {
+              setEditingProfilePhoto(true)
+              setProfilePhotoFile(draftFile)
+              setProfilePhotoPreviewUrl(URL.createObjectURL(draftFile))
+              setProfilePhotoUploadState("selected")
+            }
+          }
         } catch (e) {
           if (e?.response?.status === 401) {
             toast.error("Session expired. Please login again.")
@@ -142,9 +246,16 @@ export const EditDeliveryBoy = () => {
         } finally {
           if (mounted) setLoading(false)
         }
-      })()
+    })()
     return () => { mounted = false }
   }, [navigate])
+
+  useEffect(() => {
+    return () => {
+      if (upiQrPreviewUrl) URL.revokeObjectURL(upiQrPreviewUrl)
+      if (profilePhotoPreviewUrl) URL.revokeObjectURL(profilePhotoPreviewUrl)
+    }
+  }, [profilePhotoPreviewUrl, upiQrPreviewUrl])
 
   const validateField = (key, value) => {
     let err = ""
@@ -226,17 +337,26 @@ export const EditDeliveryBoy = () => {
 
   const uploadSingleFile = async (field, file) => {
     if (!file) return
+    preserveCurrentScroll()
     if (field === "profilePhoto") {
-      setUploading(field)
-      setProfilePhotoUploadState("saving")
-      const previewUrl = URL.createObjectURL(file)
-      setProfilePhotoPreviewUrl(previewUrl)
+      if (profilePhotoPreviewUrl) URL.revokeObjectURL(profilePhotoPreviewUrl)
+      setProfilePhotoFile(file)
+      setProfilePhotoPreviewUrl(URL.createObjectURL(file))
+      setProfilePhotoUploadState("selected")
+      setEditingProfilePhoto(true)
+      sessionStorage.setItem(PROFILE_PHOTO_EDITING_KEY, "true")
+      saveEditFileToDB(PROFILE_PHOTO_DRAFT_KEY, file)
+      toast.success("Profile photo selected. Tap Save to upload it.")
+      return
     }
     if (field === "upiQrCode") {
       if (upiQrPreviewUrl) URL.revokeObjectURL(upiQrPreviewUrl)
       setUpiQrFile(file)
       setUpiQrPreviewUrl(URL.createObjectURL(file))
       setUpiQrUploadState("selected")
+      setEditingBank(true)
+      sessionStorage.setItem(UPI_QR_EDITING_KEY, "true")
+      saveEditFileToDB(UPI_QR_DRAFT_KEY, file)
       preserveCurrentScroll()
       toast.success("UPI QR selected. Tap Save to update bank details.")
       return
@@ -269,6 +389,7 @@ export const EditDeliveryBoy = () => {
       } else {
         await refresh()
       }
+      preserveCurrentScroll()
       toast.success("Updated")
     } catch {
       if (field === "profilePhoto") {
@@ -278,15 +399,29 @@ export const EditDeliveryBoy = () => {
       toast.error("Upload failed")
     } finally {
       setUploading("")
+      preserveCurrentScroll()
     }
   }
 
   const handleRemoveProfilePhoto = async () => {
     if (uploading === "profilePhoto") return
+    if (profilePhotoPreviewUrl || profilePhotoFile) {
+      if (profilePhotoPreviewUrl) URL.revokeObjectURL(profilePhotoPreviewUrl)
+      setProfilePhotoPreviewUrl("")
+      setProfilePhotoFile(null)
+      setProfilePhotoUploadState("")
+      deleteEditFileFromDB(PROFILE_PHOTO_DRAFT_KEY)
+      sessionStorage.removeItem(PROFILE_PHOTO_EDITING_KEY)
+      preserveCurrentScroll()
+      return
+    }
     try {
       setUploading("profilePhoto")
       setProfilePhotoPreviewUrl("")
+      setProfilePhotoFile(null)
       setProfilePhotoUploadState("")
+      deleteEditFileFromDB(PROFILE_PHOTO_DRAFT_KEY)
+      sessionStorage.removeItem(PROFILE_PHOTO_EDITING_KEY)
       const response = await deliveryAPI.updateProfileDetails({ profilePhoto: "" })
       if (response?.data?.success === false) {
         throw new Error(response?.data?.message || "Failed to remove photo")
@@ -300,6 +435,51 @@ export const EditDeliveryBoy = () => {
       toast.error("Failed to remove photo")
     } finally {
       setUploading("")
+    }
+  }
+
+  const saveProfilePhoto = async () => {
+    if (!profilePhotoFile) {
+      setEditingProfilePhoto(true)
+      return toast.error("Please select a profile photo first")
+    }
+
+    try {
+      preserveCurrentScroll()
+      setUploading("profilePhoto")
+      setProfilePhotoUploadState("saving")
+      const fd = new FormData()
+      fd.append("profilePhoto", profilePhotoFile)
+      const response = await deliveryAPI.updateProfileMultipart(fd)
+      if (response?.data?.success === false) {
+        throw new Error(response?.data?.message || "Upload failed")
+      }
+      if (handleReapprovalRedirect(response)) return
+      deliveryAPI.invalidateProfileCache?.()
+      const responseProfile =
+        response?.data?.data?.profile ||
+        response?.data?.data?.user ||
+        response?.data?.data?.partner ||
+        response?.data?.profile ||
+        response?.data?.user ||
+        response?.data?.partner ||
+        null
+      if (responseProfile) applyProfile(responseProfile)
+      setProfilePhotoFile(null)
+      deleteEditFileFromDB(PROFILE_PHOTO_DRAFT_KEY)
+      sessionStorage.removeItem(PROFILE_PHOTO_EDITING_KEY)
+      setProfilePhotoUploadState("saved")
+      setProfileImageRefreshKey(Date.now())
+      setEditingProfilePhoto(false)
+      window.dispatchEvent(new Event("deliveryProfileRefresh"))
+      preserveCurrentScroll()
+      toast.success("Profile photo updated")
+    } catch {
+      setProfilePhotoUploadState(profilePhotoFile ? "selected" : "")
+      toast.error("Upload failed")
+    } finally {
+      setUploading("")
+      preserveCurrentScroll()
     }
   }
 
@@ -402,6 +582,8 @@ export const EditDeliveryBoy = () => {
       if (responseProfile) applyProfile(responseProfile)
       const refreshedProfile = await refresh()
       setUpiQrFile(null)
+      deleteEditFileFromDB(UPI_QR_DRAFT_KEY)
+      sessionStorage.removeItem(UPI_QR_EDITING_KEY)
       if (getUpiQrUrl(responseProfile) || getUpiQrUrl(refreshedProfile)) {
         setUpiQrPreviewUrl("")
       }
@@ -498,7 +680,19 @@ export const EditDeliveryBoy = () => {
 
       <div className="max-w-xl mx-auto px-3 pt-3 space-y-3">
         <section className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
-          <h2 className="text-sm font-semibold">Profile Photo</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Profile Photo</h2>
+            <button
+              onClick={async () => {
+                if (!editingProfilePhoto) return setEditingProfilePhoto(true)
+                await saveProfilePhoto()
+              }}
+              disabled={saving || uploading === "profilePhoto"}
+              className="text-xs font-semibold text-[#005128] disabled:opacity-50"
+            >
+              {editingProfilePhoto ? "Save" : "Edit"}
+            </button>
+          </div>
           <div className="flex items-center gap-3">
             <div className="relative w-20 h-20 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center overflow-visible">
               {visibleProfileImageUrl ? (
@@ -507,6 +701,11 @@ export const EditDeliveryBoy = () => {
                   {uploading === "profilePhoto" && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/35">
                       <Loader2 className="w-5 h-5 animate-spin text-white" />
+                    </div>
+                  )}
+                  {profilePhotoUploadState === "selected" && uploading !== "profilePhoto" && profilePhotoPreviewUrl && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-amber-500/90 py-0.5 text-center text-[9px] font-semibold text-white">
+                      Preview
                     </div>
                   )}
                   {profilePhotoUploadState === "saved" && uploading !== "profilePhoto" && profilePhotoPreviewUrl && (
@@ -531,18 +730,38 @@ export const EditDeliveryBoy = () => {
                 </button>
               )}
             </div>
-            <div className="flex gap-2">
-              <button disabled={uploading === "profilePhoto"} onClick={() => openCamera({ onSelectFile: (f) => uploadSingleFile("profilePhoto", f), fileNamePrefix: "profile-photo" })} className="px-3 py-2 rounded-lg border text-xs font-semibold disabled:opacity-50">Use Camera</button>
-              <button
-                disabled={uploading === "profilePhoto"}
-                onClick={() => openGallery({ onSelectFile: (f) => uploadSingleFile("profilePhoto", f), fileNamePrefix: "profile-photo" })}
-                className="px-3 py-2 rounded-lg border text-xs font-semibold disabled:opacity-50"
-              >
-                Upload from Device
-              </button>
+            <div className="flex-1 space-y-2">
+              {editingProfilePhoto ? (
+                <>
+                  <div className="flex gap-2">
+                    <button disabled={uploading === "profilePhoto"} onClick={() => openCamera({ onSelectFile: (f) => uploadSingleFile("profilePhoto", f), fileNamePrefix: "profile-photo" })} className="px-3 py-2 rounded-lg border text-xs font-semibold disabled:opacity-50">Use Camera</button>
+                    <button
+                      disabled={uploading === "profilePhoto"}
+                      onClick={() => openGallery({ onSelectFile: (f) => uploadSingleFile("profilePhoto", f), fileNamePrefix: "profile-photo" })}
+                      className="px-3 py-2 rounded-lg border text-xs font-semibold disabled:opacity-50"
+                    >
+                      Upload from Device
+                    </button>
+                  </div>
+                  {profilePhotoPreviewUrl && (
+                    <p className="text-[10px] font-medium text-slate-500">Preview is shown now. Save to upload it.</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-xs text-slate-500">Tap Edit to change profile photo.</p>
+              )}
             </div>
           </div>
-          <input ref={profilePhotoInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => uploadSingleFile("profilePhoto", e.target.files?.[0])} />
+          <input
+            ref={profilePhotoInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              uploadSingleFile("profilePhoto", e.target.files?.[0])
+              e.target.value = ""
+            }}
+          />
         </section>
 
         <section className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
@@ -795,7 +1014,16 @@ export const EditDeliveryBoy = () => {
               )}
             </div>
           )}
-          <input ref={upiQrInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => uploadSingleFile("upiQrCode", e.target.files?.[0])} />
+          <input
+            ref={upiQrInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              uploadSingleFile("upiQrCode", e.target.files?.[0])
+              e.target.value = ""
+            }}
+          />
         </section>
       </div>
     </div>

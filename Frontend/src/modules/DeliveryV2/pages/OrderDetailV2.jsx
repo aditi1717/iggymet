@@ -414,6 +414,50 @@ const getPickupContactMeta = (order) => {
   };
 };
 
+const joinAddressParts = (...values) =>
+  values
+    .map((value) => String(value ?? '').trim())
+    .filter(Boolean)
+    .join(', ');
+
+const getRestaurantAddressLabel = (order) => {
+  const restaurantObj = order?.restaurantId || order?.restaurant || {};
+  const location = restaurantObj?.location || {};
+
+  const locationParts = joinAddressParts(
+    location?.addressLine1,
+    location?.addressLine2,
+    location?.street,
+    location?.area || restaurantObj?.area,
+    location?.city || restaurantObj?.city,
+    location?.state || restaurantObj?.state,
+    location?.zipCode || location?.pincode || location?.postalCode,
+  );
+
+  const restaurantParts = joinAddressParts(
+    restaurantObj?.addressLine1,
+    restaurantObj?.addressLine2,
+    restaurantObj?.street,
+    restaurantObj?.area,
+    restaurantObj?.city,
+    restaurantObj?.state,
+    restaurantObj?.zipCode || restaurantObj?.pincode || restaurantObj?.postalCode,
+  );
+
+  return pickFirstText(
+    restaurantObj?.address,
+    location?.formattedAddress,
+    location?.fullAddress,
+    location?.address,
+    restaurantObj?.locationText,
+    locationParts,
+    restaurantParts,
+    order?.restaurantAddress,
+    order?.restaurant_address,
+    'Restaurant location unavailable',
+  );
+};
+
 const getItemVariantLabel = (item = {}) => {
   const parts = [
     item?.variantName,
@@ -759,13 +803,8 @@ const OrderDetailV2 = () => {
   const paymentStatusMeta = useMemo(() => getPaymentStatusMeta(order), [order]);
   const restaurantLocation = order?.restaurantLocation;
   const customerLocation = order?.customerLocation;
-  const restaurantAddress = pickFirstText(
-    order?.restaurantAddress,
-    order?.restaurantId?.address,
-    order?.restaurantId?.locationText,
-    order?.restaurantId?.city,
-    'Restaurant location unavailable',
-  );
+  const restaurantName = getRestaurantTitle(order);
+  const restaurantAddress = getRestaurantAddressLabel(order);
   const customerAddress = getAddressLabel(order?.deliveryAddress || order?.address || {});
   const customerAddressSegments = useMemo(
     () => getAddressLabeledSegments(order?.deliveryAddress || order?.address || {}),
@@ -1452,15 +1491,14 @@ const OrderDetailV2 = () => {
               title="Pickup Address"
               icon={Store}
             >
-              <p className="text-sm leading-5 text-slate-800">{restaurantAddress}</p>
-              <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-slate-600">
+              <div className="grid grid-cols-1 gap-1 text-xs text-slate-600">
                 <p>
-                  <span className="mr-1 inline-flex items-center rounded-md bg-[#E6F4EC] px-1.5 py-0.5 text-[11px] font-bold text-[#2979fb]">Recipient</span>
-                  <span className="font-semibold text-slate-900">{pickupMeta.name || '--'}</span>
+                  <span className="mr-1 inline-flex items-center rounded-md bg-[#E6F4EC] px-1.5 py-0.5 text-[11px] font-bold text-[#2979fb]">Restaurant</span>
+                  <span className="font-semibold text-slate-900">{restaurantName || '--'}</span>
                 </p>
                 <p className="flex items-center gap-2">
                   <span>
-                    <span className="mr-1 inline-flex items-center rounded-md bg-[#E6F4EC] px-1.5 py-0.5 text-[11px] font-bold text-[#2979fb]">Number</span>
+                    <span className="mr-1 inline-flex items-center rounded-md bg-[#E6F4EC] px-1.5 py-0.5 text-[11px] font-bold text-[#2979fb]">Phone</span>
                     <span className="font-semibold text-slate-900">{pickupDisplayPhone || '--'}</span>
                   </span>
                   {pickupMeta.dialPhone && (
@@ -1470,6 +1508,7 @@ const OrderDetailV2 = () => {
                   )}
                 </p>
               </div>
+              <p className="mt-2 text-sm leading-5 text-slate-800">{restaurantAddress}</p>
             </CompactSection>
 
             <CompactSection

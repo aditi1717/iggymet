@@ -139,7 +139,6 @@ export default function Cart() {
   const goBack = useAppBackNavigation()
   const orderSuccessAudioRef = useRef(null)
   const hasRestoredRecipientRef = useRef(false)
-  const hasRestoredNoteRef = useRef(false)
   const lastAutoOfferToastRef = useRef("")
 
   // Defensive check: Ensure CartProvider is available
@@ -195,32 +194,8 @@ export default function Cart() {
   const [showPaymentSheet, setShowPaymentSheet] = useState(false)
   const [walletBalance, setWalletBalance] = useState(0)
   const [isLoadingWallet, setIsLoadingWallet] = useState(false)
-  const [restaurantNote, setRestaurantNote] = useState(() => {
-    try {
-      if (typeof window === "undefined") return ""
-      const raw = window.localStorage.getItem(CART_ORDER_NOTE_STORAGE_KEY)
-      if (!raw) return ""
-      const stored = JSON.parse(raw)
-      return String(stored?.restaurantNote || "")
-    } catch {
-      return ""
-    }
-  })
-  const [showNoteInput, setShowNoteInput] = useState(() => {
-    try {
-      if (typeof window === "undefined") return false
-      const raw = window.localStorage.getItem(CART_ORDER_NOTE_STORAGE_KEY)
-      if (!raw) return false
-      const stored = JSON.parse(raw)
-      const storedRestaurantNote = String(stored?.restaurantNote || "")
-      return (
-        Boolean(stored?.showNoteInput) ||
-        storedRestaurantNote.trim().length > 0
-      )
-    } catch {
-      return false
-    }
-  })
+  const [restaurantNote, setRestaurantNote] = useState("")
+  const [showNoteInput, setShowNoteInput] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [sharePayload, setSharePayload] = useState(null)
   const [isEditingRecipient, setIsEditingRecipient] = useState(false)
@@ -465,25 +440,14 @@ export default function Cart() {
   }, [recipientDetails, isEditingRecipient])
 
   useEffect(() => {
-    hasRestoredNoteRef.current = true
-  }, [])
-
-  useEffect(() => {
     if (typeof window === "undefined") return
-    if (!hasRestoredNoteRef.current) return
 
     try {
-      window.localStorage.setItem(
-        CART_ORDER_NOTE_STORAGE_KEY,
-        JSON.stringify({
-          restaurantNote,
-          showNoteInput,
-        })
-      )
+      window.localStorage.removeItem(CART_ORDER_NOTE_STORAGE_KEY)
     } catch {
       // Ignore storage errors and keep note flow working.
     }
-  }, [restaurantNote, showNoteInput])
+  }, [])
 
   useEffect(() => {
     if (deliveryAddressMode === "current") {
@@ -1934,6 +1898,13 @@ export default function Cart() {
               setShowOrderSuccess(true)
               window.dispatchEvent(new CustomEvent('order-placed', { detail: { order } }))
               clearCart()
+              setRestaurantNote("")
+              setShowNoteInput(false)
+              try {
+                window.localStorage.removeItem(CART_ORDER_NOTE_STORAGE_KEY)
+              } catch {
+                // ignore
+              }
               setIsPlacingOrder(false)
             } else {
               throw new Error(verifyResponse.data.message || "Payment verification failed")
