@@ -21,8 +21,7 @@ import { Switch } from "@food/components/ui/switch"
 import api from "@food/api"
 import { restaurantAPI, uploadAPI } from "@food/api"
 import { toast } from "sonner"
-import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
-import { isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
+import { openCamera, openGallery } from "@food/utils/imageUploadUtils"
 import { getFoodVariants } from "@food/utils/foodVariants"
 import BRAND_THEME from "@/config/brandTheme"
 const debugLog = (...args) => {}
@@ -88,7 +87,6 @@ export default function ItemDetailsPage() {
   const [images, setImages] = useState([])
   const [imageFiles, setImageFiles] = useState(new Map()) // Track File objects by preview URL
   const [uploadingImages, setUploadingImages] = useState(false)
-  const [isPhotoPickerOpen, setIsPhotoPickerOpen] = useState(false)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [touchStart, setTouchStart] = useState(null)
   const [touchEnd, setTouchEnd] = useState(null)
@@ -384,8 +382,18 @@ export default function ItemDetailsPage() {
     }
   }
 
-  const handleCameraClick = () => {
-    setIsPhotoPickerOpen(true)
+  const handleCameraClick = async () => {
+    await openCamera({
+      onSelectFile: handleImageAdd,
+      fileNamePrefix: "item-photo",
+    })
+  }
+
+  const handleUploadDeviceClick = async () => {
+    await openGallery({
+      onSelectFile: handleImageAdd,
+      fileNamePrefix: "item-photo",
+    })
   }
 
   const handleImageDelete = (index) => {
@@ -888,7 +896,7 @@ export default function ItemDetailsPage() {
             </div>
           )}
 
-          {/* Add image button - redesigned */}
+          {/* Add image actions */}
           <div className="px-4 py-4 bg-white border-t border-gray-100">
             <input
               ref={fileInputRef}
@@ -897,19 +905,29 @@ export default function ItemDetailsPage() {
               onChange={(e) => handleImageAdd(e.target.files?.[0])}
               className="hidden"
             />
-            <button
-              onClick={handleCameraClick}
-              className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 text-white rounded-xl text-sm font-semibold cursor-pointer transition-all shadow-md hover:shadow-lg active:scale-95"
-              style={{
-                background: BRAND_THEME.gradients.primary,
-                boxShadow: `0 16px 36px -22px ${BRAND_THEME.colors.brand.primaryDark}`,
-              }}
-            >
-              <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={handleCameraClick}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-white rounded-xl text-sm font-semibold cursor-pointer transition-all shadow-md hover:shadow-lg active:scale-95"
+                style={{
+                  background: BRAND_THEME.gradients.primary,
+                  boxShadow: `0 16px 36px -22px ${BRAND_THEME.colors.brand.primaryDark}`,
+                }}
+              >
+                <Camera className="w-4 h-4" />
+                <span>Use Camera</span>
+              </button>
+              <button
+                onClick={handleUploadDeviceClick}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 active:scale-95"
+              >
                 <Plus className="w-4 h-4" />
-              </div>
-              <span>Add Image</span>
-            </button>
+                <span>Upload Device</span>
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-gray-500 text-center">
+              Item image is required to save.
+            </p>
           </div>
         </div>
 
@@ -1397,16 +1415,6 @@ export default function ItemDetailsPage() {
           </button>
         </div>
       </div>
-      {/* Photo Picker */}
-      <ImageSourcePicker
-        isOpen={isPhotoPickerOpen}
-        onClose={() => setIsPhotoPickerOpen(false)}
-        onFileSelect={handleImageAdd}
-        title="Item Image"
-        description="Choose how to upload your item image"
-        fileNamePrefix="item-photo"
-        galleryInputRef={fileInputRef}
-      />
     </div>
   )
 }

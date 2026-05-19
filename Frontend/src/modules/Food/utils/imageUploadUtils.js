@@ -185,13 +185,28 @@ export const openGallery = async ({ onSelectFile, fileNamePrefix = "gallery-phot
       return
     }
 
-    // Try using the bridge for gallery too
-    const result = await window.flutter_inappwebview.callHandler("openCamera", {
+    // Prefer dedicated gallery handlers first; keep camera-handler fallback for older app builds.
+    const bridgePayload = {
       source: "gallery",
       accept: "image/*",
       multiple: false,
       quality: quality,
-    })
+    }
+
+    const handlerNames = ["openGallery", "pickImage", "openCamera"]
+    let result = null
+    for (const handlerName of handlerNames) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const candidate = await window.flutter_inappwebview.callHandler(handlerName, bridgePayload)
+        if (candidate) {
+          result = candidate
+          break
+        }
+      } catch {
+        // Try next handler name.
+      }
+    }
 
     const isSuccess = result?.success === true || Boolean(result?.base64 || result?.base64String || result?.data?.base64)
     if (!result || !isSuccess) {
