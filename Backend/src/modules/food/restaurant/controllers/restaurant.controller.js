@@ -115,11 +115,11 @@ export const uploadRestaurantMenuImagesController = async (req, res, next) => {
     }
 };
 
-import fs from 'fs';
+
 export const listPublicOffersController = async (req, res, next) => {
     try {
         const userId = req.user?.userId || req.user?._id;
-        fs.appendFileSync('offers_debug.txt', `\n[${new Date().toISOString()}] auth header: ${req.headers.authorization ? "Present" : "Missing"}, req.user: ${JSON.stringify(req.user)}, userId: ${userId}\n`);
+
         const data = await listPublicOffers(req.query || {}, userId);
         return sendResponse(res, 200, 'Offers fetched successfully', data);
     } catch (error) {

@@ -1107,7 +1107,7 @@ export const adminAPI = {
           // Guard: respect selected restaurant scope
           if (String(o?.restaurantScope) === "selected") {
             if (!restaurantId) return false;
-            return String(o.restaurantId || "") === String(restaurantId || "");
+            return String(o.restaurantId?._id || o.restaurantId || "") === String(restaurantId || "");
           }
           return true;
         })
