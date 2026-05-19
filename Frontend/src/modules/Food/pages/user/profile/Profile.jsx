@@ -121,9 +121,15 @@ export default function Profile() {
   };
 
   // Settings states
+  const USER_THEME_STORAGE_KEY = "userAppTheme";
+  const LEGACY_THEME_STORAGE_KEY = "appTheme";
   const [appearance, setAppearance] = useState(() => {
-    // Load theme from localStorage or default to 'light'
-    return localStorage.getItem("appTheme") || "light";
+    // Prefer user-only theme key; fallback to legacy key for migration.
+    return (
+      localStorage.getItem(USER_THEME_STORAGE_KEY) ||
+      localStorage.getItem(LEGACY_THEME_STORAGE_KEY) ||
+      "light"
+    );
   });
 
   // Apply theme to document
@@ -134,8 +140,8 @@ export default function Profile() {
     } else {
       root.classList.remove("dark");
     }
-    // Save to localStorage
-    localStorage.setItem("appTheme", appearance);
+    // Save only for user app theme scope.
+    localStorage.setItem(USER_THEME_STORAGE_KEY, appearance);
   }, [appearance]);
 
   // Get first letter of name for avatar

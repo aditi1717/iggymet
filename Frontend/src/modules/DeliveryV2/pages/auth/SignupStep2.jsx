@@ -540,7 +540,7 @@ export default function SignupStep2() {
                   className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gray-900 text-white text-xs font-bold cursor-pointer hover:bg-black transition-all active:scale-95"
                 >
                   <Camera className="w-4 h-4" />
-                  <span>Take Photo</span>
+                  <span>Use Camera</span>
                 </button>
                 <button
                   type="button"
@@ -548,7 +548,7 @@ export default function SignupStep2() {
                   className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[#00B761] text-white text-xs font-bold cursor-pointer hover:bg-[#00A055] transition-all active:scale-95"
                 >
                   <ImageIcon className="w-4 h-4" />
-                  <span>Gallery</span>
+                  <span>Upload from Device</span>
                 </button>
               </div>
             )}

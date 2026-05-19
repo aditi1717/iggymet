@@ -21,6 +21,7 @@ import { restaurantAPI } from "@food/api"
 import { findItemInSections, flattenMenuItems, getMenuFromResponse } from "@food/utils/menuItems"
 import { useRef } from "react"
 import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
+import DocumentUploadActions from "@food/components/DocumentUploadActions"
 import { isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
 import { toast } from "sonner"
 
@@ -497,6 +498,11 @@ export default function EditFoodPage() {
                   </label>
                 </div>
               </div>
+              <DocumentUploadActions
+                onFileSelect={(file) => handleImageUpload("image", file)}
+                fileNamePrefix="dish-photo"
+                galleryInputRef={fileInputRef}
+              />
             </CardContent>
           </Card>
 

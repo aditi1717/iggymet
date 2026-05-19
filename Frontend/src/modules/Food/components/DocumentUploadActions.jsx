@@ -1,7 +1,7 @@
 import React from "react"
 import { Camera, Upload } from "lucide-react"
 import { Button } from "@food/components/ui/button"
-import { openCamera } from "@food/utils/imageUploadUtils"
+import { isFlutterBridgeAvailable, openCamera, openGallery } from "@food/utils/imageUploadUtils"
 
 /**
  * Reusable component for document uploads that provides direct buttons 
@@ -21,10 +21,18 @@ export default function DocumentUploadActions({
     })
   }
 
-  const handleGallery = (e) => {
+  const handleGallery = async (e) => {
     e.preventDefault()
     e.stopPropagation()
+    if (isFlutterBridgeAvailable()) {
+      await openGallery({
+        onSelectFile: onFileSelect,
+        fileNamePrefix: fileNamePrefix
+      })
+      return
+    }
     if (galleryInputRef?.current) {
+      galleryInputRef.current.value = ""
       galleryInputRef.current.click()
     }
   }
@@ -38,7 +46,7 @@ export default function DocumentUploadActions({
         onClick={handleGallery}
       >
         <Upload className="w-5 h-5 mb-1 text-brand-600 group-hover:scale-110 transition-transform" />
-        <span className="text-[10px] font-medium text-gray-700">Upload Gallery</span>
+        <span className="text-[10px] font-medium text-gray-700">Upload from Device</span>
       </Button>
       <Button
         type="button"

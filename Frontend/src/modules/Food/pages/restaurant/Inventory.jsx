@@ -2839,6 +2839,11 @@ export default function Inventory() {
                       accept="image/*"
                       onChange={(e) => handleAddonDocumentSelect(e.target.files?.[0])}
                     />
+                    <DocumentUploadActions
+                      onFileSelect={handleAddonDocumentSelect}
+                      fileNamePrefix="addon-photo"
+                      galleryInputRef={addonImageInputRef}
+                    />
                   </div>
                 </div>
 

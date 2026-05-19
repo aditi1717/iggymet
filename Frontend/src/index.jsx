@@ -13,9 +13,20 @@ import('./modules/Food/utils/businessSettings.js')
   .then(({ loadBusinessSettings }) => loadBusinessSettings())
   .catch(() => { /* Silently fail — settings load when admin authenticates */ })
 
-// Apply saved theme
-const savedTheme = localStorage.getItem('appTheme') || 'light'
-if (savedTheme === 'dark') {
+// Apply saved theme only for user app routes.
+const USER_THEME_STORAGE_KEY = 'userAppTheme'
+const LEGACY_THEME_STORAGE_KEY = 'appTheme'
+const currentPathname = String(window.location?.pathname || '').toLowerCase()
+const isUserAppRoute =
+  currentPathname.startsWith('/food') &&
+  !currentPathname.startsWith('/food/restaurant') &&
+  !currentPathname.startsWith('/food/delivery')
+const savedTheme =
+  localStorage.getItem(USER_THEME_STORAGE_KEY) ||
+  localStorage.getItem(LEGACY_THEME_STORAGE_KEY) ||
+  'light'
+
+if (isUserAppRoute && savedTheme === 'dark') {
   document.documentElement.classList.add('dark')
 } else {
   document.documentElement.classList.remove('dark')

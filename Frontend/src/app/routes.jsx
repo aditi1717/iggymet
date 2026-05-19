@@ -30,6 +30,18 @@ const LegacyUserRedirect = () => {
   return <Navigate to={`${nextPath}${location.search || ''}`} replace />
 }
 
+const USER_THEME_STORAGE_KEY = 'userAppTheme'
+const LEGACY_THEME_STORAGE_KEY = 'appTheme'
+
+const isUserAppRoute = (pathname = '') => {
+  const normalized = String(pathname || '').toLowerCase()
+  return (
+    normalized.startsWith('/food') &&
+    !normalized.startsWith('/food/restaurant') &&
+    !normalized.startsWith('/food/delivery')
+  )
+}
+
 const AppRoutes = () => {
   const location = useLocation()
 
@@ -52,6 +64,22 @@ const AppRoutes = () => {
       localStorage.setItem(NATIVE_LAST_ROUTE_KEY, route)
     }
   }, [location.pathname, location.search])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+
+    const root = document.documentElement
+    const savedTheme =
+      localStorage.getItem(USER_THEME_STORAGE_KEY) ||
+      localStorage.getItem(LEGACY_THEME_STORAGE_KEY) ||
+      'light'
+
+    if (isUserAppRoute(location.pathname) && savedTheme === 'dark') {
+      root.classList.add('dark')
+    } else {
+      root.classList.remove('dark')
+    }
+  }, [location.pathname])
 
   return (
     <Routes>

@@ -7,6 +7,7 @@ import { getRestaurantData, updateRestaurantData } from "@food/utils/restaurantM
 import BottomNavOrders from "@food/components/restaurant/BottomNavOrders"
 import { restaurantAPI } from "@food/api"
 import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
+import DocumentUploadActions from "@food/components/DocumentUploadActions"
 import { isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
 import { toast } from "sonner"
 
@@ -117,6 +118,7 @@ export default function EditRestaurantPage() {
     if (isFlutterBridgeAvailable()) {
       setActivePicker({ type, ref, title })
     } else {
+      if (ref.current) ref.current.value = ""
       ref.current?.click()
     }
   }
@@ -273,18 +275,26 @@ export default function EditRestaurantPage() {
                       onClick={() => handleImageClick("logo", logoInputRef, "Upload Logo")}
                       className="cursor-pointer"
                     >
-                      <input
-                        ref={logoInputRef}
-                        type="file"
-                        accept="image/jpeg,image/jpg,image/png"
-                        onChange={(e) => handleImageUpload("logo", e.target.files[0])}
-                        className="hidden"
-                      />
                       <span className="text-sm text-gray-600 underline">Upload Logo</span>
                     </div>
                   </>
                 )}
               </div>
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+                onClick={(e) => {
+                  e.target.value = ""
+                }}
+                onChange={(e) => handleImageUpload("logo", e.target.files[0])}
+                className="hidden"
+              />
+              <DocumentUploadActions
+                onFileSelect={(file) => handleImageUpload("logo", file)}
+                fileNamePrefix="restaurant-logo"
+                galleryInputRef={logoInputRef}
+              />
             </CardContent>
           </Card>
 
@@ -320,18 +330,26 @@ export default function EditRestaurantPage() {
                       onClick={() => handleImageClick("cover", coverInputRef, "Upload Cover")}
                       className="cursor-pointer"
                     >
-                      <input
-                        ref={coverInputRef}
-                        type="file"
-                        accept="image/jpeg,image/jpg,image/png"
-                        onChange={(e) => handleImageUpload("cover", e.target.files[0])}
-                        className="hidden"
-                      />
                       <span className="text-sm text-gray-600 underline">Upload Cover</span>
                     </div>
                   </>
                 )}
               </div>
+              <input
+                ref={coverInputRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+                onClick={(e) => {
+                  e.target.value = ""
+                }}
+                onChange={(e) => handleImageUpload("cover", e.target.files[0])}
+                className="hidden"
+              />
+              <DocumentUploadActions
+                onFileSelect={(file) => handleImageUpload("cover", file)}
+                fileNamePrefix="restaurant-cover"
+                galleryInputRef={coverInputRef}
+              />
             </CardContent>
           </Card>
 
@@ -397,18 +415,26 @@ export default function EditRestaurantPage() {
                       onClick={() => handleImageClick("metaImage", metaInputRef, "Upload Meta Image")}
                       className="cursor-pointer"
                     >
-                      <input
-                        ref={metaInputRef}
-                        type="file"
-                        accept="image/jpeg,image/jpg,image/png"
-                        onChange={(e) => handleImageUpload("metaImage", e.target.files[0])}
-                        className="hidden"
-                      />
                       <span className="text-sm text-gray-600 underline">Upload Meta Image</span>
                     </div>
                   </>
                 )}
               </div>
+              <input
+                ref={metaInputRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+                onClick={(e) => {
+                  e.target.value = ""
+                }}
+                onChange={(e) => handleImageUpload("metaImage", e.target.files[0])}
+                className="hidden"
+              />
+              <DocumentUploadActions
+                onFileSelect={(file) => handleImageUpload("metaImage", file)}
+                fileNamePrefix="restaurant-meta"
+                galleryInputRef={metaInputRef}
+              />
             </CardContent>
           </Card>
 

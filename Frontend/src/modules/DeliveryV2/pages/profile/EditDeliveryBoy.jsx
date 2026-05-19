@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, Loader2, Camera, Image as ImageIcon } from "lucide-react"
+import { ArrowLeft, Loader2, X } from "lucide-react"
 import { toast } from "sonner"
 import { deliveryAPI, zoneAPI } from "@food/api"
 import { clearModuleAuth } from "@food/utils/auth"
 import useDeliveryBackNavigation from "../../hooks/useDeliveryBackNavigation"
-import { openCamera } from "@food/utils/imageUploadUtils"
+import { openCamera, openGallery } from "@food/utils/imageUploadUtils"
+import DocumentUploadActions from "@food/components/DocumentUploadActions"
 
 const emptyForm = {
   name: "",
@@ -50,15 +51,33 @@ export const EditDeliveryBoy = () => {
   const [errors, setErrors] = useState({})
   const [upiQrPreviewUrl, setUpiQrPreviewUrl] = useState("")
   const [upiQrFile, setUpiQrFile] = useState(null)
+  const [upiQrUploadState, setUpiQrUploadState] = useState("")
+  const [profileImageRefreshKey, setProfileImageRefreshKey] = useState(0)
+  const [profilePhotoPreviewUrl, setProfilePhotoPreviewUrl] = useState("")
+  const [profilePhotoUploadState, setProfilePhotoUploadState] = useState("")
 
-  const profileImageUrl = profile?.profileImage?.url || profile?.profilePhoto || null
+  const profileImageRawUrl = profile?.profileImage?.url || profile?.profilePhoto || null
+  const profileImageVersion =
+    profileImageRefreshKey ||
+    profile?.profileImage?.updatedAt ||
+    profile?.updatedAt ||
+    ""
+  const profileImageUrl = profileImageRawUrl
+    ? `${profileImageRawUrl}${profileImageRawUrl.includes("?") ? "&" : "?"}v=${encodeURIComponent(String(profileImageVersion))}`
+    : null
+  const visibleProfileImageUrl = profilePhotoPreviewUrl || profileImageUrl
   const aadharNumber = profile?.documents?.aadhar?.number || profile?.aadharNumber || "Not added"
   const panNumber = profile?.documents?.pan?.number || profile?.panNumber || "Not added"
   const drivingNumber = profile?.documents?.drivingLicense?.number || profile?.drivingLicenseNumber || "Not added"
   const aadharPhotoUrl = profile?.documents?.aadhar?.document || null
   const panPhotoUrl = profile?.documents?.pan?.document || null
   const drivingPhotoUrl = profile?.documents?.drivingLicense?.document || null
-  const upiQrUrl = profile?.documents?.bankDetails?.upiQrCode || null
+  const getUpiQrUrl = (p) =>
+    p?.documents?.bankDetails?.upiQrCode ||
+    p?.upiQrCode ||
+    p?.bankDetails?.upiQrCode ||
+    null
+  const upiQrUrl = getUpiQrUrl(profile)
   const visibleUpiQrUrl = upiQrPreviewUrl || upiQrUrl
 
   const selectedZoneLabel = useMemo(() => {
@@ -82,11 +101,11 @@ export const EditDeliveryBoy = () => {
       drivingLicenseNumber: p?.documents?.drivingLicense?.number || p?.drivingLicenseNumber || "",
       aadharNumber: p?.documents?.aadhar?.number || p?.aadharNumber || "",
       panNumber: p?.documents?.pan?.number || p?.panNumber || "",
-      accountHolderName: p?.documents?.bankDetails?.accountHolderName || "",
-      accountNumber: p?.documents?.bankDetails?.accountNumber || "",
-      ifscCode: p?.documents?.bankDetails?.ifscCode || "",
-      bankName: p?.documents?.bankDetails?.bankName || "",
-      upiId: p?.documents?.bankDetails?.upiId || "",
+      accountHolderName: p?.documents?.bankDetails?.accountHolderName || p?.bankAccountHolderName || "",
+      accountNumber: p?.documents?.bankDetails?.accountNumber || p?.bankAccountNumber || "",
+      ifscCode: p?.documents?.bankDetails?.ifscCode || p?.bankIfscCode || "",
+      bankName: p?.documents?.bankDetails?.bankName || p?.bankName || "",
+      upiId: p?.documents?.bankDetails?.upiId || p?.upiId || "",
     })
   }
 
@@ -95,11 +114,16 @@ export const EditDeliveryBoy = () => {
       deliveryAPI.getProfile(),
       zoneAPI.getPublicZones(),
     ])
-    const p = profileRes?.data?.data?.profile
+    const p =
+      profileRes?.data?.data?.profile ||
+      profileRes?.data?.data?.user ||
+      profileRes?.data?.profile ||
+      profileRes?.data?.user
     if (!p) throw new Error("Failed to load profile")
     const zoneList = zoneRes?.data?.data?.zones || zoneRes?.data?.zones || []
     setZones(Array.isArray(zoneList) ? zoneList : [])
     applyProfile(p)
+    return p
   }
 
   useEffect(() => {
@@ -175,6 +199,14 @@ export const EditDeliveryBoy = () => {
     validateField(key, filtered)
   }
 
+  const preserveCurrentScroll = () => {
+    if (typeof window === "undefined") return
+    const left = window.scrollX
+    const top = window.scrollY
+    requestAnimationFrame(() => window.scrollTo(left, top))
+    setTimeout(() => window.scrollTo(left, top), 0)
+  }
+
   const resetFromProfile = () => {
     if (profile) applyProfile(profile)
   }
@@ -194,10 +226,19 @@ export const EditDeliveryBoy = () => {
 
   const uploadSingleFile = async (field, file) => {
     if (!file) return
+    if (field === "profilePhoto") {
+      setUploading(field)
+      setProfilePhotoUploadState("saving")
+      const previewUrl = URL.createObjectURL(file)
+      setProfilePhotoPreviewUrl(previewUrl)
+    }
     if (field === "upiQrCode") {
+      if (upiQrPreviewUrl) URL.revokeObjectURL(upiQrPreviewUrl)
       setUpiQrFile(file)
       setUpiQrPreviewUrl(URL.createObjectURL(file))
-      toast.success("UPI QR selected. Click Save to update bank details.")
+      setUpiQrUploadState("selected")
+      preserveCurrentScroll()
+      toast.success("UPI QR selected. Tap Save to update bank details.")
       return
     }
     try {
@@ -205,12 +246,58 @@ export const EditDeliveryBoy = () => {
       const fd = new FormData()
       fd.append(field, file)
       const response = await deliveryAPI.updateProfileMultipart(fd)
+      if (response?.data?.success === false) {
+        throw new Error(response?.data?.message || "Upload failed")
+      }
       if (handleReapprovalRedirect(response)) return
       deliveryAPI.invalidateProfileCache?.()
-      await refresh()
+      const responseProfile =
+        response?.data?.data?.profile ||
+        response?.data?.data?.user ||
+        response?.data?.data?.partner ||
+        response?.data?.profile ||
+        response?.data?.user ||
+        response?.data?.partner ||
+        null
+      if (field === "profilePhoto" && responseProfile) {
+        applyProfile(responseProfile)
+      }
+      if (field === "profilePhoto") {
+        setProfilePhotoUploadState("saved")
+        setProfileImageRefreshKey(Date.now())
+        window.dispatchEvent(new Event("deliveryProfileRefresh"))
+      } else {
+        await refresh()
+      }
       toast.success("Updated")
     } catch {
+      if (field === "profilePhoto") {
+        setProfilePhotoPreviewUrl("")
+        setProfilePhotoUploadState("")
+      }
       toast.error("Upload failed")
+    } finally {
+      setUploading("")
+    }
+  }
+
+  const handleRemoveProfilePhoto = async () => {
+    if (uploading === "profilePhoto") return
+    try {
+      setUploading("profilePhoto")
+      setProfilePhotoPreviewUrl("")
+      setProfilePhotoUploadState("")
+      const response = await deliveryAPI.updateProfileDetails({ profilePhoto: "" })
+      if (response?.data?.success === false) {
+        throw new Error(response?.data?.message || "Failed to remove photo")
+      }
+      deliveryAPI.invalidateProfileCache?.()
+      await refresh()
+      setProfileImageRefreshKey(Date.now())
+      window.dispatchEvent(new Event("deliveryProfileRefresh"))
+      toast.success("Photo removed")
+    } catch {
+      toast.error("Failed to remove photo")
     } finally {
       setUploading("")
     }
@@ -304,12 +391,25 @@ export const EditDeliveryBoy = () => {
       const response = await deliveryAPI.updateBankDetailsMultipart(bankFd)
       if (handleReapprovalRedirect(response)) return
       deliveryAPI.invalidateProfileCache?.()
-      await refresh()
+      const responseProfile =
+        response?.data?.data?.profile ||
+        response?.data?.data?.user ||
+        response?.data?.data?.partner ||
+        response?.data?.profile ||
+        response?.data?.user ||
+        response?.data?.partner ||
+        null
+      if (responseProfile) applyProfile(responseProfile)
+      const refreshedProfile = await refresh()
       setUpiQrFile(null)
-      setUpiQrPreviewUrl("")
+      if (getUpiQrUrl(responseProfile) || getUpiQrUrl(refreshedProfile)) {
+        setUpiQrPreviewUrl("")
+      }
+      setUpiQrUploadState("saved")
       toast.success("Bank details updated")
       setEditingBank(false)
     } catch {
+      setUpiQrUploadState(upiQrFile ? "selected" : "")
       toast.error("Failed to update bank details")
     } finally {
       setSaving(false)
@@ -367,7 +467,11 @@ export const EditDeliveryBoy = () => {
     }
   }
 
-  const onPick = (ref) => ref.current?.click()
+  const onPick = (ref) => {
+    if (!ref?.current) return
+    ref.current.value = ""
+    ref.current.click()
+  }
 
   if (loading) {
     return (
@@ -396,12 +500,46 @@ export const EditDeliveryBoy = () => {
         <section className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
           <h2 className="text-sm font-semibold">Profile Photo</h2>
           <div className="flex items-center gap-3">
-            <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-100 flex items-center justify-center">
-              {profileImageUrl ? <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" /> : <span className="text-xs text-slate-400">No Photo</span>}
+            <div className="relative w-20 h-20 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center overflow-visible">
+              {visibleProfileImageUrl ? (
+                <div className="relative w-full h-full overflow-hidden rounded-full">
+                  <img src={visibleProfileImageUrl} alt="Profile" className="w-full h-full rounded-full object-cover" />
+                  {uploading === "profilePhoto" && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/35">
+                      <Loader2 className="w-5 h-5 animate-spin text-white" />
+                    </div>
+                  )}
+                  {profilePhotoUploadState === "saved" && uploading !== "profilePhoto" && profilePhotoPreviewUrl && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-emerald-600/90 py-0.5 text-center text-[9px] font-semibold text-white">
+                      Saved
+                    </div>
+                  )}
+                </div>
+              ) : uploading === "profilePhoto" ? (
+                <Loader2 className="w-5 h-5 animate-spin text-slate-500" />
+              ) : (
+                <span className="text-xs text-slate-400">No Photo</span>
+              )}
+              {visibleProfileImageUrl && uploading !== "profilePhoto" && (
+                <button
+                  type="button"
+                  onClick={handleRemoveProfilePhoto}
+                  className="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full border border-white bg-slate-900 text-white shadow-md transition-colors hover:bg-slate-700"
+                  aria-label="Remove profile photo"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
             <div className="flex gap-2">
-              <button onClick={() => openCamera({ onSelectFile: (f) => uploadSingleFile("profilePhoto", f), fileNamePrefix: "profile-photo" })} className="px-3 py-2 rounded-lg border text-xs font-semibold">Camera</button>
-              <button onClick={() => onPick(profilePhotoInputRef)} className="px-3 py-2 rounded-lg border text-xs font-semibold">Gallery</button>
+              <button disabled={uploading === "profilePhoto"} onClick={() => openCamera({ onSelectFile: (f) => uploadSingleFile("profilePhoto", f), fileNamePrefix: "profile-photo" })} className="px-3 py-2 rounded-lg border text-xs font-semibold disabled:opacity-50">Use Camera</button>
+              <button
+                disabled={uploading === "profilePhoto"}
+                onClick={() => openGallery({ onSelectFile: (f) => uploadSingleFile("profilePhoto", f), fileNamePrefix: "profile-photo" })}
+                className="px-3 py-2 rounded-lg border text-xs font-semibold disabled:opacity-50"
+              >
+                Upload from Device
+              </button>
             </div>
           </div>
           <input ref={profilePhotoInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => uploadSingleFile("profilePhoto", e.target.files?.[0])} />
@@ -456,7 +594,7 @@ export const EditDeliveryBoy = () => {
           </div>
           <p className="text-xs text-amber-700">If you change zone, profile will go for admin approval.</p>
           <p className="text-xs text-slate-500">Current zone: {selectedZoneLabel}</p>
-          <select className={inputClass} value={zoneId} onChange={(e) => setZoneId(e.target.value)}>
+          <select className={inputClass("zoneId")} value={zoneId} onChange={(e) => setZoneId(e.target.value)}>
             <option value="">Select zone</option>
             {zones.map((z) => {
               const id = String(z?._id || z?.id || "")
@@ -522,13 +660,13 @@ export const EditDeliveryBoy = () => {
               />
               <ErrMsg name="aadharNumber" />
             </div>
-            <button
-              disabled={!editingDocuments}
-              onClick={() => onPick(aadharInputRef)}
-              className="w-full rounded-xl border py-2 text-xs font-semibold disabled:opacity-50"
-            >
-              Upload Aadhar Photo
-            </button>
+            {editingDocuments && (
+              <DocumentUploadActions
+                onFileSelect={(file) => uploadSingleFile("aadharPhoto", file)}
+                fileNamePrefix="aadhar-photo"
+                galleryInputRef={aadharInputRef}
+              />
+            )}
             {aadharPhotoUrl ? (
               <img src={aadharPhotoUrl} alt="Aadhar" className="w-full h-24 object-cover rounded-lg border border-slate-200" />
             ) : (
@@ -549,13 +687,13 @@ export const EditDeliveryBoy = () => {
               />
               <ErrMsg name="panNumber" />
             </div>
-            <button
-              disabled={!editingDocuments}
-              onClick={() => onPick(panInputRef)}
-              className="w-full rounded-xl border py-2 text-xs font-semibold disabled:opacity-50"
-            >
-              Upload PAN Photo
-            </button>
+            {editingDocuments && (
+              <DocumentUploadActions
+                onFileSelect={(file) => uploadSingleFile("panPhoto", file)}
+                fileNamePrefix="pan-photo"
+                galleryInputRef={panInputRef}
+              />
+            )}
             {panPhotoUrl ? (
               <img src={panPhotoUrl} alt="PAN" className="w-full h-24 object-cover rounded-lg border border-slate-200" />
             ) : (
@@ -575,22 +713,13 @@ export const EditDeliveryBoy = () => {
               />
               <ErrMsg name="drivingLicenseNumber" />
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                disabled={!editingDocuments}
-                onClick={() => onPick(drivingInputRef)}
-                className="rounded-xl border py-2 text-xs font-semibold disabled:opacity-50"
-              >
-                Upload DL Photo
-              </button>
-              <button
-                disabled={!editingDocuments}
-                onClick={() => openCamera({ onSelectFile: (f) => uploadSingleFile("drivingLicensePhoto", f), fileNamePrefix: "driving-license" })}
-                className="rounded-xl border py-2 text-xs font-semibold disabled:opacity-50"
-              >
-                DL Camera
-              </button>
-            </div>
+            {editingDocuments && (
+              <DocumentUploadActions
+                onFileSelect={(file) => uploadSingleFile("drivingLicensePhoto", file)}
+                fileNamePrefix="driving-license"
+                galleryInputRef={drivingInputRef}
+              />
+            )}
             {drivingPhotoUrl ? (
               <img src={drivingPhotoUrl} alt="Driving License" className="w-full h-24 object-cover rounded-lg border border-slate-200" />
             ) : (
@@ -633,18 +762,39 @@ export const EditDeliveryBoy = () => {
             <ErrMsg name="upiId" />
           </div>
 
-          <div className="flex gap-2">
-            <button disabled={!editingBank} onClick={() => openCamera({ onSelectFile: (f) => uploadSingleFile("upiQrCode", f), fileNamePrefix: "upi-qr" })} className="flex-1 rounded-xl border py-2 text-xs font-semibold flex items-center justify-center gap-1 disabled:opacity-50"><Camera className="w-3.5 h-3.5" /> QR Camera</button>
-            <button disabled={!editingBank} onClick={() => onPick(upiQrInputRef)} className="flex-1 rounded-xl border py-2 text-xs font-semibold flex items-center justify-center gap-1 disabled:opacity-50"><ImageIcon className="w-3.5 h-3.5" /> QR Gallery</button>
-          </div>
-          <div className="rounded-xl border border-slate-200 p-2">
-            <p className="text-[10px] font-semibold text-slate-500 mb-1">Existing UPI QR</p>
-            {visibleUpiQrUrl ? (
-              <img src={visibleUpiQrUrl} alt="UPI QR" className="w-28 h-28 object-cover rounded-lg" />
-            ) : (
-              <div className="w-28 h-28 rounded-lg bg-slate-100 text-[10px] text-slate-400 flex items-center justify-center">No QR</div>
-            )}
-          </div>
+          {editingBank && (
+            <DocumentUploadActions
+              onFileSelect={(file) => uploadSingleFile("upiQrCode", file)}
+              fileNamePrefix="upi-qr"
+              galleryInputRef={upiQrInputRef}
+            />
+          )}
+          {visibleUpiQrUrl && (
+            <div className={`rounded-xl border p-2 ${upiQrPreviewUrl ? "border-emerald-300 bg-emerald-50/40" : "border-slate-200"}`}>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <p className="text-[10px] font-semibold text-slate-500">
+                  {upiQrPreviewUrl ? "New UPI QR preview" : "Existing UPI QR"}
+                </p>
+                {upiQrUploadState === "selected" && (
+                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-bold text-amber-700">Ready to save</span>
+                )}
+                {upiQrUploadState === "saved" && !upiQrPreviewUrl && (
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-700">Saved</span>
+                )}
+              </div>
+              <div className="relative h-44 w-full max-w-xs overflow-hidden rounded-lg border border-slate-200 bg-white">
+                <img src={visibleUpiQrUrl} alt="UPI QR" className="h-full w-full object-contain" />
+                {saving && upiQrFile && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/75">
+                    <Loader2 className="h-5 w-5 animate-spin text-[#005128]" />
+                  </div>
+                )}
+              </div>
+              {upiQrPreviewUrl && (
+                <p className="mt-1 text-[10px] font-medium text-slate-500">Preview is shown now. Save to upload it.</p>
+              )}
+            </div>
+          )}
           <input ref={upiQrInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => uploadSingleFile("upiQrCode", e.target.files?.[0])} />
         </section>
       </div>

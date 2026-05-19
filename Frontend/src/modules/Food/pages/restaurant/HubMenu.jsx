@@ -20,6 +20,7 @@ import {
   Loader2
 } from "lucide-react"
 import BottomNavOrders from "@food/components/restaurant/BottomNavOrders"
+import DocumentUploadActions from "@food/components/DocumentUploadActions"
 // Removed foodManagement - now using backend API directly
 import { useNavigate } from "react-router-dom"
 import { restaurantAPI, uploadAPI } from "@food/api"
@@ -454,10 +455,9 @@ export default function HubMenu() {
     }
   }, [activeTab])
 
-  // Handle add-on image add
-  const handleAddonImageAdd = (e) => {
-    const files = Array.from(e.target.files)
-    
+  const addAddonImageFiles = (filesInput) => {
+    const files = Array.from(filesInput || [])
+
     const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/heic", "image/heif"]
     const validFiles = files.filter(file => {
       if (!allowedTypes.includes(file.type)) {
@@ -489,6 +489,11 @@ export default function HubMenu() {
     if (addonFileInputRef.current) {
       addonFileInputRef.current.value = ""
     }
+  }
+
+  // Handle add-on image add
+  const handleAddonImageAdd = (e) => {
+    addAddonImageFiles(e.target.files)
   }
 
   // Handle add-on image delete
@@ -2386,6 +2391,11 @@ export default function HubMenu() {
                     <Camera className="h-5 w-5 text-gray-500" />
                     <span className="text-sm font-medium text-gray-700">Add Images</span>
                   </label>
+                  <DocumentUploadActions
+                    onFileSelect={(file) => addAddonImageFiles([file])}
+                    fileNamePrefix="addon-photo"
+                    galleryInputRef={addonFileInputRef}
+                  />
                   <p className="text-xs text-gray-500 mt-1">Add multiple images (PNG, JPG, WEBP - max 5MB each)</p>
                 </div>
               </div>
