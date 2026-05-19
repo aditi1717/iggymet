@@ -853,6 +853,9 @@ const OrderDetailV2 = () => {
     });
   }, [mapDestination, mapDestinationAddress]);
 
+  const isPassedTaskFlow = dispatchStatus === 'unassigned' && !isClosedOrder;
+  const isAcceptedFlow = dispatchStatus === 'accepted' && !isClosedOrder;
+
   useEffect(() => {
     if (hasPickedOrder || isClosedOrder) {
       pickupCameraPromptedRef.current = false;
@@ -985,10 +988,7 @@ const OrderDetailV2 = () => {
     },
     'OTP resent to customer',
   ), [resolvedLookupOrderId, runAction]);
-  const isPassedTaskFlow = dispatchStatus === 'unassigned' && !isClosedOrder;
-
   const canAccept = order && dispatchStatus === 'assigned' && !isClosedOrder;
-  const isAcceptedFlow = dispatchStatus === 'accepted' && !isClosedOrder;
 
   const sliderStepConfig = useMemo(() => {
     if (!isAcceptedFlow || isPassedTaskFlow) return null;

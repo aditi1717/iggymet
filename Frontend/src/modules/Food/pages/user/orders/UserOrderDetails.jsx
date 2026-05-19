@@ -12,6 +12,7 @@ import {
   Calendar,
   MapPin,
   RotateCcw,
+  RefreshCw,
   FileText,
 } from "lucide-react"
 import { orderAPI, restaurantAPI } from "@food/api"
@@ -43,6 +44,40 @@ const isItemVeg = (item = {}) => {
   if (item?.isVeg === true) return true
   if (item?.isVeg === false) return false
   return false
+}
+
+function isOnlineRefundablePaymentMethod(methodRaw) {
+  const method = String(methodRaw || "").trim().toLowerCase()
+  return ["razorpay", "online", "card", "upi", "netbanking"].includes(method)
+}
+
+function isCancelledStatus(statusRaw) {
+  const status = String(statusRaw || "").toLowerCase()
+  return status === "cancelled" || status.includes("cancelled")
+}
+
+function getRefundDisplayInfo(orderLike) {
+  if (!orderLike || !isCancelledStatus(orderLike.orderStatus || orderLike.status)) return null
+
+  const paymentMethod = orderLike.payment?.method || orderLike.paymentMethod
+  if (!isOnlineRefundablePaymentMethod(paymentMethod)) return null
+
+  const refund = orderLike.payment?.refund || orderLike.refund || {}
+  const paymentStatus = String(orderLike.payment?.status || orderLike.paymentStatus || "").toLowerCase()
+  const rawStatus = String(refund.status || "").toLowerCase()
+  const status = rawStatus && rawStatus !== "none"
+    ? rawStatus
+    : paymentStatus === "refunded"
+      ? "processed"
+      : "pending"
+  const amount = Number(refund.amount || orderLike.payment?.amountDue || orderLike.pricing?.total || 0)
+
+  const label =
+    status === "processed" ? "Refund processed" :
+    status === "failed" ? "Refund failed" :
+    "Refund in process"
+
+  return { status, label, amount }
 }
 
 
@@ -140,6 +175,7 @@ export default function UserOrderDetails() {
   }
 
   const orderIdDisplay = order.orderId || order._id || orderId
+  const refundInfo = getRefundDisplayInfo(order)
   // Use fetched restaurant data if available, otherwise use order.restaurantId or order.restaurant
   const restaurantObj = restaurant || order.restaurantId || order.restaurant || {}
   const restaurantName =
@@ -410,6 +446,15 @@ export default function UserOrderDetails() {
               <p className="text-red-600 text-xs mt-1 font-medium italic">
                 Reason: {order.cancellationReason}
               </p>
+            )}
+            {refundInfo && (
+              <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-100">
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>
+                  {refundInfo.label}
+                  {refundInfo.amount > 0 ? `: \u20B9${refundInfo.amount.toFixed(2)}` : ""}
+                </span>
+              </div>
             )}
           </div>
         </div>

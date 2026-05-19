@@ -437,7 +437,7 @@ export default function OrderHelp() {
                       href={`mailto:support@appzeto.com?subject=Help with Order ${order.id}`}
                       className="text-sm text-primary hover:underline font-medium"
                     >
-                      support@appzeto.com
+                      support@Iggmet
                     </a>
                   </div>
                 </div>

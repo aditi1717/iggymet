@@ -381,6 +381,8 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
     noResponseMeta: apiOrder?.noResponseMeta || previousOrder?.noResponseMeta || null,
     paymentMethod: apiOrder?.paymentMethod || apiOrder?.payment?.method || previousOrder?.paymentMethod || null,
     payment: apiOrder?.payment || previousOrder?.payment || null,
+    refund: apiOrder?.payment?.refund || apiOrder?.refund || previousOrder?.refund || null,
+    refundAmount: apiOrder?.payment?.refund?.amount || apiOrder?.refundAmount || previousOrder?.refundAmount || 0,
     // Preserve delivery OTP code received via socket event.
     // API responses intentionally strip the secret code for security,
     // so without preserving it the UI would lose the OTP on each poll refresh.
@@ -486,6 +488,39 @@ function getUserFacingOrderStatusLabel(rawStatus) {
 function isFoodOrderCancelledStatus(statusRaw) {
   const s = String(statusRaw || "").toLowerCase()
   return s === "cancelled" || s.includes("cancelled")
+}
+
+function isOnlineRefundablePaymentMethod(methodRaw) {
+  const method = String(methodRaw || "").trim().toLowerCase()
+  return ["razorpay", "online", "card", "upi", "netbanking"].includes(method)
+}
+
+function getRefundDisplayInfo(orderLike) {
+  if (!orderLike || !isFoodOrderCancelledStatus(orderLike.status || orderLike.orderStatus)) return null
+
+  const paymentMethod = orderLike.payment?.method || orderLike.paymentMethod
+  if (!isOnlineRefundablePaymentMethod(paymentMethod)) return null
+
+  const refund = orderLike.payment?.refund || orderLike.refund || {}
+  const paymentStatus = String(orderLike.payment?.status || orderLike.paymentStatus || "").toLowerCase()
+  const rawStatus = String(refund.status || "").toLowerCase()
+  const status = rawStatus && rawStatus !== "none"
+    ? rawStatus
+    : paymentStatus === "refunded"
+      ? "processed"
+      : "pending"
+  const amount = Number(refund.amount || orderLike.refundAmount || orderLike.payment?.amountDue || orderLike.payableAmount || orderLike.totalAmount || 0)
+
+  const label =
+    status === "processed" ? "Refund processed" :
+    status === "failed" ? "Refund failed" :
+    "Refund in process"
+  const description =
+    status === "processed" ? "Amount will be credited to the original payment method as per bank timelines." :
+    status === "failed" ? "Refund could not be completed automatically. Support will review it." :
+    "Refund applies because this was an online payment."
+
+  return { status, label, description, amount }
 }
 
 function normalizeLookupId(value) {
@@ -1121,7 +1156,7 @@ export default function OrderTracking() {
         const successMessage = response.data?.message ||
           (paymentMethod === 'cash' || paymentMethod === 'cod'
             ? 'Order cancelled successfully. No refund required as payment was not made.'
-            : 'Order cancelled successfully. Refund will be processed after admin approval.');
+            : 'Order cancelled successfully. Refund status will be updated here.');
         toast.dismiss("order-placement-success");
         toast.success(successMessage, { id: "order-cancel-success" });
         setShowCancelDialog(false);
@@ -1346,6 +1381,7 @@ export default function OrderTracking() {
   }
 
   const currentStatus = statusConfig[orderStatus] || statusConfig.placed
+  const refundInfo = getRefundDisplayInfo(order)
   const isRiderAcceptedForUi =
     order?.dispatch?.status === "accepted" ||
     order?.assignmentInfo?.status === "accepted" ||
@@ -1505,6 +1541,34 @@ export default function OrderTracking() {
             </div>
           </div>
         </motion.div>
+
+        {refundInfo && (
+          <motion.div
+            className={`bg-white rounded-xl p-4 shadow-sm border ${
+              refundInfo.status === "failed" ? "border-red-100" : "border-emerald-100"
+            }`}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.32 }}
+          >
+            <div className="flex items-start gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                refundInfo.status === "failed" ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"
+              }`}>
+                <RefreshCw className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-semibold text-gray-900">{refundInfo.label}</p>
+                  {refundInfo.amount > 0 && (
+                    <p className="text-sm font-bold text-gray-900">{"\u20B9"}{refundInfo.amount.toFixed(2)}</p>
+                  )}
+                </div>
+                <p className="text-sm text-gray-500 mt-1">{refundInfo.description}</p>
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         {showDeliveryOtpInline && (
           <motion.div

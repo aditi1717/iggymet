@@ -1263,6 +1263,88 @@ const normalizeAdminScope = (adminScope = {}) => {
   };
 };
 
+function getRazorpayErrorMessage(err) {
+  const candidates = [
+    err?.error?.description,
+    err?.error?.reason,
+    err?.error?.message,
+    err?.response?.data?.error?.description,
+    err?.response?.data?.error?.reason,
+    err?.response?.data?.error?.message,
+    err?.description,
+    err?.message,
+  ];
+
+  const message = candidates
+    .map((value) => String(value || "").trim())
+    .find(Boolean);
+
+  return message || "Razorpay did not return an error reason";
+}
+
+function getRazorpayErrorLogDetails(err) {
+  const error = err?.error || err?.response?.data?.error || {};
+  return {
+    statusCode: err?.statusCode || err?.response?.status || null,
+    code: error?.code || err?.code || null,
+    field: error?.field || null,
+    step: error?.step || null,
+    reason: error?.reason || null,
+    description: error?.description || err?.description || err?.message || null,
+  };
+}
+
+function isRefundableRazorpayPayment(order) {
+  const method = String(order?.payment?.method || "").toLowerCase();
+  const status = String(order?.payment?.status || "").toLowerCase();
+  return (
+    method === "razorpay" &&
+    status === "paid" &&
+    Boolean(order?.payment?.razorpay?.paymentId) &&
+    order?.payment?.refund?.status !== "processed"
+  );
+}
+
+async function processCancellationRefund(order, contextLabel) {
+  if (!isRefundableRazorpayPayment(order)) return { attempted: false };
+
+  const refundAmount = Number(order?.pricing?.total || order?.payment?.amountDue || 0);
+  if (!Number.isFinite(refundAmount) || refundAmount <= 0) {
+    order.payment.refund = { status: "failed", amount: 0 };
+    return { attempted: true, success: false };
+  }
+
+  try {
+    const refundResult = await initiateRazorpayRefund(
+      order.payment.razorpay.paymentId,
+      refundAmount,
+    );
+
+    if (refundResult.success) {
+      order.payment.status = "refunded";
+      order.payment.refund = {
+        status: "processed",
+        amount: refundAmount,
+        refundId: refundResult.refundId,
+        processedAt: new Date(),
+      };
+      return { attempted: true, success: true };
+    }
+
+    order.payment.refund = {
+      status: "failed",
+      amount: refundAmount,
+    };
+    return { attempted: true, success: false };
+  } catch (err) {
+    logger.warn(
+      `Cancellation refund failed for order ${order?.orderId || order?._id} (${contextLabel}): ${err?.message || err}`,
+    );
+    order.payment.refund = { status: "failed", amount: refundAmount };
+    return { attempted: true, success: false };
+  }
+}
+
 // ----- Create order -----
 export async function createOrder(userId, dto) {
   const orderType = dto.orderType === "quick" ? "quick" : "food";
@@ -1433,8 +1515,18 @@ export async function createOrder(userId, dto) {
 
   let razorpayPayload = null;
 
-  if (paymentMethod === "razorpay" && isRazorpayConfigured()) {
-    const amountPaise = Math.round((payment.amountDue ?? 0) * 100);
+  if (paymentMethod === "razorpay") {
+    if (!isRazorpayConfigured()) {
+      logger.error(`Razorpay order creation skipped for ${orderId}: Razorpay is not configured`);
+      throw new ValidationError("Online payment is not configured. Please try cash or contact support.");
+    }
+
+    const amountDue = Number(payment.amountDue ?? 0);
+    if (!Number.isFinite(amountDue) || amountDue <= 0) {
+      throw new ValidationError("Invalid online payment amount");
+    }
+
+    const amountPaise = Math.round(amountDue * 100);
     if (amountPaise < 100)
       throw new ValidationError("Amount too low for online payment");
     try {
@@ -1452,7 +1544,13 @@ export async function createOrder(userId, dto) {
         currency: rzOrder.currency || "INR",
       };
     } catch (err) {
-      throw new ValidationError(err?.message || "Payment gateway error");
+      const gatewayMessage = getRazorpayErrorMessage(err);
+      logger.error(
+        `Razorpay order creation failed for ${orderId}: ${gatewayMessage} ${JSON.stringify(
+          getRazorpayErrorLogDetails(err),
+        )}`,
+      );
+      throw new ValidationError(`Online payment could not be initialized: ${gatewayMessage}`);
     }
   }
 
@@ -2509,6 +2607,9 @@ export async function updateOrderStatusAdmin(
     to: normalizedStatus,
     note: reason || "",
   });
+  if (normalizedStatus === "cancelled_by_admin") {
+    await processCancellationRefund(order, "admin_cancel");
+  }
   await order.save();
   if (normalizedStatus === "delivered" && order.payment?.status === "paid" && order.userId) {
     try {
