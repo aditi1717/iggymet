@@ -2537,7 +2537,7 @@ export default function Home() {
     return (
       <section className="space-y-1 sm:space-y-1.5 lg:space-y-2 min-h-[108px] sm:min-h-[120px]">
         <div className="px-4 pt-1 sm:px-4">
-          <p className="text-lg sm:text-xl font-bold text-neutral-900 tracking-tight leading-none mt-1">
+          <p className="text-lg sm:text-xl font-bold text-neutral-900 dark:text-white tracking-tight leading-none mt-1">
             What's on your mind?
           </p>
         </div>
@@ -2803,7 +2803,7 @@ export default function Home() {
                                 height={112}
                               />
                             </div>
-                            <span className="text-[11px] font-medium text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors text-center tracking-wide">
+                            <span className="text-[11px] font-medium text-gray-700 dark:text-gray-200 group-hover:text-gray-900 dark:group-hover:text-white transition-colors text-center tracking-wide">
                               {item.label}
                             </span>
                           </div>

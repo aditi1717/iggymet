@@ -24,6 +24,17 @@ const getTripIdentity = (trip) =>
       '',
   ).trim();
 
+const getTripRouteId = (trip) =>
+  String(
+    trip?.displayOrderId ||
+      trip?.orderCode ||
+      trip?.orderNumber ||
+      trip?.orderId ||
+      trip?.id ||
+      trip?._id ||
+      '',
+  ).trim();
+
 const getStatusStyle = (status) => {
   const s = String(status || '').toLowerCase();
   if (s === 'completed' || s === 'delivered') return { text: 'text-green-600', bg: 'bg-green-50', label: 'Completed' };
@@ -223,12 +234,15 @@ export const HistoryV2 = () => {
   }, [filteredTrips]);
 
   const openOrder = (trip) => {
-    const orderId = getTripIdentity(trip);
-    if (!orderId) {
+    const routeOrderId = getTripRouteId(trip);
+    const lookupOrderId = getTripIdentity(trip);
+    if (!routeOrderId && !lookupOrderId) {
       toast.error('Order ID not available');
       return;
     }
-    navigate(`/food/delivery/orders/${orderId}`);
+    navigate(`/food/delivery/orders/${routeOrderId || lookupOrderId}`, {
+      state: { lookupId: lookupOrderId || routeOrderId },
+    });
   };
 
   const handleDownloadExcel = () => {

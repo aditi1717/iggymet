@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import { Link } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import { ArrowLeft, Bell, CheckCircle2, Clock, Tag, Gift, AlertCircle, Trash2, X } from "lucide-react"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import { Button } from "@food/components/ui/button"
@@ -43,6 +43,7 @@ const ICON_MAP = {
 }
 
 export default function Notifications() {
+  const navigate = useNavigate()
   const [notificationsList, setNotificationsList] = useState(() => {
     const saved = localStorage.getItem('food_user_notifications')
     const parsed = saved ? JSON.parse(saved) : DEFAULT_NOTIFICATIONS
@@ -153,16 +154,27 @@ export default function Notifications() {
     setNotificationsList((prev) => prev.filter((notification) => notification.id !== id))
   }
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1)
+      return
+    }
+    navigate("/food/user", { replace: true })
+  }
+
   return (
     <AnimatedPage className={BRAND_THEME.tokens.wallet.pageBackground}>
       <div className="max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 md:py-8">
         {/* Header */}
         <div className="flex items-center gap-3 sm:gap-4 mb-4 md:mb-6 lg:mb-8">
-          <Link to="/user">
-            <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 sm:h-10 sm:w-10">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleBack}
+              className="rounded-full h-8 w-8 sm:h-10 sm:w-10"
+            >
               <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
             </Button>
-          </Link>
           <div className="flex items-center gap-2 sm:gap-3 flex-1">
             <Bell className="h-5 w-5 sm:h-6 sm:w-6" style={{ color: BRAND_THEME.tokens.notifications.headerIcon, fill: BRAND_THEME.tokens.notifications.headerIcon }} />
             <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-gray-800 dark:text-white">Notifications</h1>

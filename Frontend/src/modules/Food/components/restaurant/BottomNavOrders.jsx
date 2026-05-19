@@ -59,8 +59,6 @@ export default function BottomNavOrders() {
 
   const basePath = pathname.startsWith("/food/restaurant")
     ? "/food/restaurant"
-    : pathname.startsWith("/restaurant")
-    ? "/food/restaurant"
     : "/restaurant"
 
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false)

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { deliveryAPI, uploadAPI } from '@food/api';
 import { toast } from 'sonner';
 import { useDeliveryStore } from '@/modules/DeliveryV2/store/useDeliveryStore';
@@ -514,8 +514,11 @@ const ATTEMPT_TIMER_SECONDS = 30; // 30 seconds (testing)
 
 const OrderDetailV2 = () => {
   const { orderId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const { setActiveOrder, updateTripStatus, clearActiveOrder } = useDeliveryStore();
+  const routeOrderId = String(orderId || '').trim();
+  const lookupIdFromState = String(location?.state?.lookupId || '').trim();
 
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -525,6 +528,18 @@ const OrderDetailV2 = () => {
   const [pickupPhoto, setPickupPhoto] = useState(null);
   const [pickupPhotoPreview, setPickupPhotoPreview] = useState(null);
   const pickupFileInputRef = useRef(null);
+
+  const resolvedLookupOrderId = useMemo(
+    () =>
+      String(
+        order?.orderMongoId ||
+          order?._id ||
+          order?.id ||
+          lookupIdFromState ||
+          routeOrderId,
+      ).trim(),
+    [lookupIdFromState, order, routeOrderId],
+  );
 
   // Delivery Attempt States
   // 'normal' | 'timer' | 'proof'
@@ -597,7 +612,7 @@ const OrderDetailV2 = () => {
         uploadResponse?.data?.url ||
         '';
 
-      const response = await deliveryAPI.reportUserUnavailable(orderId, {
+      const response = await deliveryAPI.reportUserUnavailable(resolvedLookupOrderId, {
         noResponseProofImage: proofImageUrl,
         proofImageUrl,
         callAttempted: true,
@@ -606,7 +621,7 @@ const OrderDetailV2 = () => {
       });
       const nextOrder = response?.data?.data?.order || null;
       if (nextOrder) {
-        const hydratedOrder = hydrateDeliveryOrder(nextOrder, String(orderId || '').trim());
+        const hydratedOrder = hydrateDeliveryOrder(nextOrder, routeOrderId || resolvedLookupOrderId);
         setOrder(hydratedOrder);
       }
       toast.success('Proof submitted. Order marked as User Unavailable.');
@@ -620,7 +635,7 @@ const OrderDetailV2 = () => {
     } finally {
       setBusyAction('');
     }
-  }, [clearActiveOrder, orderId, proofPhoto]);
+  }, [clearActiveOrder, proofPhoto, resolvedLookupOrderId, routeOrderId]);
 
   const syncStoreWithOrder = useCallback((nextOrder) => {
     if (!nextOrder) return;
@@ -630,7 +645,7 @@ const OrderDetailV2 = () => {
   }, [setActiveOrder, updateTripStatus]);
 
   const applyResolvedOrder = useCallback((rawOrder) => {
-    const hydratedOrder = hydrateDeliveryOrder(rawOrder, String(orderId || '').trim());
+    const hydratedOrder = hydrateDeliveryOrder(rawOrder, routeOrderId || resolvedLookupOrderId);
     if (!hydratedOrder) {
       setOrder(null);
       return null;
@@ -645,17 +660,17 @@ const OrderDetailV2 = () => {
       clearActiveOrder();
     }
     return hydratedOrder;
-  }, [clearActiveOrder, orderId, syncStoreWithOrder]);
+  }, [clearActiveOrder, resolvedLookupOrderId, routeOrderId, syncStoreWithOrder]);
 
   const fetchOrderDetails = useCallback(async (silent = false) => {
-    if (!orderId) return;
+    if (!resolvedLookupOrderId) return;
 
     if (!silent) {
       setLoading(true);
     }
 
     try {
-      const response = await deliveryAPI.getOrderDetails(orderId);
+      const response = await deliveryAPI.getOrderDetails(resolvedLookupOrderId);
       const detailedOrder =
         response?.data?.data?.order ||
         response?.data?.data?.activeOrder ||
@@ -675,7 +690,7 @@ const OrderDetailV2 = () => {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [applyResolvedOrder, orderId]);
+  }, [applyResolvedOrder, resolvedLookupOrderId]);
 
   useEffect(() => {
     void fetchOrderDetails();
@@ -753,7 +768,7 @@ const OrderDetailV2 = () => {
   const grandTotal = getPayableAmount(order) ?? Math.max(0, subtotal + deliveryCharge + dueAmount);
 
   const openOrderMapInApp = useCallback(() => {
-    const targetOrderId = getOrderIdentity(order) || String(orderId || '').trim();
+    const targetOrderId = getOrderIdentity(order) || resolvedLookupOrderId;
     if (!targetOrderId) return;
     try {
       localStorage.setItem(ORDER_FOCUS_STORAGE_KEY, targetOrderId);
@@ -762,7 +777,7 @@ const OrderDetailV2 = () => {
     }
     if (order) syncStoreWithOrder(order);
     navigate('/food/delivery/feed');
-  }, [navigate, order, orderId, syncStoreWithOrder]);
+  }, [navigate, order, resolvedLookupOrderId, syncStoreWithOrder]);
 
   const runAction = useCallback(async (actionKey, runner, successMessage, options = {}) => {
     const { skipRefresh = false, onSuccess } = options;
@@ -821,19 +836,19 @@ const OrderDetailV2 = () => {
   const handleAccept = useCallback(() => runAction(
     'accept',
     async () => {
-      const response = await deliveryAPI.acceptOrder(orderId);
+      const response = await deliveryAPI.acceptOrder(resolvedLookupOrderId);
       const nextOrder = response?.data?.data?.order || order;
       syncStoreWithOrder(nextOrder);
     },
     'Order accepted',
-  ), [order, orderId, runAction, syncStoreWithOrder]);
+  ), [order, resolvedLookupOrderId, runAction, syncStoreWithOrder]);
 
   const handlePassTask = useCallback(() => {
-    const passedOrderId = getOrderIdentity(order) || String(orderId || '').trim();
+    const passedOrderId = getOrderIdentity(order) || resolvedLookupOrderId;
     return runAction(
       'pass-task',
       async () => {
-        await deliveryAPI.rejectOrder(orderId, { reasonType: 'passed' });
+        await deliveryAPI.rejectOrder(resolvedLookupOrderId, { reasonType: 'passed' });
         clearActiveOrder();
       },
       'Task passed to admin',
@@ -860,7 +875,7 @@ const OrderDetailV2 = () => {
         },
       },
     );
-  }, [clearActiveOrder, navigate, order, orderId, runAction]);
+  }, [clearActiveOrder, navigate, order, resolvedLookupOrderId, runAction]);
 
   const handlePicked = useCallback(() => runAction(
     'picked',
@@ -876,10 +891,10 @@ const OrderDetailV2 = () => {
         uploadResponse?.data?.url ||
         '';
       // Keep backend transition valid: rider must reach pickup before marking picked.
-      await deliveryAPI.confirmReachedPickup(orderId);
+      await deliveryAPI.confirmReachedPickup(resolvedLookupOrderId);
       await deliveryAPI.confirmOrderId(
-        orderId,
-        order?.displayOrderId || orderId,
+        resolvedLookupOrderId,
+        order?.displayOrderId || routeOrderId || resolvedLookupOrderId,
         useDeliveryStore.getState().riderLocation || {},
         { billImageUrl },
       );
@@ -887,15 +902,15 @@ const OrderDetailV2 = () => {
       setPickupPhotoPreview(null);
     },
     'Order marked as picked',
-  ), [order, orderId, pickupPhoto, runAction]);
+  ), [order, pickupPhoto, resolvedLookupOrderId, routeOrderId, runAction]);
 
   const handleArriveDrop = useCallback(() => runAction(
     'drop-arrival',
     async () => {
-      await deliveryAPI.confirmReachedDrop(orderId);
+      await deliveryAPI.confirmReachedDrop(resolvedLookupOrderId);
     },
     'Customer arrival updated',
-  ), [orderId, runAction]);
+  ), [resolvedLookupOrderId, runAction]);
 
   const handleDelivered = useCallback(() => runAction(
     'delivered',
@@ -903,11 +918,11 @@ const OrderDetailV2 = () => {
       if (dropOtpRequired && !dropOtpVerified) {
         throw new Error('Please verify customer OTP before marking delivered');
       }
-      await deliveryAPI.completeDelivery(orderId, { rating: 5 });
+      await deliveryAPI.completeDelivery(resolvedLookupOrderId, { rating: 5 });
       clearActiveOrder();
     },
     'Order delivered',
-  ), [clearActiveOrder, dropOtpRequired, dropOtpVerified, orderId, runAction]);
+  ), [clearActiveOrder, dropOtpRequired, dropOtpVerified, resolvedLookupOrderId, runAction]);
 
   const handleVerifyDropOtp = useCallback(() => runAction(
     'verify-drop-otp',
@@ -916,20 +931,20 @@ const OrderDetailV2 = () => {
       if (!otp) {
         throw new Error('Please enter OTP');
       }
-      await deliveryAPI.verifyDropOtp(orderId, otp);
+      await deliveryAPI.verifyDropOtp(resolvedLookupOrderId, otp);
       setShowOtpModal(false);
       setDropOtpCode('');
     },
     'OTP verified',
-  ), [dropOtpCode, orderId, runAction]);
+  ), [dropOtpCode, resolvedLookupOrderId, runAction]);
 
   const handleResendDropOtp = useCallback(() => runAction(
     'resend-drop-otp',
     async () => {
-      await deliveryAPI.confirmReachedDrop(orderId);
+      await deliveryAPI.confirmReachedDrop(resolvedLookupOrderId);
     },
     'OTP resent to customer',
-  ), [orderId, runAction]);
+  ), [resolvedLookupOrderId, runAction]);
   const isPassedTaskFlow = dispatchStatus === 'unassigned' && !isClosedOrder;
 
   const canAccept = order && dispatchStatus === 'assigned' && !isClosedOrder;
@@ -1046,7 +1061,7 @@ const OrderDetailV2 = () => {
                 {getOrderEventDate(order) ? new Date(getOrderEventDate(order)).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                Order ID: {order?.displayOrderId ? `#${order.displayOrderId}` : `#${String(orderId || '').slice(-6).toUpperCase()}`}
+                Order ID: {order?.displayOrderId ? `#${order.displayOrderId}` : `#${String(routeOrderId || '').slice(-6).toUpperCase()}`}
               </p>
             </div>
             <StatusPill tone={currentStatus.tone}>{currentStatus.label}</StatusPill>

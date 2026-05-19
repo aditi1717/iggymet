@@ -49,6 +49,17 @@ const getOrderIdentity = (orderLike) =>
     '',
   ).trim();
 
+const getOrderRouteId = (orderLike) =>
+  String(
+    orderLike?.displayOrderId ||
+    orderLike?.orderCode ||
+    orderLike?.orderNumber ||
+    orderLike?.orderId ||
+    orderLike?.id ||
+    orderLike?._id ||
+    '',
+  ).trim();
+
 const getLocFromOrderRef = (ref, keysLat, keysLng) => {
   if (!ref) return null;
   if (ref.location) {
@@ -496,7 +507,7 @@ function OrdersTabV2({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
           <p className="text-[11px] font-black uppercase tracking-[0.24em] text-brand-600">Orders</p>
-          <h1 className="mt-1 text-xl leading-6 font-black text-slate-950">Manage trips</h1>
+          <h1 className="mt-1 text-xl leading-6 font-black text-slate-950">Orders</h1>
           <p className="mt-1 text-xs leading-5 text-slate-500">
             Incoming and live requests stay here.
           </p>
@@ -1503,6 +1514,13 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   };
 
   const handleMapClick = () => {};
+  const headerTabTitle = currentTab === 'orders'
+    ? 'Orders'
+    : currentTab === 'pocket'
+      ? 'Partner Pocket'
+      : currentTab === 'profile'
+        ? 'My Profile'
+        : '';
 
   return (
     <div className="relative h-screen w-full bg-white text-gray-900 overflow-hidden flex flex-col">
@@ -1517,6 +1535,11 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
               >
                 <img src={profileImage || "https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png"} alt="Profile" className="w-full h-full object-cover" />
               </div>
+              {currentTab !== 'feed' && (
+                <h1 className="text-base font-bold text-slate-900">
+                  {headerTabTitle}
+                </h1>
+              )}
               {currentTab === 'feed' && (
                 <button
                   onClick={async () => {
@@ -1699,9 +1722,12 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
             actionBusyOrderId={orderActionBusy.orderId}
             actionBusyType={orderActionBusy.type}
             onOpenOrderDetail={(order) => {
-              const targetOrderId = getOrderIdentity(order);
-              if (!targetOrderId) return;
-              navigate(`/food/delivery/orders/${targetOrderId}`);
+              const routeOrderId = getOrderRouteId(order);
+              const lookupOrderId = getOrderIdentity(order);
+              if (!routeOrderId && !lookupOrderId) return;
+              navigate(`/food/delivery/orders/${routeOrderId || lookupOrderId}`, {
+                state: { lookupId: lookupOrderId || routeOrderId },
+              });
             }}
           />
         ) : currentTab === 'pocket' ? (
