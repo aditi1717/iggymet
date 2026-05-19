@@ -23,7 +23,7 @@ import { useZone } from "@food/hooks/useZone"
 import { useDelayedLoading } from "@food/hooks/useDelayedLoading"
 import { getMenuFromResponse } from "@food/utils/menuItems"
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
-import { enrichSearchRestaurantsWithOutletTimings } from "@food/utils/searchAvailability"
+import { enrichSearchRestaurantsWithOutletTimings, isPureVegRestaurant, isVegCompatibleCategory } from "@food/utils/searchAvailability"
 import BRAND_THEME from "@/config/brandTheme"
 
 // Filter options
@@ -47,6 +47,10 @@ export default function CategoryPage() {
   const { vegMode } = useProfile()
   const { location } = useLocation()
   const { zoneId, isOutOfService } = useZone(location)
+  const [storedUserVegMode, setStoredUserVegMode] = useState(() => {
+    if (typeof window === "undefined") return false
+    return window.localStorage.getItem("userVegMode") === "true"
+  })
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState(category?.toLowerCase() || 'all')
   const [activeFilters, setActiveFilters] = useState(new Set())
@@ -75,6 +79,7 @@ export default function CategoryPage() {
   const [categoryKeywords, setCategoryKeywords] = useState({})
   const showCategorySkeleton = useDelayedLoading(loadingCategories)
   const deferredSearchQuery = useDeferredValue(searchQuery)
+  const effectiveVegMode = vegMode || storedUserVegMode
   const BACKEND_ORIGIN = useMemo(() => API_BASE_URL.replace(/\/api\/?$/, ""), [])
   const slugify = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
   const normalizeZoneValue = (value) => {
@@ -189,6 +194,23 @@ export default function CategoryPage() {
 
     return approvedFoodsInFlightRef.current
   }
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const syncStoredVegMode = () => {
+      setStoredUserVegMode(window.localStorage.getItem("userVegMode") === "true")
+    }
+
+    syncStoredVegMode()
+    window.addEventListener("storage", syncStoredVegMode)
+    window.addEventListener("focus", syncStoredVegMode)
+
+    return () => {
+      window.removeEventListener("storage", syncStoredVegMode)
+      window.removeEventListener("focus", syncStoredVegMode)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -612,6 +634,7 @@ export default function CategoryPage() {
               name: cat.name,
               image: cat.image || foodImages[0],
               slug: cat.slug || cat.name.toLowerCase().replace(/\s+/g, '-'),
+              foodTypeScope: cat.foodTypeScope || cat.foodType || cat.dietType || null,
               type: cat.type,
             }))
           ]
@@ -926,6 +949,7 @@ export default function CategoryPage() {
                 slug: restaurant.slug || (restaurant.restaurantName || restaurant.name)?.toLowerCase().replace(/\s+/g, '-'),
                 restaurantId: restaurantId,
                 mongoId: restaurant._id || restaurantId,
+                pureVegRestaurant: restaurant.pureVegRestaurant === true,
                 zoneId: getRestaurantZoneId(restaurant),
                 isActive: restaurant.isActive !== false,
                 isAcceptingOrders: restaurant.isAcceptingOrders !== false,
@@ -1210,7 +1234,7 @@ export default function CategoryPage() {
   // If category is selected, expand restaurants into dish cards (one card per matching dish)
   const filteredRecommended = useMemo(() => {
     const sourceData = restaurantsData.length > 0 ? restaurantsData : []
-    let filtered = [...sourceData]
+    let filtered = effectiveVegMode ? sourceData.filter(isPureVegRestaurant) : [...sourceData]
 
     // Filter by category - Dynamic filtering based on menu items
     if (selectedCategory && selectedCategory !== 'all') {
@@ -1224,7 +1248,7 @@ export default function CategoryPage() {
             const categoryDishes = getAllCategoryDishesFromMenu(r.menu, selectedCategory)
 
             if (categoryDishes.length > 0) {
-              const validDishes = vegMode
+              const validDishes = effectiveVegMode
                 ? categoryDishes.filter((dish) => dish.foodType === "Veg")
                 : categoryDishes;
 
@@ -1248,18 +1272,18 @@ export default function CategoryPage() {
 
       if (filtered.length === 0) {
         const fallbackDishes = getCategoryFallbackDishesFromApprovedFoods(selectedCategory, sourceData)
-        filtered = vegMode
+        filtered = effectiveVegMode
           ? fallbackDishes.filter((dish) => dish.categoryDishFoodType === "Veg")
           : fallbackDishes
       }
     }
 
     return applyFiltersAndSorting(filtered)
-  }, [selectedCategory, activeFilters, deferredSearchQuery, restaurantsData, categoryKeywords, vegMode, approvedFoodsData, sortBy])
+  }, [selectedCategory, activeFilters, deferredSearchQuery, restaurantsData, categoryKeywords, effectiveVegMode, approvedFoodsData, sortBy])
 
   const filteredAllRestaurants = useMemo(() => {
     const sourceData = restaurantsData.length > 0 ? restaurantsData : []
-    let filtered = [...sourceData]
+    let filtered = effectiveVegMode ? sourceData.filter(isPureVegRestaurant) : [...sourceData]
 
     // Filter by category - Dynamic filtering based on menu items
     // If category is selected, expand restaurants into dish cards (one card per matching dish)
@@ -1274,7 +1298,7 @@ export default function CategoryPage() {
             const categoryDishes = getAllCategoryDishesFromMenu(r.menu, selectedCategory)
 
             if (categoryDishes.length > 0) {
-              const validDishes = vegMode
+              const validDishes = effectiveVegMode
                 ? categoryDishes.filter((dish) => dish.foodType === "Veg")
                 : categoryDishes;
 
@@ -1298,14 +1322,33 @@ export default function CategoryPage() {
 
       if (filtered.length === 0) {
         const fallbackDishes = getCategoryFallbackDishesFromApprovedFoods(selectedCategory, sourceData)
-        filtered = vegMode
+        filtered = effectiveVegMode
           ? fallbackDishes.filter((dish) => dish.categoryDishFoodType === "Veg")
           : fallbackDishes
       }
     }
 
     return applyFiltersAndSorting(filtered)
-  }, [selectedCategory, activeFilters, deferredSearchQuery, restaurantsData, categoryKeywords, vegMode, approvedFoodsData, sortBy])
+  }, [selectedCategory, activeFilters, deferredSearchQuery, restaurantsData, categoryKeywords, effectiveVegMode, approvedFoodsData, sortBy])
+
+  const visibleCategories = useMemo(
+    () => {
+      if (!effectiveVegMode) return categories
+
+      return categories.filter((category) => {
+        const categorySlug = category.slug || category.id
+        if (categorySlug === "all" || category.id === "all") return true
+        if (!isVegCompatibleCategory(category)) return false
+
+        return restaurantsData.some((restaurant) => {
+          if (!isPureVegRestaurant(restaurant) || !restaurant.menu) return false
+          return getAllCategoryDishesFromMenu(restaurant.menu, categorySlug)
+            .some((dish) => dish.foodType === "Veg")
+        })
+      })
+    },
+    [categories, effectiveVegMode, restaurantsData]
+  )
 
   const showRestaurantSkeleton = useDelayedLoading(
     isLoadingFilterResults || loadingRestaurants || (isEnrichingMenus && selectedCategory !== 'all' && filteredRecommended.length === 0),
@@ -1364,7 +1407,7 @@ export default function CategoryPage() {
             {showCategorySkeleton ? (
               <CategoryChipRowSkeleton className="py-3" />
             ) : (
-              categories && categories.length > 0 ? categories.map((cat) => {
+              visibleCategories && visibleCategories.length > 0 ? visibleCategories.map((cat) => {
                 const categorySlug = cat.slug || cat.id
                 const isSelected = selectedCategory === categorySlug || selectedCategory === cat.id
                 const isAllCategory = categorySlug === "all" || cat.id === "all"

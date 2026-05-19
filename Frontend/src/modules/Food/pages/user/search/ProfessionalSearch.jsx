@@ -8,11 +8,12 @@ import {
 import { Card, CardContent } from "@food/components/ui/card"
 import { Button } from "@food/components/ui/button"
 import { Input } from "@food/components/ui/input"
+import { useProfile } from "@food/context/ProfileContext"
 import { useLocation as useGeoLocation } from "@food/hooks/useLocation"
 import { useZone } from "@food/hooks/useZone"
 import { searchAPI } from "@/services/api"
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
-import { enrichSearchRestaurantsWithOutletTimings } from "@food/utils/searchAvailability"
+import { enrichSearchRestaurantsWithOutletTimings, isPureVegRestaurant } from "@food/utils/searchAvailability"
 import { motion, AnimatePresence } from "framer-motion"
 
 // Helper to resolve media URLs consistently
@@ -43,6 +44,7 @@ export default function ProfessionalSearch() {
   const [searchParams, setSearchParams] = useSearchParams()
   const initialQuery = searchParams.get("q") || ""
   const navigate = useNavigate()
+  const { vegMode } = useProfile()
   const { location: userCoords } = useGeoLocation()
   const { zoneId } = useZone(userCoords)
   
@@ -107,7 +109,8 @@ export default function ProfessionalSearch() {
       
       if (res.data?.success) {
         // Grouping results into Restaurants and potential Dishes
-        const all = await enrichSearchRestaurantsWithOutletTimings(res.data.data.restaurants || [])
+        const all = (await enrichSearchRestaurantsWithOutletTimings(res.data.data.restaurants || []))
+          .filter((restaurant) => !vegMode || isPureVegRestaurant(restaurant))
         setResults({
           restaurants: all.filter(r => r.matchType === 'restaurant' || !r.matchType),
           dishes: all.filter(r => r.matchType === 'food')
@@ -118,7 +121,7 @@ export default function ProfessionalSearch() {
     } finally {
       setLoading(false)
     }
-  }, [userCoords, zoneId])
+  }, [userCoords, zoneId, vegMode])
 
   useEffect(() => {
     if (!zoneId) {

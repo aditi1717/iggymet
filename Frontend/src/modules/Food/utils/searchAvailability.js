@@ -16,6 +16,7 @@ export const normalizeSearchAvailabilityRestaurant = (restaurant = {}) => {
     restaurantId,
     name: restaurant.name || restaurant.restaurantName || "Restaurant",
     restaurantName: restaurant.restaurantName || restaurant.name || "Restaurant",
+    pureVegRestaurant: restaurant.pureVegRestaurant === true || restaurant.pureVegRestaurant === "true",
     isActive: restaurant.isActive !== false,
     isAcceptingOrders: restaurant.isAcceptingOrders !== false,
     availabilityStatus: restaurant.availabilityStatus ?? null,
@@ -39,6 +40,26 @@ export const normalizeSearchAvailabilityRestaurant = (restaurant = {}) => {
     openingTime: restaurant.openingTime ?? null,
     closingTime: restaurant.closingTime ?? null,
   }
+}
+
+export const isPureVegRestaurant = (restaurant = {}) =>
+  restaurant?.pureVegRestaurant === true || restaurant?.pureVegRestaurant === "true"
+
+export const isVegCompatibleCategory = (category = {}) => {
+  const normalizedScope = String(
+    category?.foodTypeScope ||
+    category?.foodType ||
+    category?.dietType ||
+    "",
+  ).trim().toLowerCase()
+
+  return (
+    !normalizedScope ||
+    normalizedScope === "veg" ||
+    normalizedScope === "vegetarian" ||
+    normalizedScope === "both" ||
+    normalizedScope === "all"
+  )
 }
 
 export const enrichSearchRestaurantsWithOutletTimings = async (restaurants = []) => {

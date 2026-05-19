@@ -10,6 +10,7 @@ import { useLocationSelector, useSearchOverlay } from "@food/components/user/Use
 import { useLocation } from "@food/hooks/useLocation"
 import { useZone } from "@food/hooks/useZone"
 import { useCart } from "@food/context/CartContext"
+import { useProfile } from "@food/context/ProfileContext"
 import offerImage from "@food/assets/offerimage.png"
 import AddToCartAnimation from "@food/components/user/AddToCartAnimation"
 import OptimizedImage from "@food/components/OptimizedImage"
@@ -21,6 +22,7 @@ import { flattenMenuItems, getMenuFromResponse } from "@food/utils/menuItems"
 import { calculateDistance, formatDistance } from "@food/utils/common"
 import { hasFoodVariants, getFoodVariants, buildCartLineId } from "@food/utils/foodVariants"
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
+import { isPureVegRestaurant, isVegCompatibleCategory } from "@food/utils/searchAvailability"
 import BRAND_THEME from "@/config/brandTheme"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -46,6 +48,40 @@ const isItemVeg = (item = {}) => {
   if (item?.isVeg === true) return true
   if (item?.isVeg === false) return false
   return false
+}
+
+const isGlobalCategory = (category = {}) =>
+  category?.isGlobal === true ||
+  Boolean(category?.globalizedAt) ||
+  (!category?.restaurantId && !category?.createdByRestaurantId)
+
+const getCategoryMatchTokens = (category = {}) =>
+  [
+    category?.name,
+    category?.slug,
+    category?.id,
+  ]
+    .map((value) => String(value || "").trim().toLowerCase())
+    .filter(Boolean)
+
+const itemMatchesCategory = (item = {}, category = {}) => {
+  const tokens = getCategoryMatchTokens(category)
+  if (tokens.length === 0) return false
+
+  const itemValues = [
+    item?.category,
+    item?.categoryName,
+    item?.categorySlug,
+    item?.categoryId,
+    item?.sectionName,
+    item?.subsectionName,
+  ]
+    .map((value) => String(value || "").trim().toLowerCase())
+    .filter(Boolean)
+
+  return tokens.some((token) =>
+    itemValues.some((value) => value === token || value.includes(token)),
+  )
 }
 
 const UNDER_PRICE_DEFAULT_STORAGE_KEY = "food-under-price-default"
@@ -112,6 +148,7 @@ export default function Under250() {
   const navigate = useNavigate()
   const { openLocationSelector } = useLocationSelector()
   const { openSearch, setSearchValue } = useSearchOverlay()
+  const { vegMode: profileVegMode } = useProfile()
   const { addToCart, updateQuantity, removeFromCart, getCartItem, cart } = useCart()
   const [activeCategory, setActiveCategory] = useState(initialFiltersRef.current.activeCategory)
   const [showSortPopup, setShowSortPopup] = useState(false)
@@ -156,6 +193,10 @@ export default function Under250() {
   const [showVegModePopup, setShowVegModePopup] = useState(false)
   const [showSwitchOffPopup, setShowSwitchOffPopup] = useState(false)
   const [vegModeOption, setVegModeOption] = useState("all")
+  const [storedUserVegMode, setStoredUserVegMode] = useState(() => {
+    if (typeof window === "undefined") return false
+    return window.localStorage.getItem("userVegMode") === "true"
+  })
   const isHandlingSwitchOff = useRef(false)
   const placeholders = useMemo(
     () => [
@@ -194,6 +235,23 @@ export default function Under250() {
     if (typeof window === "undefined") return
     window.localStorage.setItem(UNDER_250_VEG_MODE_KEY, vegMode ? "true" : "false")
   }, [vegMode])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const syncStoredVegMode = () => {
+      setStoredUserVegMode(window.localStorage.getItem("userVegMode") === "true")
+    }
+
+    syncStoredVegMode()
+    window.addEventListener("storage", syncStoredVegMode)
+    window.addEventListener("focus", syncStoredVegMode)
+
+    return () => {
+      window.removeEventListener("storage", syncStoredVegMode)
+      window.removeEventListener("focus", syncStoredVegMode)
+    }
+  }, [])
 
   const handleVegModeChange = (newValue) => {
     if (isHandlingSwitchOff.current) return
@@ -291,8 +349,11 @@ export default function Under250() {
   const sortedAndFilteredRestaurants = useMemo(() => {
     let filtered = under250Restaurants.map(r => ({ ...r, menuItems: [...(r.menuItems || [])] }))
 
-    if (vegMode) {
+    const effectiveVegMode = vegMode || profileVegMode || storedUserVegMode
+
+    if (effectiveVegMode) {
       filtered = filtered
+        .filter((restaurant) => isPureVegRestaurant(restaurant))
         .map((restaurant) => {
           const vegItems = (restaurant.menuItems || []).filter((item) => item?.isVeg)
           if (vegItems.length === 0) return null
@@ -305,13 +366,8 @@ export default function Under250() {
     if (activeCategory) {
       const selectedCat = categories.find(cat => cat.id === activeCategory)
       if (selectedCat) {
-        const catNameLower = selectedCat.name.toLowerCase()
         filtered = filtered.map(restaurant => {
-          const matches = restaurant.menuItems.filter(item => 
-            (item.category || "").toLowerCase().includes(catNameLower) ||
-            (item.sectionName || "").toLowerCase().includes(catNameLower) ||
-            (item.subsectionName || "").toLowerCase().includes(catNameLower)
-          )
+          const matches = restaurant.menuItems.filter(item => itemMatchesCategory(item, selectedCat))
           if (matches.length > 0) {
             return { ...restaurant, menuItems: matches }
           }
@@ -369,7 +425,24 @@ export default function Under250() {
     }
 
     return filtered
-  }, [under250Restaurants, selectedSort, under30MinsFilter, activeCategory, categories, vegMode])
+  }, [under250Restaurants, selectedSort, under30MinsFilter, activeCategory, categories, vegMode, profileVegMode, storedUserVegMode])
+
+  const visibleCategories = useMemo(() => {
+    const effectiveVegMode = vegMode || profileVegMode || storedUserVegMode
+    if (!effectiveVegMode) return categories
+
+    return categories.filter((category) => {
+      if (!isVegCompatibleCategory(category)) return false
+
+      return under250Restaurants.some((restaurant) => {
+        if (!isPureVegRestaurant(restaurant)) return false
+        return (restaurant.menuItems || []).some((item) => {
+          if (!item?.isVeg) return false
+          return itemMatchesCategory(item, category)
+        })
+      })
+    })
+  }, [categories, under250Restaurants, vegMode, profileVegMode, storedUserVegMode])
 
   // Fetch under-price banner from public API
   useEffect(() => {
@@ -581,6 +654,7 @@ export default function Under250() {
                 distance: distanceInKm !== null ? formatDistance(distanceInKm) : fallbackDistance,
                 distanceInKm,
                 originalIndex: index,
+                pureVegRestaurant: restaurant?.pureVegRestaurant === true,
                 isActive: restaurant?.isActive !== false,
                 isAcceptingOrders: restaurant?.isAcceptingOrders !== false,
                 availabilityStatus: restaurant?.availabilityStatus || null,
@@ -681,6 +755,15 @@ export default function Under250() {
               id: String(cat?.id || cat?._id || cat?.slug || `cat-${index}`),
               name,
               slug: String(cat?.slug || name.toLowerCase().replace(/\s+/g, "-")),
+              foodTypeScope: cat?.foodTypeScope || cat?.foodType || cat?.dietType || null,
+              type: cat?.type || null,
+              restaurantId: cat?.restaurantId || null,
+              createdByRestaurantId: cat?.createdByRestaurantId || null,
+              globalizedAt: cat?.globalizedAt || null,
+              isGlobal:
+                cat?.isGlobal === true ||
+                Boolean(cat?.globalizedAt) ||
+                (!cat?.restaurantId && !cat?.createdByRestaurantId),
               image:
                 cat?.imageUrl ||
                 cat?.image ||
@@ -1148,7 +1231,7 @@ export default function Under250() {
                 </span>
               </motion.div>
             </div>
-            {categories.map((category, index) => {
+            {visibleCategories.map((category, index) => {
               const isActive = activeCategory === category.id
               return (
                 <div key={category.id} className="flex-shrink-0 cursor-pointer" onClick={() => setActiveCategory(isActive ? null : category.id)}>

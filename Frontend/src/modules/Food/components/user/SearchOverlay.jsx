@@ -4,10 +4,11 @@ import { X, Search, Clock, Loader2 } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import { Input } from "@food/components/ui/input"
 import { searchAPI } from "@/services/api"
+import { useProfile } from "@food/context/ProfileContext"
 import { useLocation } from "@food/hooks/useLocation"
 import { useZone } from "@food/hooks/useZone"
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
-import { enrichSearchRestaurantsWithOutletTimings } from "@food/utils/searchAvailability"
+import { enrichSearchRestaurantsWithOutletTimings, isPureVegRestaurant } from "@food/utils/searchAvailability"
 import BRAND_THEME from "@/config/brandTheme"
 
 const SEARCH_HISTORY_KEY = "user_recent_searches_v1"
@@ -16,6 +17,7 @@ export default function SearchOverlay({ isOpen, onClose, searchValue, onSearchCh
   const { searchOverlay } = BRAND_THEME.tokens
   const { brand } = BRAND_THEME.colors
   const navigate = useNavigate()
+  const { vegMode } = useProfile()
   const { location } = useLocation()
   const { zoneId } = useZone(location)
   const inputRef = useRef(null)
@@ -94,9 +96,9 @@ export default function SearchOverlay({ isOpen, onClose, searchValue, onSearchCh
           lng: location?.longitude,
           zoneId,
         })
-        const restaurants = await enrichSearchRestaurantsWithOutletTimings(
+        const restaurants = (await enrichSearchRestaurantsWithOutletTimings(
           res?.data?.data?.restaurants || [],
-        )
+        )).filter((restaurant) => !vegMode || isPureVegRestaurant(restaurant))
         const normalizedFoods = restaurants
           .map((item, index) => {
             const availability = getRestaurantAvailabilityStatus(item, new Date())
@@ -139,7 +141,7 @@ export default function SearchOverlay({ isOpen, onClose, searchValue, onSearchCh
     }, 250)
 
     return () => clearTimeout(timer)
-  }, [isOpen, searchValue, location?.latitude, location?.longitude, zoneId])
+  }, [isOpen, searchValue, location?.latitude, location?.longitude, zoneId, vegMode])
 
   const saveRecentSearch = (term) => {
     const value = String(term || "").trim()

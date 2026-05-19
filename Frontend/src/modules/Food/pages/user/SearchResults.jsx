@@ -12,7 +12,7 @@ import { useZone } from "@food/hooks/useZone"
 import { restaurantAPI, adminAPI } from "@food/api"
 import { useDelayedLoading } from "@food/hooks/useDelayedLoading"
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
-import { enrichSearchRestaurantsWithOutletTimings } from "@food/utils/searchAvailability"
+import { enrichSearchRestaurantsWithOutletTimings, isPureVegRestaurant } from "@food/utils/searchAvailability"
 import BRAND_THEME from "@/config/brandTheme"
 
 const debugLog = (...args) => {}
@@ -35,6 +35,7 @@ export default function SearchResults() {
   const [searchParams, setSearchParams] = useSearchParams()
   const query = searchParams.get("q") || ""
   const navigate = useNavigate()
+  const { vegMode } = useProfile()
   const { location } = useLocation()
   const { zoneId, isOutOfService } = useZone(location)
   const [searchQuery, setSearchQuery] = useState(query)
@@ -320,6 +321,7 @@ export default function SearchResults() {
                 slug: restaurant.slug || restaurant.name?.toLowerCase().replace(/\s+/g, '-'),
                 restaurantId: restaurantId,
                 mongoId: restaurant._id || restaurantId,
+                pureVegRestaurant: restaurant.pureVegRestaurant === true,
                 isActive: restaurant.isActive !== false,
                 isAcceptingOrders: restaurant.isAcceptingOrders !== false,
                 availabilityStatus: restaurant.availabilityStatus || null,
@@ -585,7 +587,9 @@ export default function SearchResults() {
   // Filter restaurants based on search query, selected category, and filters
   const filteredRecommended = useMemo(() => {
     // Use ONLY backend data - no hardcoded fallback
-    const sourceData = restaurantsData.length > 0 ? restaurantsData : []
+    const sourceData = restaurantsData.length > 0
+      ? (vegMode ? restaurantsData.filter(isPureVegRestaurant) : restaurantsData)
+      : []
     let filtered = [...sourceData]
 
     // Filter by search query
@@ -668,11 +672,13 @@ export default function SearchResults() {
     }
 
     return uniqueRestaurants(filtered)
-  }, [deferredQuery, selectedCategory, activeFilters, restaurantsData, categoryKeywords, loadingCategories])
+  }, [deferredQuery, selectedCategory, activeFilters, restaurantsData, categoryKeywords, loadingCategories, vegMode])
 
   const filteredAllRestaurants = useMemo(() => {
     // Use ONLY backend data - no hardcoded fallback
-    const sourceData = restaurantsData.length > 0 ? restaurantsData : []
+    const sourceData = restaurantsData.length > 0
+      ? (vegMode ? restaurantsData.filter(isPureVegRestaurant) : restaurantsData)
+      : []
     let filtered = [...sourceData]
 
     // Filter by search query - Search in name, cuisine, featured dish
@@ -776,7 +782,7 @@ export default function SearchResults() {
     }
 
     return uniqueRestaurants(filtered)
-  }, [deferredQuery, selectedCategory, activeFilters, restaurantsData, categoryKeywords, loadingCategories])
+  }, [deferredQuery, selectedCategory, activeFilters, restaurantsData, categoryKeywords, loadingCategories, vegMode])
 
   const recommendedIds = useMemo(
     () => new Set(filteredRecommended.slice(0, 6).map((restaurant) => restaurant.id)),
