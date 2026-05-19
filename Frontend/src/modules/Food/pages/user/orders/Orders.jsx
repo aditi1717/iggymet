@@ -271,9 +271,11 @@ export default function Orders() {
       return [...firstPageOrders, ...remainingOrders]
     }
 
-    const fetchOrders = async () => {
+    const fetchOrders = async ({ silent = false } = {}) => {
       try {
-        setLoading(true)
+        if (!silent) {
+          setLoading(true)
+        }
         const ordersData = await fetchAllOrders()
 
         if (ordersData.length > 0) {
@@ -402,10 +404,14 @@ export default function Orders() {
         } else if (error?.response?.data?.message) {
           errorMessage = error.response.data.message
         }
-        toast.error(errorMessage)
+        if (!silent) {
+          toast.error(errorMessage)
+        }
         setOrders([])
       } finally {
-        setLoading(false)
+        if (!silent) {
+          setLoading(false)
+        }
       }
     }
 
@@ -414,7 +420,7 @@ export default function Orders() {
     // Poll for order updates every 20 seconds to detect delivered orders
     // This ensures rating popup shows quickly when order is delivered
     const pollInterval = setInterval(() => {
-      fetchOrders()
+      fetchOrders({ silent: true })
     }, 20000) // Poll every 20 seconds
 
     return () => clearInterval(pollInterval)
@@ -1134,7 +1140,7 @@ Order again from this restaurant in the ${companyName} app.`
       {/* Rating & Feedback Modal */}
       {ratingModal.open && ratingModal.order && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+          <div className="w-full max-w-md rounded-3xl bg-white dark:bg-gray-900 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
             {/* Header with gradient */}
             <div className="px-6 py-5" style={{ backgroundImage: BRAND_THEME.tokens.orders.primaryGradient }}>
               <div className="flex items-center justify-between mb-2">
@@ -1155,7 +1161,7 @@ Order again from this restaurant in the ${companyName} app.`
 
             <div className="px-6 py-6">
               <div className="mb-6">
-                <p className="text-sm font-semibold text-gray-900 mb-3">
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
                   Restaurant rating (out of 5)
                 </p>
                 <div className="flex items-center justify-center gap-2 mb-3">
@@ -1171,7 +1177,7 @@ Order again from this restaurant in the ${companyName} app.`
                           <Star
                           className={`w-10 h-10 transition-all ${isActive
                               ? "drop-shadow-lg"
-                              : "text-gray-300 hover:text-brand-200"
+                              : "text-gray-300 dark:text-gray-500 hover:text-brand-200"
                             }`}
                           style={isActive ? { color: BRAND_THEME.colors.brand.primary, fill: BRAND_THEME.colors.brand.primary } : undefined}
                         />
@@ -1183,7 +1189,7 @@ Order again from this restaurant in the ${companyName} app.`
                   rows={2}
                   value={restaurantFeedbackText}
                   onChange={(e) => setRestaurantFeedbackText(e.target.value)}
-                  className="w-full rounded-xl border-2 border-gray-200 px-4 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 resize-none transition-all"
+                  className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-2 text-sm text-gray-800 placeholder-gray-400 caret-gray-800 focus:outline-none focus:ring-2 resize-none transition-all dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-400 dark:caret-slate-100"
                   style={{ '--tw-ring-color': BRAND_THEME.tokens.orders.focusRing, borderColor: undefined }}
                   placeholder="Restaurant feedback (optional)"
                 />
@@ -1191,7 +1197,7 @@ Order again from this restaurant in the ${companyName} app.`
 
               {ratingModalHasDeliveryPartner && (
                 <div className="mb-6">
-                  <p className="text-sm font-semibold text-gray-900 mb-3">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
                     Delivery partner rating (out of 5)
                   </p>
                   <div className="flex items-center justify-center gap-2 mb-3">
@@ -1207,7 +1213,7 @@ Order again from this restaurant in the ${companyName} app.`
                           <Star
                             className={`w-10 h-10 transition-all ${isActive
                                 ? "drop-shadow-lg"
-                                : "text-gray-300 hover:text-brand-200"
+                                : "text-gray-300 dark:text-gray-500 hover:text-brand-200"
                               }`}
                             style={isActive ? { color: BRAND_THEME.colors.brand.primary, fill: BRAND_THEME.colors.brand.primary } : undefined}
                           />
@@ -1219,7 +1225,7 @@ Order again from this restaurant in the ${companyName} app.`
                     rows={2}
                     value={deliveryFeedbackText}
                     onChange={(e) => setDeliveryFeedbackText(e.target.value)}
-                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 resize-none transition-all"
+                    className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-2 text-sm text-gray-800 placeholder-gray-400 caret-gray-800 focus:outline-none focus:ring-2 resize-none transition-all dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-400 dark:caret-slate-100"
                     style={{ '--tw-ring-color': BRAND_THEME.tokens.orders.focusRing, borderColor: undefined }}
                     placeholder="Delivery partner feedback (optional)"
                   />

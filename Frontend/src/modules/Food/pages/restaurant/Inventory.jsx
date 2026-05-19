@@ -2330,7 +2330,9 @@ export default function Inventory() {
                                 </div>
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <p className="truncate text-sm font-semibold text-slate-900">{item.name}</p>
+                                    <p className="text-sm font-semibold text-slate-900 break-words whitespace-normal">
+                                      {item.name}
+                                    </p>
                                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                                       item.isVeg
                                         ? "bg-emerald-50 text-emerald-700"

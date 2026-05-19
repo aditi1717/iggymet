@@ -18,7 +18,6 @@ import {
   Mail,
   Building,
   CheckCircle2,
-  Info,
   Clock,
   ChevronRight,
   TrendingUp,
@@ -866,17 +865,17 @@ const RestaurantProfile = () => {
               <div className="flex items-center gap-4 py-2">
                 <button
                   type="button"
-                  onClick={() => editStates.basic && setBasicInfo({...basicInfo, pureVegRestaurant: true})}
+                  onClick={() => {}}
                   className={`flex-1 px-4 py-3 rounded-xl border text-sm font-bold transition-all ${basicInfo.pureVegRestaurant ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-500'}`}
-                  disabled={!editStates.basic}
+                  disabled
                 >
                   Pure Veg
                 </button>
                 <button
                   type="button"
-                  onClick={() => editStates.basic && setBasicInfo({...basicInfo, pureVegRestaurant: false})}
+                  onClick={() => {}}
                   className={`flex-1 px-4 py-3 rounded-xl border text-sm font-bold transition-all ${!basicInfo.pureVegRestaurant ? 'bg-rose-50 border-rose-500 text-rose-700' : 'bg-slate-50 border-slate-200 text-slate-500'}`}
-                  disabled={!editStates.basic}
+                  disabled
                 >
                   Mixed / Both
                 </button>
@@ -1020,7 +1019,6 @@ const RestaurantProfile = () => {
                   }}
                 />
                 <div className="absolute right-3 top-3 flex items-center gap-2">
-                  <Info className="w-4 h-4 text-slate-400 hover:text-slate-600 transition-colors cursor-help" />
                   {editStates.location && (!!location.latitude || !!location.longitude) && (
                     <button 
                       onClick={() => {
@@ -1524,7 +1522,7 @@ const RestaurantProfile = () => {
 
       {/* Branding only */}
       <div className="max-w-5xl mx-auto px-6 mt-12 text-center pb-12">
-        <p className="mt-8 text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Powered by Bakala Business Studio</p>
+        <p className="mt-8 text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Powered by Iggymet Bussiness Studio</p>
       </div>
     </div>
   )
