@@ -108,11 +108,13 @@ export default function AddCouponPage(props) {
     if (form.minOrderValue && Number(form.minOrderValue) < 0) return "Min order cannot be negative"
     if (form.usageLimit === "") return "Usage limit is required"
     if (Number(form.usageLimit) <= 0) return "Usage limit must be greater than 0"
-    if (form.perUserLimit === "") return "Per user limit is required"
-    if (Number(form.perUserLimit) <= 0) return "Per user limit must be greater than 0"
-    if (Number(form.usageLimit) <= Number(form.perUserLimit)) return "Total usage limit must be greater than per-user limit"
-    if (form.startDate && form.endDate && new Date(form.endDate) <= new Date(form.startDate)) {
-      return "End date must be after start date"
+    if (form.customerScope !== "first-time") {
+      if (form.perUserLimit === "") return "Per user limit is required"
+      if (Number(form.perUserLimit) <= 0) return "Per user limit must be greater than 0"
+      if (Number(form.usageLimit) <= Number(form.perUserLimit)) return "Total usage limit must be greater than per-user limit"
+    }
+    if (form.startDate && form.endDate && new Date(form.endDate) < new Date(form.startDate)) {
+      return "End date must be greater than or equal to start date"
     }
     return ""
   }
@@ -132,7 +134,7 @@ export default function AddCouponPage(props) {
       minOrderValue: form.minOrderValue === "" ? undefined : Number(form.minOrderValue),
       maxDiscount: form.discountType === "percentage" ? maxDiscountNum : undefined,
       usageLimit: Number(form.usageLimit),
-      perUserLimit: Number(form.perUserLimit),
+      perUserLimit: form.customerScope === "first-time" ? undefined : Number(form.perUserLimit),
       startDate: form.startDate || undefined,
       endDate: form.endDate || undefined,
     }
@@ -301,21 +303,27 @@ export default function AddCouponPage(props) {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Per User Limit *</label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={form.perUserLimit}
-                  onChange={(e) => updateField("perUserLimit", e.target.value)}
-                  disabled={loading || saving}
-                />
-              </div>
+              {form.customerScope !== "first-time" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Per User Limit *</label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={form.perUserLimit}
+                    onChange={(e) => updateField("perUserLimit", e.target.value)}
+                    disabled={loading || saving}
+                  />
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Customer Scope</label>
                 <select
                   value={form.customerScope}
-                  onChange={(e) => updateField("customerScope", e.target.value)}
+                  onChange={(e) => {
+                    const nextScope = e.target.value
+                    updateField("customerScope", nextScope)
+                    if (nextScope === "first-time") updateField("perUserLimit", "")
+                  }}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm"
                   disabled={loading || saving}
                 >

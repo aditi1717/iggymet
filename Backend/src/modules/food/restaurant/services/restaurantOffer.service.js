@@ -37,16 +37,19 @@ const normalizeCouponPayload = (body = {}) => {
         throw new ValidationError('Usage limit must be greater than 0');
     }
 
-    if (body.perUserLimit === undefined || body.perUserLimit === null || body.perUserLimit === '') {
-        throw new ValidationError('Per user limit is required');
-    }
-    const perUserLimit = Number(body.perUserLimit);
-    if (!Number.isFinite(perUserLimit) || perUserLimit <= 0) {
-        throw new ValidationError('Per user limit must be greater than 0');
-    }
-
-    if (usageLimit <= perUserLimit) {
-        throw new ValidationError('Total usage limit must be greater than per-user limit');
+    const customerScope = body.customerScope === 'first-time' ? 'first-time' : 'all';
+    let perUserLimit = null;
+    if (customerScope !== 'first-time') {
+        if (body.perUserLimit === undefined || body.perUserLimit === null || body.perUserLimit === '') {
+            throw new ValidationError('Per user limit is required');
+        }
+        perUserLimit = Number(body.perUserLimit);
+        if (!Number.isFinite(perUserLimit) || perUserLimit <= 0) {
+            throw new ValidationError('Per user limit must be greater than 0');
+        }
+        if (usageLimit <= perUserLimit) {
+            throw new ValidationError('Total usage limit must be greater than per-user limit');
+        }
     }
 
     const startDate = body.startDate ? new Date(body.startDate) : null;
@@ -54,8 +57,8 @@ const normalizeCouponPayload = (body = {}) => {
 
     if (startDate && Number.isNaN(startDate.getTime())) throw new ValidationError('Invalid start date');
     if (endDate && Number.isNaN(endDate.getTime())) throw new ValidationError('Invalid end date');
-    if (startDate && endDate && endDate.getTime() <= startDate.getTime()) {
-        throw new ValidationError('End date must be after start date');
+    if (startDate && endDate && endDate.getTime() < startDate.getTime()) {
+        throw new ValidationError('End date must be greater than or equal to start date');
     }
 
     return {
@@ -68,7 +71,7 @@ const normalizeCouponPayload = (body = {}) => {
         perUserLimit,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
-        customerScope: body.customerScope === 'first-time' ? 'first-time' : 'all',
+        customerScope,
         isFirstOrderOnly: body.isFirstOrderOnly === true
     };
 };

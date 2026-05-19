@@ -1016,17 +1016,27 @@ export const getActiveEarningAddonsForPartner = async (deliveryPartnerId) => {
 
     const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
     const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(now);
+    endOfToday.setHours(23, 59, 59, 999);
 
     const addons = await FoodEarningAddon.find({
         status: 'active',
-        startDate: { $lte: now },
-        endDate: { $gte: now }
+        startDate: { $lte: endOfToday },
+        endDate: { $gte: todayStart }
     })
         .sort({ endDate: 1, createdAt: 1 })
         .lean();
 
     const liveAddons = (addons || []).filter((addon) => {
         if (!addon) return false;
+        if (addon.startDate && now < new Date(addon.startDate)) return false;
+        if (addon.endDate) {
+            const expiry = new Date(addon.endDate);
+            expiry.setHours(23, 59, 59, 999);
+            if (now > expiry) return false;
+        }
         const maxRedemptions = Number(addon.maxRedemptions);
         if (!Number.isFinite(maxRedemptions) || maxRedemptions <= 0) return true;
         return Number(addon.currentRedemptions || 0) < maxRedemptions;

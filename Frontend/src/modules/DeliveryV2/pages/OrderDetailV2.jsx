@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { deliveryAPI, uploadAPI } from '@food/api';
 import { toast } from 'sonner';
 import { useDeliveryStore } from '@/modules/DeliveryV2/store/useDeliveryStore';
+import { openCamera, openGallery } from '@food/utils/imageUploadUtils';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -528,6 +529,7 @@ const OrderDetailV2 = () => {
   const [pickupPhoto, setPickupPhoto] = useState(null);
   const [pickupPhotoPreview, setPickupPhotoPreview] = useState(null);
   const pickupFileInputRef = useRef(null);
+  const pickupCameraPromptedRef = useRef(false);
 
   const resolvedLookupOrderId = useMemo(
     () =>
@@ -590,12 +592,30 @@ const OrderDetailV2 = () => {
     setProofPhotoPreview(URL.createObjectURL(file));
   };
 
-  const handlePickupPhotoSelect = (e) => {
-    const file = e.target.files?.[0];
+  const applyPickupPhotoFile = useCallback((file) => {
     if (!file) return;
     setPickupPhoto(file);
     setPickupPhotoPreview(URL.createObjectURL(file));
+  }, []);
+
+  const handlePickupPhotoSelect = (e) => {
+    const file = e.target.files?.[0];
+    applyPickupPhotoFile(file);
   };
+
+  const handleOpenPickupCamera = useCallback(() => {
+    openCamera({
+      onSelectFile: applyPickupPhotoFile,
+      fileNamePrefix: 'delivery-pickup-proof',
+    });
+  }, [applyPickupPhotoFile]);
+
+  const handleOpenPickupGallery = useCallback(() => {
+    openGallery({
+      onSelectFile: applyPickupPhotoFile,
+      fileNamePrefix: 'delivery-pickup-proof',
+    });
+  }, [applyPickupPhotoFile]);
 
   const handleReportNonResponsive = useCallback(async () => {
     if (!proofPhoto) {
@@ -832,6 +852,26 @@ const OrderDetailV2 = () => {
       destinationAddressText: mapDestinationAddress,
     });
   }, [mapDestination, mapDestinationAddress]);
+
+  useEffect(() => {
+    if (hasPickedOrder || isClosedOrder) {
+      pickupCameraPromptedRef.current = false;
+      return;
+    }
+    if (!isAcceptedFlow || attemptPhase !== 'normal') return;
+    if (pickupPhoto || pickupPhotoPreview) return;
+    if (pickupCameraPromptedRef.current) return;
+    pickupCameraPromptedRef.current = true;
+    handleOpenPickupCamera();
+  }, [
+    attemptPhase,
+    handleOpenPickupCamera,
+    hasPickedOrder,
+    isAcceptedFlow,
+    isClosedOrder,
+    pickupPhoto,
+    pickupPhotoPreview,
+  ]);
 
   const handleAccept = useCallback(() => runAction(
     'accept',
@@ -1127,14 +1167,24 @@ const OrderDetailV2 = () => {
                       </button>
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => pickupFileInputRef.current?.click()}
-                      className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 py-5 text-slate-500 hover:bg-slate-100 transition-colors"
-                    >
-                      <Camera className="h-5 w-5" />
-                      <span className="text-[13px] font-semibold">Take / Upload Pickup Photo</span>
-                    </button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={handleOpenPickupCamera}
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 py-4 text-slate-600 hover:bg-slate-100 transition-colors"
+                      >
+                        <Camera className="h-5 w-5" />
+                        <span className="text-[12px] font-semibold">Use Camera</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleOpenPickupGallery}
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-white py-4 text-slate-600 hover:bg-slate-50 transition-colors"
+                      >
+                        <Square className="h-5 w-5" />
+                        <span className="text-[12px] font-semibold">Use Gallery</span>
+                      </button>
+                    </div>
                   )}
                 </div>
               )}

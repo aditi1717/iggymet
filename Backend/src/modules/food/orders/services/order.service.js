@@ -100,8 +100,16 @@ const findApplicableRestaurantAutoOffer = async (restaurantId, items = [], userI
 
     if (productIds.length === 0) continue;
     if (offer?.status === 'paused') continue;
-    if (offer?.startDate && now < new Date(offer.startDate)) continue;
-    if (offer?.endDate && now >= new Date(offer.endDate)) continue;
+    if (offer?.startDate) {
+      const start = new Date(offer.startDate);
+      start.setHours(0, 0, 0, 0);
+      if (now < start) continue;
+    }
+    if (offer?.endDate) {
+      const offerExpiry = new Date(offer.endDate);
+      offerExpiry.setHours(23, 59, 59, 999);
+      if (now > offerExpiry) continue;
+    }
     if (
       Number(offer?.usageLimit) > 0 &&
       Number(offer?.usedCount || 0) >= Number(offer?.usageLimit)
@@ -1080,8 +1088,18 @@ export async function calculateOrder(userId, dto) {
     } else {
       const approvalOk = (offer.approvalStatus || "approved") === "approved";
       const statusOk = offer.status === "active";
-      const startOk = !offer.startDate || now >= new Date(offer.startDate);
-      const endOk = !offer.endDate || now < new Date(offer.endDate);
+      const startOk = (() => {
+        if (!offer.startDate) return true;
+        const start = new Date(offer.startDate);
+        start.setHours(0, 0, 0, 0);
+        return now >= start;
+      })();
+      const endOk = (() => {
+        if (!offer.endDate) return true;
+        const offerExpiry = new Date(offer.endDate);
+        offerExpiry.setHours(23, 59, 59, 999);
+        return now <= offerExpiry;
+      })();
       const scopeOk =
         offer.restaurantScope !== "selected" ||
         String(offer.restaurantId || "") === String(dto.restaurantId || "");

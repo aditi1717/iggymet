@@ -4316,8 +4316,14 @@ export async function getAllOffers(_query = {}) {
 
     const offers = list.map((o, index) => {
         const now = Date.now();
-        const endTs = o.endDate ? new Date(o.endDate).getTime() : null;
-        const isExpired = Boolean(endTs && now >= endTs);
+        const endTs = (() => {
+            if (!o.endDate) return null;
+            const expiry = new Date(o.endDate);
+            if (Number.isNaN(expiry.getTime())) return null;
+            expiry.setHours(23, 59, 59, 999);
+            return expiry.getTime();
+        })();
+        const isExpired = Boolean(endTs && now > endTs);
         const restaurantName =
             o.restaurantScope === 'selected'
                 ? (o.restaurantId?.restaurantName || 'Selected Restaurant')
@@ -4368,6 +4374,14 @@ export async function createAdminOffer(body) {
         throw new ValidationError('Coupon code already exists');
     }
 
+    const isEndDateExpired = (() => {
+        if (!body.endDate) return false;
+        const expiry = new Date(body.endDate);
+        if (Number.isNaN(expiry.getTime())) return false;
+        expiry.setHours(23, 59, 59, 999);
+        return expiry.getTime() < Date.now();
+    })();
+
     const doc = await FoodOffer.create({
         couponCode: body.couponCode,
         discountType: body.discountType,
@@ -4378,14 +4392,14 @@ export async function createAdminOffer(body) {
         minOrderValue: body.minOrderValue ?? 0,
         maxDiscount: body.maxDiscount ?? null,
         usageLimit: body.usageLimit ?? null,
-        perUserLimit: body.perUserLimit ?? null,
+        perUserLimit: body.customerScope === 'first-time' ? 1 : (body.perUserLimit ?? null),
         startDate: body.startDate,
         isFirstOrderOnly: body.isFirstOrderOnly ?? false,
         endDate: body.endDate,
         approvalStatus: 'approved',
         createdByRestaurantId: null,
         rejectionReason: '',
-        status: body.endDate && new Date(body.endDate).getTime() <= Date.now() ? 'inactive' : 'active',
+        status: isEndDateExpired ? 'inactive' : 'active',
         showInCart: true
     });
 
@@ -4427,6 +4441,14 @@ export async function updateAdminOfferCartVisibility(offerId, itemId, showInCart
 export async function updateAdminOffer(id, body) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
 
+    const isEndDateExpired = (() => {
+        if (!body.endDate) return false;
+        const expiry = new Date(body.endDate);
+        if (Number.isNaN(expiry.getTime())) return false;
+        expiry.setHours(23, 59, 59, 999);
+        return expiry.getTime() < Date.now();
+    })();
+
     const updateData = {
         couponCode: body.couponCode,
         discountType: body.discountType,
@@ -4437,11 +4459,11 @@ export async function updateAdminOffer(id, body) {
         minOrderValue: body.minOrderValue ?? 0,
         maxDiscount: body.maxDiscount ?? null,
         usageLimit: body.usageLimit ?? null,
-        perUserLimit: body.perUserLimit ?? null,
+        perUserLimit: body.customerScope === 'first-time' ? 1 : (body.perUserLimit ?? null),
         startDate: body.startDate,
         isFirstOrderOnly: body.isFirstOrderOnly ?? false,
         endDate: body.endDate,
-        status: body.endDate && new Date(body.endDate).getTime() <= Date.now() ? 'inactive' : 'active',
+        status: isEndDateExpired ? 'inactive' : 'active',
         approvalStatus: 'approved',
         rejectionReason: ''
     };
@@ -4594,9 +4616,10 @@ export async function rejectRestaurantOffer(id, reason) {
 }
 
 export async function expireExpiredOffers() {
-    const now = new Date();
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
     await FoodOffer.updateMany(
-        { status: 'active', endDate: { $lte: now } },
+        { status: 'active', endDate: { $lt: todayStart } },
         { $set: { status: 'inactive' } }
     );
 }
@@ -5543,8 +5566,8 @@ export async function checkEarningAddonCompletions(deliveryPartnerId, _force = f
     // Only search for active offers that are currently running.
     const activeOffers = await FoodEarningAddon.find({
         status: 'active',
-        startDate: { $lte: now },
-        endDate: { $gte: now }
+        startDate: { $lte: new Date(new Date().setHours(23, 59, 59, 999)) },
+        endDate: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }
     }).lean();
 
     if (activeOffers.length === 0) return { completionsFound: 0 };
@@ -7230,6 +7253,11 @@ export async function markAllRestaurantPayoutSettled(payload = {}, adminScope = 
     };
 }
 
+// Backward-compatible alias used by controller/routes
+export async function markAllRestaurantPayoutSettlementsPaid(payload = {}, adminScope = {}) {
+    return markAllRestaurantPayoutSettled(payload, adminScope);
+}
+
 const COD_PAYMENT_METHODS = ['cash', 'cod', 'cash_on_delivery', 'razorpay_qr'];
 const DELIVERY_EFFECTIVE_DELIVERED_AT_EXPR = {
     $ifNull: [
@@ -8013,6 +8041,11 @@ export async function markAllDeliveryPayoutSettled(payload = {}, adminScope = {}
         batchId: String(settlementBatchId),
         recommendedNextFromAt: new Date(end.getTime() + 1000).toISOString()
     };
+}
+
+// Backward-compatible alias used by controller/routes
+export async function markAllDeliveryPayoutSettlementsPaid(payload = {}, adminScope = {}) {
+    return markAllDeliveryPayoutSettled(payload, adminScope);
 }
 
 export async function getSidebarBadges() {

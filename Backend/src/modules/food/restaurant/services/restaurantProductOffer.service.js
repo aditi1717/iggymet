@@ -116,8 +116,16 @@ export async function listPublicRestaurantProductOffers(restaurantId, authUser =
     for (const offer of list) {
         if ((offer?.approvalStatus || 'approved') !== 'approved') continue;
         if (offer?.status !== 'active') continue;
-        if (offer?.startDate && now < new Date(offer.startDate)) continue;
-        if (offer?.endDate && now >= new Date(offer.endDate)) continue;
+        if (offer?.startDate) {
+            const start = new Date(offer.startDate);
+            start.setHours(0, 0, 0, 0);
+            if (now < start) continue;
+        }
+        if (offer?.endDate) {
+            const offerExpiry = new Date(offer.endDate);
+            offerExpiry.setHours(23, 59, 59, 999);
+            if (now > offerExpiry) continue;
+        }
         if (
             Number(offer?.usageLimit) > 0 &&
             Number(offer?.usedCount || 0) >= Number(offer?.usageLimit)

@@ -140,8 +140,10 @@ export default function Coupons() {
     if (f.minOrderValue !== "" && Number(f.minOrderValue) <= 0) e.minOrderValue = "Min order must be greater than 0"
     if (pct && f.maxDiscount !== "" && Number(f.maxDiscount) <= 0) e.maxDiscount = "Max discount must be greater than 0"
     if (f.usageLimit !== "" && Number(f.usageLimit) < 1) e.usageLimit = "Usage limit must be at least 1"
-    if (f.perUserLimit !== "" && Number(f.perUserLimit) < 1) e.perUserLimit = "Per user limit must be at least 1"
-    if (f.usageLimit !== "" && f.perUserLimit !== "" && Number(f.usageLimit) < Number(f.perUserLimit)) {
+    if (f.customerScope !== "first-time" && f.perUserLimit !== "" && Number(f.perUserLimit) < 1) {
+      e.perUserLimit = "Per user limit must be at least 1"
+    }
+    if (f.customerScope !== "first-time" && f.usageLimit !== "" && f.perUserLimit !== "" && Number(f.usageLimit) < Number(f.perUserLimit)) {
       e.usageLimit = "Usage limit cannot be less than per user limit"
     }
     const start = f.startDate ? new Date(`${f.startDate}T00:00:00`) : null
@@ -162,6 +164,18 @@ export default function Coupons() {
     let value = rawValue
     if (field === "couponCode") {
       value = String(value || "").toUpperCase()
+    }
+    if (field === "customerScope") {
+      if (value === "first-time") {
+        setFormData((prev) => {
+          const next = { ...prev, customerScope: value, perUserLimit: "1" }
+          validateForm(next)
+          return next
+        })
+        if (submitError) setSubmitError("")
+        if (submitSuccess) setSubmitSuccess("")
+        return
+      }
     }
     if (field === "discountType") {
       // When switching to flat-price, clear and disable maxDiscount
@@ -251,7 +265,7 @@ export default function Coupons() {
         minOrderValue: offer.minOrderValue ?? "",
         maxDiscount: offer.maxDiscount ?? "",
         usageLimit: offer.usageLimit ?? "",
-        perUserLimit: offer.perUserLimit ?? "",
+        perUserLimit: (offer.customerGroup === "new" || offer.customerScope === "first-time") ? "1" : (offer.perUserLimit ?? ""),
       })
       setEditingOfferId(offer.offerId || offer._id)
     } catch (err) {
@@ -310,7 +324,7 @@ export default function Coupons() {
         minOrderValue: formData.minOrderValue !== "" ? Number(formData.minOrderValue) : undefined,
         maxDiscount: formData.discountType === "percentage" && formData.maxDiscount !== "" ? Number(formData.maxDiscount) : undefined,
         usageLimit: formData.usageLimit !== "" ? Number(formData.usageLimit) : undefined,
-        perUserLimit: formData.perUserLimit !== "" ? Number(formData.perUserLimit) : undefined,
+        perUserLimit: formData.customerScope === "first-time" ? 1 : (formData.perUserLimit !== "" ? Number(formData.perUserLimit) : undefined),
       }
 
       if (editingOfferId) {
@@ -650,19 +664,21 @@ export default function Coupons() {
                 {errors.usageLimit && <p className="mt-1 text-xs text-red-600">{errors.usageLimit}</p>}
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Per User Limit</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={formData.perUserLimit}
-                  onChange={(e) => handleFormChange("perUserLimit", e.target.value)}
-                  placeholder="e.g. 1"
-                  className={`w-full px-3 py-2.5 text-sm rounded-lg border ${errors.perUserLimit ? "border-red-500" : "border-slate-300"} bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500`}
-                />
-                {errors.perUserLimit && <p className="mt-1 text-xs text-red-600">{errors.perUserLimit}</p>}
-              </div>
+              {formData.customerScope !== "first-time" && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Per User Limit</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={formData.perUserLimit}
+                    onChange={(e) => handleFormChange("perUserLimit", e.target.value)}
+                    placeholder="e.g. 1"
+                    className={`w-full px-3 py-2.5 text-sm rounded-lg border ${errors.perUserLimit ? "border-red-500" : "border-slate-300"} bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500`}
+                  />
+                  {errors.perUserLimit && <p className="mt-1 text-xs text-red-600">{errors.perUserLimit}</p>}
+                </div>
+              )}
 
                 {formData.restaurantScope === "selected" && (
                   <div className="md:col-span-2 lg:col-span-3">

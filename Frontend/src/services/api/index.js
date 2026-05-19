@@ -1096,7 +1096,10 @@ export const adminAPI = {
     apiClient.patch(`/food/restaurant/offers/restaurant/${String(id)}`, body ?? {}, { contextModule: "restaurant" }),
   /** Backward-compat helper used by Cart: returns coupons array for an item by adapting public offers */
   getCouponsByItemIdPublic: (restaurantId, _itemId) =>
-    apiClient.get("/food/restaurant/offers", { contextModule: "user" }).then((res) => {
+    apiClient.get("/food/restaurant/offers", {
+      contextModule: "user",
+      params: restaurantId ? { restaurantId: String(restaurantId) } : undefined,
+    }).then((res) => {
       const list = res?.data?.data?.allOffers || res?.data?.allOffers || [];
       const now = Date.now();
       const coupons = list

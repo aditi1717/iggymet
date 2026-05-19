@@ -1361,12 +1361,18 @@ export const getApprovedRestaurantByIdOrSlug = async (idOrSlug) => {
 
 export const listPublicOffers = async (query = {}, userId = null) => {
     const now = new Date();
+    const restaurantIdRaw = String(query?.restaurantId || '').trim();
+    const hasRestaurantFilter = mongoose.Types.ObjectId.isValid(restaurantIdRaw);
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(now);
+    endOfToday.setHours(23, 59, 59, 999);
     const filter = {
         status: 'active',
         approvalStatus: 'approved',
         $and: [
-            { $or: [{ startDate: { $exists: false } }, { startDate: null }, { startDate: { $lte: now } }] },
-            { $or: [{ endDate: { $exists: false } }, { endDate: null }, { endDate: { $gt: now } }] }
+            { $or: [{ startDate: { $exists: false } }, { startDate: null }, { startDate: { $lte: endOfToday } }] },
+            { $or: [{ endDate: { $exists: false } }, { endDate: null }, { endDate: { $gte: todayStart } }] }
         ],
         showInCart: { $ne: false }
     };
@@ -1376,8 +1382,30 @@ export const listPublicOffers = async (query = {}, userId = null) => {
         .populate({ path: 'restaurantId', select: 'restaurantName restaurantNameNormalized profileImage estimatedDeliveryTime rating' })
         .lean();
 
-    // 1. Filter globally exhausted coupons
+    // 1. Filter expired/not-started coupons (endDate valid till end-of-day) and globally exhausted coupons
     list = list.filter(o => {
+        if (hasRestaurantFilter) {
+            const scope = String(o?.restaurantScope || '').toLowerCase();
+            const offerRestaurantId = String(o?.restaurantId?._id || o?.restaurantId || '').trim();
+            const isApplicableForRestaurant =
+                scope === 'all' ||
+                (scope === 'selected' && offerRestaurantId === restaurantIdRaw);
+            if (!isApplicableForRestaurant) return false;
+        }
+        if (o?.startDate) {
+            const start = new Date(o.startDate);
+            if (!Number.isNaN(start.getTime())) {
+                start.setHours(0, 0, 0, 0);
+                if (now < start) return false;
+            }
+        }
+        if (o?.endDate) {
+            const expiry = new Date(o.endDate);
+            if (!Number.isNaN(expiry.getTime())) {
+                expiry.setHours(23, 59, 59, 999);
+                if (now > expiry) return false;
+            }
+        }
         if (!o.usageLimit) return true; // null, 0, or missing means unlimited
         const used = o.usedCount || 0;
         return used < o.usageLimit;

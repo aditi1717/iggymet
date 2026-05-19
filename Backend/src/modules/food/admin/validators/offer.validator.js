@@ -55,11 +55,15 @@ export const validateCreateOfferDto = (body) => {
     if (startDate && Number.isNaN(startDate.getTime())) {
         throw new ValidationError('Invalid startDate');
     }
-    if (endDate && startDate && endDate.getTime() <= startDate.getTime()) {
-        throw new ValidationError('endDate must be after startDate');
+    if (endDate && startDate && endDate.getTime() < startDate.getTime()) {
+        throw new ValidationError('endDate must be greater than or equal to startDate');
     }
-    if (endDate && endDate.getTime() <= Date.now()) {
-        throw new ValidationError('endDate must be a future date');
+    if (endDate) {
+        const todayUtcStart = new Date();
+        todayUtcStart.setUTCHours(0, 0, 0, 0);
+        if (endDate.getTime() < todayUtcStart.getTime()) {
+            throw new ValidationError('endDate cannot be in the past');
+        }
     }
     // Business rule: percentage coupon must have maxDiscount; flat ignores it
     let maxDiscount = result.data.maxDiscount;
