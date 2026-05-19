@@ -6,6 +6,8 @@ import { Input } from "@food/components/ui/input"
 import { searchAPI } from "@/services/api"
 import { useLocation } from "@food/hooks/useLocation"
 import { useZone } from "@food/hooks/useZone"
+import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
+import { enrichSearchRestaurantsWithOutletTimings } from "@food/utils/searchAvailability"
 import BRAND_THEME from "@/config/brandTheme"
 
 const SEARCH_HISTORY_KEY = "user_recent_searches_v1"
@@ -92,14 +94,19 @@ export default function SearchOverlay({ isOpen, onClose, searchValue, onSearchCh
           lng: location?.longitude,
           zoneId,
         })
-        const restaurants = res?.data?.data?.restaurants || []
+        const restaurants = await enrichSearchRestaurantsWithOutletTimings(
+          res?.data?.data?.restaurants || [],
+        )
         const normalizedFoods = restaurants
           .map((item, index) => {
+            const availability = getRestaurantAvailabilityStatus(item, new Date())
             if (item?.matchType === "food" && item?.matchedDish) {
               return {
                 id: item?.matchedDishId || `${item?._id || "restaurant"}-dish-${index}`,
                 name: String(item.matchedDish).trim(),
                 image: item?.matchedDishImage || item?.image || item?.profileImage || "",
+                isOpen: availability.isOpen,
+                statusLabel: availability.badgeLabel,
               }
             }
 
@@ -108,6 +115,8 @@ export default function SearchOverlay({ isOpen, onClose, searchValue, onSearchCh
                 id: item?._id || `restaurant-${index}`,
                 name: String(item.restaurantName).trim(),
                 image: item?.image || item?.profileImage || "",
+                isOpen: availability.isOpen,
+                statusLabel: availability.badgeLabel,
               }
             }
 
@@ -242,10 +251,12 @@ export default function SearchOverlay({ isOpen, onClose, searchValue, onSearchCh
           </h3>
           {filteredFoods.length > 0 ? (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 sm:gap-4 md:gap-5 lg:gap-6">
-              {filteredFoods.map((food, index) => (
+              {filteredFoods.map((food, index) => {
+                const isUnavailable = food.isOpen === false
+                return (
                 <div
                   key={food.id}
-                  className="flex flex-col items-center gap-2 sm:gap-3 cursor-pointer group"
+                  className={`flex flex-col items-center gap-2 sm:gap-3 cursor-pointer group ${isUnavailable ? "grayscale opacity-75" : ""}`}
                   style={{
                     animation: `slideUp 0.3s ease-out ${0.25 + 0.05 * (index % 12)}s both`
                   }}
@@ -269,9 +280,14 @@ export default function SearchOverlay({ isOpen, onClose, searchValue, onSearchCh
                     <span className={`text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200 transition-colors line-clamp-2 ${searchOverlay.itemHoverText}`}>
                       {food.name}
                     </span>
+                    {isUnavailable && (
+                      <span className="mt-1 block text-[10px] font-semibold text-gray-500 dark:text-gray-400">
+                        {food.statusLabel || "Closed"}
+                      </span>
+                    )}
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           ) : (
             <div className="text-center py-12 sm:py-16">

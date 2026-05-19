@@ -11,6 +11,8 @@ import { useLocation } from "@food/hooks/useLocation"
 import { useZone } from "@food/hooks/useZone"
 import { restaurantAPI, adminAPI } from "@food/api"
 import { useDelayedLoading } from "@food/hooks/useDelayedLoading"
+import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
+import { enrichSearchRestaurantsWithOutletTimings } from "@food/utils/searchAvailability"
 import BRAND_THEME from "@/config/brandTheme"
 
 const debugLog = (...args) => {}
@@ -243,7 +245,7 @@ export default function SearchResults() {
 
           // First transform restaurants without menu data - USE ONLY BACKEND DATA
           // Filter out restaurants with only default/mock data
-          const restaurantsWithIds = restaurantsArray
+          const restaurantsWithIds = await enrichSearchRestaurantsWithOutletTimings(restaurantsArray
             .filter((restaurant) => {
               // Only include restaurants with real data (not just defaults)
               // At minimum, restaurant should have a name and either images or menu
@@ -317,10 +319,33 @@ export default function SearchResults() {
                 offer: offer, // Use backend offer or null (defaults filtered out)
                 slug: restaurant.slug || restaurant.name?.toLowerCase().replace(/\s+/g, '-'),
                 restaurantId: restaurantId,
+                mongoId: restaurant._id || restaurantId,
+                isActive: restaurant.isActive !== false,
+                isAcceptingOrders: restaurant.isAcceptingOrders !== false,
+                availabilityStatus: restaurant.availabilityStatus || null,
+                availability: restaurant.availability || null,
+                isOnline: restaurant.isOnline,
+                currentStatus: restaurant.currentStatus || null,
+                isOpen: restaurant.isOpen,
+                openNow: restaurant.openNow,
+                isOpenNow: restaurant.isOpenNow,
+                isRestaurantOpen: restaurant.isRestaurantOpen,
+                todayOpen: restaurant.todayOpen,
+                isOpenToday: restaurant.isOpenToday,
+                closedToday: restaurant.closedToday,
+                isClosedToday: restaurant.isClosedToday,
+                dayOff: restaurant.dayOff,
+                isDayOff: restaurant.isDayOff,
+                offToday: restaurant.offToday,
+                openDays: Array.isArray(restaurant.openDays) ? restaurant.openDays : [],
+                deliveryTimings: restaurant.deliveryTimings || null,
+                outletTimings: restaurant.outletTimings || null,
+                openingTime: restaurant.openingTime || null,
+                closingTime: restaurant.closingTime || null,
                 hasPaneer: false, // Will be updated after menu fetch
                 category: 'all',
               }
-            })
+            }))
 
           startTransition(() => {
             setRestaurantsData(restaurantsWithIds)
@@ -911,13 +936,15 @@ export default function SearchResults() {
             {/* Small Restaurant Cards - Horizontal Scroll */}
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3 sm:gap-4 lg:gap-5">
               {filteredRecommended.slice(0, 6).map((restaurant) => {
+                const availability = getRestaurantAvailabilityStatus(restaurant, new Date())
+                const isRestaurantUnavailable = isOutOfService || !availability.isOpen
                 return (
                   <Link
                     key={restaurant.id}
                     to={`/user/restaurants/${restaurant.slug || restaurant.name.toLowerCase().replace(/\s+/g, '-')}`}
                     className="block"
                   >
-                    <div className={`group ${shouldShowGrayscale ? 'grayscale opacity-75' : ''}`}>
+                    <div className={`group ${isRestaurantUnavailable ? 'grayscale opacity-75' : ''}`}>
                       {/* Image Container */}
                       <div className="relative aspect-square rounded-xl overflow-hidden mb-2 bg-gray-200 dark:bg-gray-800">
                         {restaurant.image ? (
@@ -965,6 +992,11 @@ export default function SearchResults() {
                           <span>{restaurant.deliveryTime}</span>
                         </div>
                       )}
+                      {isRestaurantUnavailable && (
+                        <div className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 mt-0.5">
+                          {availability.badgeLabel || "Closed"}
+                        </div>
+                      )}
                     </div>
                   </Link>
                 )
@@ -984,10 +1016,12 @@ export default function SearchResults() {
             {nonRepeatedAllRestaurants.map((restaurant) => {
               const restaurantSlug = restaurant.name.toLowerCase().replace(/\s+/g, "-")
               const isFavorite = favorites.has(restaurant.id)
+              const availability = getRestaurantAvailabilityStatus(restaurant, new Date())
+              const isRestaurantUnavailable = isOutOfService || !availability.isOpen
 
               return (
                 <Link key={restaurant.id} to={`/user/restaurants/${restaurant.slug || restaurantSlug}`} className="h-full flex">
-                  <Card className={`overflow-hidden cursor-pointer border-0 dark:border-gray-800 group bg-white dark:bg-[#1a1a1a] shadow-md hover:shadow-xl transition-all duration-300 py-0 rounded-md flex flex-col h-full w-full ${shouldShowGrayscale ? 'grayscale opacity-75' : ''
+                  <Card className={`overflow-hidden cursor-pointer border-0 dark:border-gray-800 group bg-white dark:bg-[#1a1a1a] shadow-md hover:shadow-xl transition-all duration-300 py-0 rounded-md flex flex-col h-full w-full ${isRestaurantUnavailable ? 'grayscale opacity-75' : ''
                     }`}>
                     {/* Image Section */}
                     <div className="relative h-44 sm:h-52 md:h-60 lg:h-64 xl:h-72 w-full overflow-hidden rounded-t-md flex-shrink-0 bg-gray-200 dark:bg-gray-800">
@@ -1036,6 +1070,12 @@ export default function SearchResults() {
                       {restaurant.isAd && (
                         <div className="absolute top-3 right-14 bg-black/50 text-white text-[10px] px-2 py-0.5 rounded">
                           Ad
+                        </div>
+                      )}
+
+                      {isRestaurantUnavailable && (
+                        <div className="absolute top-3 left-3 bg-white/90 dark:bg-[#1a1a1a]/90 text-gray-700 dark:text-gray-200 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide">
+                          {availability.badgeLabel || "Closed"}
                         </div>
                       )}
 

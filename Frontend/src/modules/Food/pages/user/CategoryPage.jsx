@@ -22,6 +22,8 @@ import { useLocation } from "@food/hooks/useLocation"
 import { useZone } from "@food/hooks/useZone"
 import { useDelayedLoading } from "@food/hooks/useDelayedLoading"
 import { getMenuFromResponse } from "@food/utils/menuItems"
+import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
+import { enrichSearchRestaurantsWithOutletTimings } from "@food/utils/searchAvailability"
 import BRAND_THEME from "@/config/brandTheme"
 
 // Filter options
@@ -863,7 +865,7 @@ export default function CategoryPage() {
           }
 
           // Transform restaurants - filter out default values
-          const restaurantsWithIds = restaurantsArray
+          const restaurantsWithIds = await enrichSearchRestaurantsWithOutletTimings(restaurantsArray
             .filter((restaurant) => {
               const displayName = String(restaurant.restaurantName || restaurant.name || "").trim()
               const hasName = displayName.length > 0
@@ -923,12 +925,34 @@ export default function CategoryPage() {
                 offer: offer,
                 slug: restaurant.slug || (restaurant.restaurantName || restaurant.name)?.toLowerCase().replace(/\s+/g, '-'),
                 restaurantId: restaurantId,
-                mongoId: restaurant._id || null,
+                mongoId: restaurant._id || restaurantId,
                 zoneId: getRestaurantZoneId(restaurant),
+                isActive: restaurant.isActive !== false,
+                isAcceptingOrders: restaurant.isAcceptingOrders !== false,
+                availabilityStatus: restaurant.availabilityStatus || null,
+                availability: restaurant.availability || null,
+                isOnline: restaurant.isOnline,
+                currentStatus: restaurant.currentStatus || null,
+                isOpen: restaurant.isOpen,
+                openNow: restaurant.openNow,
+                isOpenNow: restaurant.isOpenNow,
+                isRestaurantOpen: restaurant.isRestaurantOpen,
+                todayOpen: restaurant.todayOpen,
+                isOpenToday: restaurant.isOpenToday,
+                closedToday: restaurant.closedToday,
+                isClosedToday: restaurant.isClosedToday,
+                dayOff: restaurant.dayOff,
+                isDayOff: restaurant.isDayOff,
+                offToday: restaurant.offToday,
+                openDays: Array.isArray(restaurant.openDays) ? restaurant.openDays : [],
+                deliveryTimings: restaurant.deliveryTimings || null,
+                outletTimings: restaurant.outletTimings || null,
+                openingTime: restaurant.openingTime || null,
+                closingTime: restaurant.closingTime || null,
                 hasPaneer: false,
                 category: 'all',
               }
-            }).filter(Boolean)
+            }).filter(Boolean))
 
           startTransition(() => {
             setRestaurantsData(restaurantsWithIds)
@@ -1487,13 +1511,15 @@ export default function CategoryPage() {
                   ? filteredRecommended
                   : filteredRecommended.slice(0, 6)
                 ).map((restaurant) => {
+                  const availability = getRestaurantAvailabilityStatus(restaurant, new Date())
+                  const isRestaurantUnavailable = isOutOfService || !availability.isOpen
                   return (
                     <Link
                       key={restaurant.id}
                       to={`/user/restaurants/${restaurant.name.toLowerCase().replace(/\s+/g, '-')}`}
                       className="block"
                     >
-                      <div className={`group ${shouldShowGrayscale ? 'grayscale opacity-75' : ''}`}>
+                      <div className={`group ${isRestaurantUnavailable ? 'grayscale opacity-75' : ''}`}>
                         {/* Image Container */}
                         <div className="relative aspect-square rounded-xl md:rounded-2xl overflow-hidden mb-2">
                           {/* Use category dish image if available, otherwise restaurant image */}
@@ -1543,6 +1569,12 @@ export default function CategoryPage() {
                             </div>
                           )}
 
+                          {isRestaurantUnavailable && (
+                            <div className="absolute top-1.5 right-1.5 bg-white/90 dark:bg-[#1a1a1a]/90 text-gray-700 dark:text-gray-200 text-[9px] md:text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide">
+                              {availability.badgeLabel || "Closed"}
+                            </div>
+                          )}
+
                           {/* Rating Badge (NOW ON IMAGE, bottom-left with white border) */}
                           <div className="absolute bottom-0 left-0 bg-green-600 border-[4px] rounded-md border-white text-white text-[11px] md:text-xs font-bold px-1.5 py-0.5 flex items-center gap-0.5">
                             {restaurant.rating}
@@ -1562,6 +1594,11 @@ export default function CategoryPage() {
                           <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400 text-[10px] md:text-xs">
                             <Clock className="h-2.5 w-2.5 md:h-3 md:w-3" />
                             <span>{restaurant.deliveryTime}</span>
+                          </div>
+                        )}
+                        {isRestaurantUnavailable && (
+                          <div className="text-[10px] md:text-xs font-semibold text-gray-500 dark:text-gray-400 mt-0.5">
+                            {availability.badgeLabel || "Closed"}
                           </div>
                         )}
                       </div>
@@ -1592,10 +1629,12 @@ export default function CategoryPage() {
               {filteredAllRestaurants.map((restaurant) => {
                 const restaurantSlug = restaurant.name.toLowerCase().replace(/\s+/g, "-")
                 const isFavorite = favorites.has(restaurant.id)
+                const availability = getRestaurantAvailabilityStatus(restaurant, new Date())
+                const isRestaurantUnavailable = isOutOfService || !availability.isOpen
 
                 return (
                   <Link key={restaurant.id} to={`/user/restaurants/${restaurantSlug}`} className="h-full flex">
-                    <Card className={`overflow-hidden cursor-pointer gap-0 border-0 dark:border-gray-800 group bg-white dark:bg-[#1a1a1a] shadow-md hover:shadow-xl transition-all duration-300 py-0 rounded-md h-full flex flex-col w-full ${shouldShowGrayscale ? 'grayscale opacity-75' : ''
+                    <Card className={`overflow-hidden cursor-pointer gap-0 border-0 dark:border-gray-800 group bg-white dark:bg-[#1a1a1a] shadow-md hover:shadow-xl transition-all duration-300 py-0 rounded-md h-full flex flex-col w-full ${isRestaurantUnavailable ? 'grayscale opacity-75' : ''
                       }`}>
                       {/* Image Section */}
                       <div className="relative h-44 sm:h-52 md:h-60 lg:h-64 xl:h-72 w-full overflow-hidden rounded-t-md flex-shrink-0">
@@ -1654,6 +1693,12 @@ export default function CategoryPage() {
                         {restaurant.isAd && (
                           <div className="absolute top-3 right-14 bg-black/50 text-white text-[10px] md:text-xs px-2 py-0.5 rounded">
                             Ad
+                          </div>
+                        )}
+
+                        {isRestaurantUnavailable && (
+                          <div className="absolute top-3 left-3 bg-white/90 dark:bg-[#1a1a1a]/90 text-gray-700 dark:text-gray-200 text-[10px] md:text-xs font-bold px-2 py-1 rounded uppercase tracking-wide">
+                            {availability.badgeLabel || "Closed"}
                           </div>
                         )}
 

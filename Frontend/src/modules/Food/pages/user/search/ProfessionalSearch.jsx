@@ -11,6 +11,8 @@ import { Input } from "@food/components/ui/input"
 import { useLocation as useGeoLocation } from "@food/hooks/useLocation"
 import { useZone } from "@food/hooks/useZone"
 import { searchAPI } from "@/services/api"
+import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
+import { enrichSearchRestaurantsWithOutletTimings } from "@food/utils/searchAvailability"
 import { motion, AnimatePresence } from "framer-motion"
 
 // Helper to resolve media URLs consistently
@@ -105,7 +107,7 @@ export default function ProfessionalSearch() {
       
       if (res.data?.success) {
         // Grouping results into Restaurants and potential Dishes
-        const all = res.data.data.restaurants || []
+        const all = await enrichSearchRestaurantsWithOutletTimings(res.data.data.restaurants || [])
         setResults({
           restaurants: all.filter(r => r.matchType === 'restaurant' || !r.matchType),
           dishes: all.filter(r => r.matchType === 'food')
@@ -274,8 +276,11 @@ export default function ProfessionalSearch() {
                    <h2 className="text-lg font-bold dark:text-white">Dishes from restaurants</h2>
                 </div>
                 <div className="grid gap-4">
-                  {results.dishes.map((r) => (
-                    <Link to={`/user/restaurants/${r.slug || r._id}${r.matchedDishId ? `?dish=${r.matchedDishId}` : ''}`} key={r._id} className="flex gap-4 p-3 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-slate-100 dark:border-zinc-800 hover:shadow-md transition-shadow group">
+                  {results.dishes.map((r) => {
+                    const availability = getRestaurantAvailabilityStatus(r, new Date())
+                    const isUnavailable = !availability.isOpen
+                    return (
+                    <Link to={`/user/restaurants/${r.slug || r._id}${r.matchedDishId ? `?dish=${r.matchedDishId}` : ''}`} key={r._id} className={`flex gap-4 p-3 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-slate-100 dark:border-zinc-800 hover:shadow-md transition-shadow group ${isUnavailable ? 'grayscale opacity-75' : ''}`}>
                        <div className="w-24 h-24 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0 relative">
                            <img 
                             src={getMediaUrl(r.matchedDishImage || r.profileImage || r.image || (Array.isArray(r.images) && r.images[0]))} 
@@ -293,6 +298,11 @@ export default function ProfessionalSearch() {
                              Matched: {r.matchedDish || query}
                           </div>
                           <h3 className="font-bold text-slate-900 dark:text-white line-clamp-1">{r.restaurantName}</h3>
+                          {isUnavailable && (
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500 mt-1">
+                              {availability.badgeLabel || "Closed"}
+                            </div>
+                          )}
                           <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-zinc-400 mt-1">
                              <div className="flex items-center gap-1">
                                 <Star className="w-3 h-3 text-orange-500 fill-orange-500" />
@@ -305,7 +315,7 @@ export default function ProfessionalSearch() {
                           </div>
                        </div>
                     </Link>
-                  ))}
+                  )})}
                 </div>
               </section>
             )}
@@ -318,8 +328,11 @@ export default function ProfessionalSearch() {
                    <h2 className="text-lg font-bold dark:text-white">Restaurants</h2>
                 </div>
                 <div className="grid gap-6">
-                  {results.restaurants.map((r) => (
-                    <Link to={`/user/restaurants/${r._id}`} key={r._id} className="block group">
+                  {results.restaurants.map((r) => {
+                    const availability = getRestaurantAvailabilityStatus(r, new Date())
+                    const isUnavailable = !availability.isOpen
+                    return (
+                    <Link to={`/user/restaurants/${r._id}`} key={r._id} className={`block group ${isUnavailable ? 'grayscale opacity-75' : ''}`}>
                       <div className="relative rounded-3xl overflow-hidden aspect-[16/9] mb-3 bg-slate-200">
                          <img 
                           src={getMediaUrl(r.profileImage || r.image || (Array.isArray(r.images) && r.images[0]))} 
@@ -343,6 +356,11 @@ export default function ProfessionalSearch() {
                               {r.offer.toUpperCase()}
                            </div>
                         )}
+                        {isUnavailable && (
+                           <div className="absolute top-4 right-4 bg-white/90 text-slate-700 text-[10px] font-black px-3 py-1.5 rounded-lg shadow-lg uppercase tracking-wider">
+                              {availability.badgeLabel || "Closed"}
+                           </div>
+                        )}
                       </div>
                       <div className="flex items-center justify-between px-1">
                          <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-zinc-400 font-medium">
@@ -358,7 +376,7 @@ export default function ProfessionalSearch() {
                          </div>
                       </div>
                     </Link>
-                  ))}
+                  )})}
                 </div>
               </section>
             )}

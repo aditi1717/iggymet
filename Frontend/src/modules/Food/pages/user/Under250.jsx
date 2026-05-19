@@ -496,7 +496,10 @@ export default function Under250() {
           return
         }
         setLoadingRestaurants(true)
-        const response = await restaurantAPI.getRestaurants({ zoneId })
+        const response = await restaurantAPI.getRestaurants(
+          { zoneId, _ts: Date.now() },
+          { noCache: true },
+        )
         const restaurantsRaw = Array.isArray(response?.data?.data?.restaurants)
           ? response.data.data.restaurants
           : []
@@ -563,6 +566,7 @@ export default function Under250() {
               return {
                 id: String(restaurantId),
                 restaurantId: String(restaurantId),
+                mongoId: restaurant?._id || restaurantId,
                 slug:
                   restaurant?.slug ||
                   String(restaurant?.restaurantName || restaurant?.name || "")
@@ -577,6 +581,28 @@ export default function Under250() {
                 distance: distanceInKm !== null ? formatDistance(distanceInKm) : fallbackDistance,
                 distanceInKm,
                 originalIndex: index,
+                isActive: restaurant?.isActive !== false,
+                isAcceptingOrders: restaurant?.isAcceptingOrders !== false,
+                availabilityStatus: restaurant?.availabilityStatus || null,
+                availability: restaurant?.availability || null,
+                isOnline: restaurant?.isOnline,
+                currentStatus: restaurant?.currentStatus || null,
+                isOpen: restaurant?.isOpen,
+                openNow: restaurant?.openNow,
+                isOpenNow: restaurant?.isOpenNow,
+                isRestaurantOpen: restaurant?.isRestaurantOpen,
+                todayOpen: restaurant?.todayOpen,
+                isOpenToday: restaurant?.isOpenToday,
+                closedToday: restaurant?.closedToday,
+                isClosedToday: restaurant?.isClosedToday,
+                dayOff: restaurant?.dayOff,
+                isDayOff: restaurant?.isDayOff,
+                offToday: restaurant?.offToday,
+                openDays: Array.isArray(restaurant?.openDays) ? restaurant.openDays : [],
+                deliveryTimings: restaurant?.deliveryTimings || null,
+                outletTimings: restaurant?.outletTimings || null,
+                openingTime: restaurant?.openingTime || null,
+                closingTime: restaurant?.closingTime || null,
                 menuItems,
               }
             } catch {
@@ -585,7 +611,45 @@ export default function Under250() {
           })
         )
 
-        setUnder250Restaurants(restaurantsWithUnder250Dishes.filter(Boolean))
+        const mappedRestaurants = restaurantsWithUnder250Dishes.filter(Boolean)
+        setUnder250Restaurants(mappedRestaurants)
+
+        const restaurantsNeedingOutletTimings = mappedRestaurants.filter(
+          (restaurant) => restaurant.mongoId && !restaurant.outletTimings,
+        )
+
+        if (restaurantsNeedingOutletTimings.length > 0) {
+          const resolvedOutletTimings = new Map()
+
+          for (const restaurant of restaurantsNeedingOutletTimings) {
+            try {
+              const outletResponse = await restaurantAPI.getOutletTimingsByRestaurantId(
+                restaurant.mongoId,
+                { noCache: true },
+              )
+              const outletTimings =
+                outletResponse?.data?.data?.outletTimings ||
+                outletResponse?.data?.outletTimings ||
+                null
+
+              if (outletTimings) {
+                resolvedOutletTimings.set(restaurant.mongoId, outletTimings)
+              }
+            } catch (_) {
+              // Keep the restaurant visible with whatever timing data came from the list.
+            }
+          }
+
+          if (resolvedOutletTimings.size > 0) {
+            setUnder250Restaurants((currentRestaurants) =>
+              currentRestaurants.map((restaurant) => {
+                if (!restaurant.mongoId) return restaurant
+                const outletTimings = resolvedOutletTimings.get(restaurant.mongoId)
+                return outletTimings ? { ...restaurant, outletTimings } : restaurant
+              }),
+            )
+          }
+        }
       } catch (error) {
         debugError(`Error fetching restaurants under ${maxPrice}:`, error)
         setUnder250Restaurants([])
