@@ -64,7 +64,7 @@ export async function createRestaurantProductOffer(restaurantId, body = {}) {
     const endDate = body.endDate ? new Date(body.endDate) : null;
     if (startDate && Number.isNaN(startDate.getTime())) throw new ValidationError('Invalid startDate');
     if (endDate && Number.isNaN(endDate.getTime())) throw new ValidationError('Invalid endDate');
-    if (startDate && endDate && endDate <= startDate) throw new ValidationError('endDate must be after startDate');
+    if (startDate && endDate && endDate < startDate) throw new ValidationError('endDate must be greater than or equal to startDate');
 
     const doc = await RestaurantOffer.create({
         restaurantId: rid,
@@ -255,7 +255,7 @@ export async function updateRestaurantProductOffer(restaurantId, offerId, body =
     const endDate = body.endDate !== undefined ? (body.endDate ? new Date(body.endDate) : null) : existing.endDate;
     if (startDate && Number.isNaN(startDate.getTime())) throw new ValidationError('Invalid startDate');
     if (endDate && Number.isNaN(endDate.getTime())) throw new ValidationError('Invalid endDate');
-    if (startDate && endDate && endDate <= startDate) throw new ValidationError('endDate must be after startDate');
+    if (startDate && endDate && endDate < startDate) throw new ValidationError('endDate must be greater than or equal to startDate');
 
     const updated = await RestaurantOffer.findOneAndUpdate(
         { _id: oid, restaurantId: rid },
