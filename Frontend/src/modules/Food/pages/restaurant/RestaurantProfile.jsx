@@ -813,7 +813,7 @@ const RestaurantProfile = () => {
         {/* Quick Stats / Indicators - More Compact */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label: 'Restaurant Type', val: basicInfo.pureVegRestaurant ? 'Pure Veg' : 'Non-Veg', icon: Tag, color: 'text-green-600', bg: 'bg-green-50' },
+            { label: 'Restaurant Type', val: basicInfo.pureVegRestaurant ? 'Pure Veg' : 'Mixed', icon: Tag, color: 'text-green-600', bg: 'bg-green-50' },
             { label: 'Avg Delivery', val: opsInfo.estimatedDeliveryTime || '30-45 mins', icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50' },
             { label: 'Featured Dish', val: opsInfo.featuredDish || 'Not Set', icon: TrendingUp, color: 'text-purple-600', bg: 'bg-purple-50' },
             { label: 'GST Status', val: kycInfo.gstRegistered ? 'Active' : 'Unregistered', icon: ShieldCheck, color: 'text-orange-600', bg: 'bg-orange-50' },
@@ -878,7 +878,7 @@ const RestaurantProfile = () => {
                   className={`flex-1 px-4 py-3 rounded-xl border text-sm font-bold transition-all ${!basicInfo.pureVegRestaurant ? 'bg-rose-50 border-rose-500 text-rose-700' : 'bg-slate-50 border-slate-200 text-slate-500'}`}
                   disabled={!editStates.basic}
                 >
-                  Non-Veg / Both
+                  Mixed / Both
                 </button>
               </div>
             </div>

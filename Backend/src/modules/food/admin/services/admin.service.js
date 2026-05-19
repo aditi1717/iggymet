@@ -4229,6 +4229,17 @@ export async function createRestaurantByAdmin(body) {
     }
 
     const restaurant = await FoodRestaurant.create(doc);
+    await FoodRestaurantCommission.updateOne(
+        { restaurantId: restaurant._id },
+        {
+            $setOnInsert: {
+                defaultCommission: { type: 'percentage', value: 25 },
+                notes: '',
+                status: true
+            }
+        },
+        { upsert: true }
+    );
     return restaurant.toObject();
 }
 

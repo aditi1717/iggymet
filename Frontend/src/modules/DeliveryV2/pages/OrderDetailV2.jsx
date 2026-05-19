@@ -543,6 +543,16 @@ const OrderDetailV2 = () => {
     [lookupIdFromState, order, routeOrderId],
   );
 
+  const displayOrderId = useMemo(
+    () =>
+      pickFirstText(
+        order?.displayOrderId,
+        order?.orderId,
+        routeOrderId,
+      ),
+    [order, routeOrderId],
+  );
+
   // Delivery Attempt States
   // 'normal' | 'timer' | 'proof'
   const [attemptPhase, setAttemptPhase] = useState('normal');
@@ -937,7 +947,7 @@ const OrderDetailV2 = () => {
       await deliveryAPI.confirmReachedPickup(resolvedLookupOrderId);
       await deliveryAPI.confirmOrderId(
         resolvedLookupOrderId,
-        order?.displayOrderId || routeOrderId || resolvedLookupOrderId,
+        displayOrderId || resolvedLookupOrderId,
         useDeliveryStore.getState().riderLocation || {},
         { billImageUrl },
       );
@@ -945,7 +955,7 @@ const OrderDetailV2 = () => {
       setPickupPhotoPreview(null);
     },
     'Order marked as picked',
-  ), [order, pickupPhoto, resolvedLookupOrderId, routeOrderId, runAction]);
+  ), [displayOrderId, pickupPhoto, resolvedLookupOrderId, runAction]);
 
   const handleArriveDrop = useCallback(() => runAction(
     'drop-arrival',
@@ -1101,7 +1111,7 @@ const OrderDetailV2 = () => {
                 {getOrderEventDate(order) ? new Date(getOrderEventDate(order)).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                Order ID: {order?.displayOrderId ? `#${order.displayOrderId}` : `#${String(routeOrderId || '').slice(-6).toUpperCase()}`}
+                Order ID: {displayOrderId ? `#${displayOrderId}` : '--'}
               </p>
             </div>
             <StatusPill tone={currentStatus.tone}>{currentStatus.label}</StatusPill>

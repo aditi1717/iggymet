@@ -299,7 +299,7 @@ function CompletedOrders({ onSelectOrder, refreshToken = 0 }) {
             return (
               <div
                 key={order.orderId || order.mongoId}
-                className="w-full bg-white rounded-2xl p-4 mb-3 border border-gray-200">
+                className="w-full bg-[#f5f8ff] rounded-2xl p-4 mb-3 border border-gray-200">
                 <button
                   type="button"
                   onClick={() =>
@@ -516,7 +516,7 @@ function CancelledOrders({ onSelectOrder, refreshToken = 0 }) {
             return (
               <div
                 key={order.orderId || order.mongoId}
-                className="w-full bg-white rounded-2xl p-4 mb-3 border border-gray-200">
+                className="w-full bg-[#f5f8ff] rounded-2xl p-4 mb-3 border border-gray-200">
                 <button
                   type="button"
                   onClick={() =>
@@ -1342,6 +1342,21 @@ export default function OrdersMain() {
   // Keep refs in sync to avoid stale state inside one-time event handlers.
   useEffect(() => {
     showNewOrderPopupRef.current = showNewOrderPopup;
+  }, [showNewOrderPopup]);
+
+  useEffect(() => {
+    if (!showNewOrderPopup) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
   }, [showNewOrderPopup]);
 
   useEffect(() => {
@@ -2471,7 +2486,7 @@ export default function OrdersMain() {
       {/* Content Area - Scrollable */}
       <div
         ref={contentRef}
-        className="flex-1 overflow-y-auto px-4 pb-24 content-scroll"
+        className="flex-1 overflow-y-auto px-4 pb-24 content-scroll bg-[#eaf2ff]"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -3610,7 +3625,7 @@ function OrderCard({
   }
 
   return (
-    <div className="w-full bg-white rounded-2xl p-4 mb-3 border border-gray-200 hover:border-gray-400 transition-colors relative">
+    <div className="w-full bg-[#f5f8ff] rounded-2xl p-4 mb-3 border border-gray-200 hover:border-gray-400 transition-colors relative">
       {/* Cancel button - only show for preparing orders */}
       {isPreparing && onCancel && (
         <button

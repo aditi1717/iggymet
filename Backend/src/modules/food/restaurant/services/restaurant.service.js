@@ -3,6 +3,7 @@ import { uploadImageBuffer } from '../../../../services/cloudinary.service.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
 import mongoose from 'mongoose';
 import { FoodZone } from '../../admin/models/zone.model.js';
+import { FoodRestaurantCommission } from '../../admin/models/restaurantCommission.model.js';
 import { FoodOffer } from '../../admin/models/offer.model.js';
 import { FoodOfferUsage } from '../../admin/models/offerUsage.model.js';
 
@@ -404,6 +405,17 @@ export const registerRestaurant = async (payload, files) => {
             menuImages,
             ...images
         });
+        await FoodRestaurantCommission.updateOne(
+            { restaurantId: restaurant._id },
+            {
+                $setOnInsert: {
+                    defaultCommission: { type: 'percentage', value: 25 },
+                    notes: '',
+                    status: true
+                }
+            },
+            { upsert: true }
+        );
 
         try {
             const { notifyAdminsSafely } = await import('../../../../core/notifications/firebase.service.js');

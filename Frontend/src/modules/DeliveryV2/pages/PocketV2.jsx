@@ -99,10 +99,6 @@ export const PocketV2 = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 font-poppins pb-24">
-      <div className="bg-white px-4 py-3 border-b border-gray-100 sticky top-0 z-30 shadow-sm flex items-center justify-between">
-        <h1 className="text-base font-bold text-gray-900">Partner Pocket</h1>
-      </div>
-
       {!walletState.bankDetailsFilled && (
         <div className="bg-red-50 border-b border-red-100 px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
