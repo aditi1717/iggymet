@@ -1,5 +1,5 @@
 export const APP_CONFIG = {
-  NAME: 'AppZeto Master',
+  NAME: 'Iggymet',
   VERSION: '1.0.0',
 };
 
