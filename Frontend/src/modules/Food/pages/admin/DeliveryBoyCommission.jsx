@@ -397,7 +397,7 @@ export default function DeliveryBoyCommission() {
             <div className="flex items-center gap-3">
               <IndianRupee className="w-5 h-5 text-slate-600" />
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold text-slate-900">Delivery Boy Commission</h1>
+                <h1 className="text-2xl font-bold text-slate-900">Delivery Boy Earning Setup</h1>
                 <span className="px-3 py-1 rounded-full text-sm font-semibold bg-slate-100 text-slate-700">
                   {filteredCommissions.length}
                 </span>

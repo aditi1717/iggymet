@@ -229,7 +229,9 @@ const RestaurantImageCarousel = React.memo(
         .map((img) => img.trim())
         .filter(Boolean);
 
-      return validImages.map((img) => withCacheBuster(img));
+      // Only show one static image
+      const firstImageOnly = validImages.slice(0, 1);
+      return firstImageOnly.map((img) => withCacheBuster(img));
     }, [restaurant.images, restaurant.image, withCacheBuster]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [loadedBySrc, setLoadedBySrc] = useState({});
@@ -423,11 +425,24 @@ export default function Home() {
   const HERO_BANNER_AUTO_SLIDE_MS = 3500;
   const BACKEND_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, "");
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const modalOpenedViaClickRef = useRef(false);
   const query = searchParams.get("q") || "";
   const [heroSearch, setHeroSearch] = useState("");
   const { openSearch, closeSearch, searchValue, setSearchValue } =
     useSearchOverlay();
+
+  const closeCategoriesModal = useCallback(() => {
+    if (modalOpenedViaClickRef.current) {
+      modalOpenedViaClickRef.current = false;
+      navigate(-1);
+    } else {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete("categories");
+      setSearchParams(newParams);
+    }
+  }, [searchParams, setSearchParams, navigate]);
+
   const { openLocationSelector } = useLocationSelector();
   const { vegMode, setVegMode: setVegModeContext, vegModePreference, setVegModePreference } = useProfile();
   const [prevVegMode, setPrevVegMode] = useState(vegMode);
@@ -467,6 +482,14 @@ export default function Home() {
   const [loadingMenuCategories, setLoadingMenuCategories] = useState(false);
   const [, setRestaurantDietMeta] = useState({});
   const [showAllCategoriesModal, setShowAllCategoriesModal] = useState(false);
+
+  useEffect(() => {
+    const categoriesOpen = searchParams.get("categories") === "open";
+    if (categoriesOpen !== showAllCategoriesModal) {
+      setShowAllCategoriesModal(categoriesOpen);
+    }
+  }, [searchParams, showAllCategoriesModal]);
+
   const [availabilityTick, setAvailabilityTick] = useState(Date.now());
   const RESTAURANTS_BATCH_SIZE = 9;
   const [visibleRestaurantCount, setVisibleRestaurantCount] = useState(
@@ -2597,7 +2620,12 @@ export default function Home() {
           {displayCategories.length > 12 && !showCategorySkeleton && (
             <div 
               className="flex-shrink-0 flex flex-col items-center gap-2 cursor-pointer group"
-              onClick={() => setShowAllCategoriesModal(true)}
+              onClick={() => {
+                modalOpenedViaClickRef.current = true;
+                const newParams = new URLSearchParams(searchParams);
+                newParams.set("categories", "open");
+                setSearchParams(newParams);
+              }}
             >
               <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full ${BRAND_THEME.tokens.homepage.home.chipMoreBackground} flex items-center justify-center border ${BRAND_THEME.tokens.homepage.home.chipMoreBorder} transition-all`}>
                 <Plus className={`w-6 h-6 ${BRAND_THEME.tokens.homepage.home.chipMoreIcon}`} />
@@ -2608,7 +2636,7 @@ export default function Home() {
         </div>
       </section>
     );
-  }, [displayCategories, showCategorySkeleton, navigate, homeUnderRoute, homeUnderPriceLimit]);
+  }, [displayCategories, showCategorySkeleton, navigate, homeUnderRoute, homeUnderPriceLimit, searchParams, setSearchParams]);
 
   return (
     <div className={`relative min-h-screen ${BRAND_THEME.tokens.homepage.shared.pageBackground} pb-16 md:pb-6 overflow-x-clip`}>
@@ -3773,7 +3801,7 @@ export default function Home() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                onClick={() => setShowAllCategoriesModal(false)}
+                onClick={closeCategoriesModal}
                 className="fixed inset-0 bg-black/40 z-[9998] backdrop-blur-sm"
               />
 
@@ -3795,7 +3823,7 @@ export default function Home() {
                     All Categories
                   </h2>
                   <button
-                    onClick={() => setShowAllCategoriesModal(false)}
+                    onClick={closeCategoriesModal}
                     className="p-1.5 sm:p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     aria-label="Close">
                     <X className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600 dark:text-gray-400" />
@@ -3825,7 +3853,11 @@ export default function Home() {
                           whileTap={{ scale: 0.95 }}>
                           <Link
                             to={`/user/category/${categoryData.slug || categoryData.name.toLowerCase().replace(/\s+/g, "-")}`}
-                            onClick={() => setShowAllCategoriesModal(false)}
+                            replace={true}
+                            onClick={() => {
+                              modalOpenedViaClickRef.current = false;
+                              setShowAllCategoriesModal(false);
+                            }}
                             className="block">
                             <div className="flex flex-col items-center gap-2 sm:gap-2.5 cursor-pointer w-full">
                               <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full overflow-hidden shadow-md transition-all hover:shadow-lg flex-shrink-0">

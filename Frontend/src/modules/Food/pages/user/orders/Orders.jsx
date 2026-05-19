@@ -725,12 +725,12 @@ Order again from this restaurant in the ${companyName} app.`
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 pb-10">
-        <div className="bg-white p-4 flex items-center shadow-sm sticky top-0 z-10">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-10">
+        <div className="bg-white dark:bg-gray-800 p-4 flex items-center shadow-sm sticky top-0 z-10">
           <Link to="/food/user">
-            <ArrowLeft className="w-6 h-6 text-gray-700 cursor-pointer" />
+            <ArrowLeft className="w-6 h-6 text-gray-700 dark:text-gray-300 cursor-pointer" />
           </Link>
-          <h1 className="ml-4 text-xl font-semibold text-gray-800">Your Orders</h1>
+          <h1 className="ml-4 text-xl font-semibold text-gray-800 dark:text-gray-100">Your Orders</h1>
         </div>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin" style={{ color: BRAND_THEME.tokens.orders.primaryText }} />
@@ -741,15 +741,15 @@ Order again from this restaurant in the ${companyName} app.`
 
   if (orders.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 pb-10">
-        <div className="bg-white p-4 flex items-center shadow-sm sticky top-0 z-10">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-10">
+        <div className="bg-white dark:bg-gray-800 p-4 flex items-center shadow-sm sticky top-0 z-10">
           <Link to="/food/user">
-            <ArrowLeft className="w-6 h-6 text-gray-700 cursor-pointer" />
+            <ArrowLeft className="w-6 h-6 text-gray-700 dark:text-gray-300 cursor-pointer" />
           </Link>
-          <h1 className="ml-4 text-xl font-semibold text-gray-800">Your Orders</h1>
+          <h1 className="ml-4 text-xl font-semibold text-gray-800 dark:text-gray-100">Your Orders</h1>
         </div>
         <div className="px-4 py-8 text-center">
-          <p className="text-gray-600">You haven't placed any orders yet</p>
+          <p className="text-gray-600 dark:text-gray-400">You haven't placed any orders yet</p>
           <Link to="/food/user">
             <button className="mt-4 font-medium" style={{ color: BRAND_THEME.tokens.orders.primaryText }}>Start Ordering</button>
           </Link>

@@ -644,17 +644,17 @@ export default function OrdersPage({ statusKey = "all" }) {
   }, [fetchOrders])
 
   useEffect(() => {
-    if (statusKey !== "all") return undefined
+    // Poll on all status tabs
 
     const pollId = setInterval(() => {
-      fetchOrders({ silent: true, withRingCheck: true })
+      fetchOrders({ silent: true, withRingCheck: statusKey === "all" })
     }, 5000)
 
     return () => clearInterval(pollId)
   }, [statusKey, fetchOrders])
 
   useEffect(() => {
-    if (statusKey !== "all") return undefined
+    // Connect sockets on all tabs
 
     let backendUrl = API_BASE_URL
     try {

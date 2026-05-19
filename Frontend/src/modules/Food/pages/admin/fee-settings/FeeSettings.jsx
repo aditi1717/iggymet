@@ -286,7 +286,6 @@ export default function FeeSettings() {
                                 <td className="px-4 py-3 text-sm text-slate-900 border-b border-slate-100">
                                   {isEditing ? (
                                     <div className="flex items-center gap-1">
-                                      <span className="text-slate-400">₹</span>
                                       <input
                                         type="number"
                                         value={newRange.min}
@@ -295,13 +294,12 @@ export default function FeeSettings() {
                                       />
                                     </div>
                                   ) : (
-                                    <>₹{range.min}</>
+                                    <>{range.min}</>
                                   )}
                                 </td>
                                 <td className="px-4 py-3 text-sm text-slate-900 border-b border-slate-100">
                                   {isEditing ? (
                                     <div className="flex items-center gap-1">
-                                      <span className="text-slate-400">₹</span>
                                       <input
                                         type="number"
                                         value={newRange.max}
@@ -310,7 +308,7 @@ export default function FeeSettings() {
                                       />
                                     </div>
                                   ) : (
-                                    <>₹{range.max}</>
+                                    <>{range.max}</>
                                   )}
                                 </td>
                                 <td className="px-4 py-3 text-sm font-medium text-green-600 border-b border-slate-100">

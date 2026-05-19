@@ -26,6 +26,7 @@ const approvalBadgeClass = (status) => {
 
 export default function MenuCategoriesPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const goBack = useRestaurantBackNavigation()
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
@@ -46,7 +47,15 @@ export default function MenuCategoriesPage() {
 
   useEffect(() => {
     fetchCategories()
-  }, [])
+    if (location.state?.draftCategoryName) {
+      const draftName = location.state.draftCategoryName
+      // Redirect to the edit category page for creation with prefilled name
+      navigate("/food/restaurant/menu-categories/new", {
+        state: { draftCategoryName: draftName },
+        replace: true
+      })
+    }
+  }, [location.state])
 
   const handleOpenModal = (category = null) => {
     if (category) {
@@ -181,9 +190,6 @@ export default function MenuCategoriesPage() {
                     <span className="text-xs text-slate-500 flex items-center gap-1">
                       <Globe className="h-3 w-3" />
                       {category.foodTypeScope || "Both"}
-                    </span>
-                    <span className="text-xs text-slate-500">
-                      Sort: {category.sortOrder || 0}
                     </span>
                   </div>
                 </div>

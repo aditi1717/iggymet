@@ -23,6 +23,8 @@ export default function AddOfferPage() {
     startDate: "",
     endDate: ""
   })
+  const [originalStartDate, setOriginalStartDate] = useState("")
+  const [originalEndDate, setOriginalEndDate] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const [products, setProducts] = useState([])
@@ -30,6 +32,13 @@ export default function AddOfferPage() {
   const [loadingExisting, setLoadingExisting] = useState(false)
   const [showProductsModal, setShowProductsModal] = useState(false)
   const [allOffers, setAllOffers] = useState([])
+
+  const today = useMemo(() => {
+    const d = new Date()
+    const m = String(d.getMonth() + 1).padStart(2, "0")
+    const day = String(d.getDate()).padStart(2, "0")
+    return `${d.getFullYear()}-${m}-${day}`
+  }, [])
 
   const selectedProducts = useMemo(
     () => products.filter((product) => form.productIds.includes(String(product.id))),
@@ -143,6 +152,19 @@ export default function AddOfferPage() {
       const limit = Number(form.perUserLimit)
       if (!Number.isFinite(limit) || limit < 1) return setError("Per user redeem limit must be at least 1")
     }
+    if (form.startDate && form.startDate < today) {
+      if (!isEditMode || form.startDate !== originalStartDate) {
+        return setError("Start date cannot be in the past")
+      }
+    }
+    if (form.endDate && form.endDate < today) {
+      if (!isEditMode || form.endDate !== originalEndDate) {
+        return setError("End date cannot be in the past")
+      }
+    }
+    if (form.startDate && form.endDate && new Date(form.endDate) < new Date(form.startDate)) {
+      return setError("End date must be greater than or equal to start date")
+    }
     try {
       setSaving(true)
       if (isEditMode) {
@@ -181,6 +203,8 @@ export default function AddOfferPage() {
         const list = res?.data?.data?.offers || res?.data?.offers || []
         const found = list.find((o) => String(o._id || o.id) === String(offerId))
         if (found) {
+          const sDate = found.startDate ? new Date(found.startDate).toISOString().slice(0, 10) : ""
+          const eDate = found.endDate ? new Date(found.endDate).toISOString().slice(0, 10) : ""
           setForm({
             title: found.title || "",
             productIds: Array.isArray(found.productIds) && found.productIds.length > 0
@@ -193,9 +217,11 @@ export default function AddOfferPage() {
             maxDiscount: found.maxDiscount != null ? String(found.maxDiscount) : "",
             maxOfferQuantityPerOrder: found.maxOfferQuantityPerOrder != null && Number(found.maxOfferQuantityPerOrder) > 0 ? String(found.maxOfferQuantityPerOrder) : "",
             perUserLimit: found.perUserLimit != null && Number(found.perUserLimit) > 0 ? String(found.perUserLimit) : "",
-            startDate: found.startDate ? new Date(found.startDate).toISOString().slice(0, 10) : "",
-            endDate: found.endDate ? new Date(found.endDate).toISOString().slice(0, 10) : ""
+            startDate: sDate,
+            endDate: eDate
           })
+          setOriginalStartDate(sDate)
+          setOriginalEndDate(eDate)
         }
       } catch (err) {
         setError(err?.response?.data?.message || "Unable to load offer")
@@ -324,6 +350,7 @@ export default function AddOfferPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Start Date (optional)</label>
                 <Input
                   type="date"
+                  min={form.startDate || today}
                   value={form.startDate}
                   onChange={(e) => updateField("startDate", e.target.value)}
                 />
@@ -332,6 +359,7 @@ export default function AddOfferPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">End Date (optional)</label>
                 <Input
                   type="date"
+                  min={form.endDate || form.startDate || today}
                   value={form.endDate}
                   onChange={(e) => updateField("endDate", e.target.value)}
                 />

@@ -96,8 +96,7 @@ export default function ViewOrderDialog({
     }
   }, [isOpen, order])
 
-  if (!order) return null
-  const modalOrder = fullOrder ? { ...order, ...fullOrder } : order
+  const modalOrder = fullOrder ? { ...(order || {}), ...fullOrder } : (order || {})
   const pickupProofImageUrl = useMemo(
     () =>
       modalOrder?.billImageUrl ||
@@ -110,6 +109,8 @@ export default function ViewOrderDialog({
       "",
     [modalOrder],
   )
+
+  if (!order) return null
 
   // Debug: Log order data to check billImageUrl
   if (pickupProofImageUrl) {

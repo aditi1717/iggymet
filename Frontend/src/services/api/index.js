@@ -557,7 +557,7 @@ export const adminAPI = {
       contextModule: "admin",
     }),
   acceptOrder: (orderId) =>
-    adminAPI.updateOrderStatus(orderId, { orderStatus: "preparing" }),
+    adminAPI.updateOrderStatus(orderId, { orderStatus: "confirmed" }),
   rejectOrder: (orderId, reason = "") =>
     adminAPI.updateOrderStatus(orderId, {
       orderStatus: "cancelled_by_admin",

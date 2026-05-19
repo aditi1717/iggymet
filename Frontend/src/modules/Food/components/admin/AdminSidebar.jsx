@@ -615,7 +615,7 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
                       }
                     }}
                     className={cn(
-                      "flex items-center gap-2 px-3 py-1.5 rounded-md transition-all duration-300 ease-out text-sm font-normal text-left",
+                      "w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all duration-300 ease-out text-sm font-normal text-left",
                       isActive(subItem.path, allSubPaths)
                         ? "bg-white/10 text-white font-semibold"
                         : "text-neutral-300 hover:bg-white/5 hover:text-white"
@@ -626,7 +626,7 @@ export default function AdminSidebar({ isOpen = false, onClose, onCollapseChange
                       "w-1.5 h-1.5 rounded-full shrink-0 transition-all duration-300",
                       isActive(subItem.path, allSubPaths) ? "bg-white scale-125" : "bg-neutral-400"
                     )}></span>
-                    <span className="text-left flex-1 truncate">{subItem.label}</span>
+                    <span className="text-left flex-1 truncate min-w-0">{subItem.label}</span>
                     {getBadgeCount(subItem.label, subItem.path) > 0 && (
                       <span className="shrink-0 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1 min-w-[18px] text-center">
                         {getBadgeCount(subItem.label, subItem.path) > 99 ? "99+" : getBadgeCount(subItem.label, subItem.path)}

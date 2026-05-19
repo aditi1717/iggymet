@@ -210,6 +210,9 @@ export async function createRestaurantCategory(restaurantId, body = {}) {
     if (!name) throw new ValidationError('Category name is required');
     if (name.length > 200) throw new ValidationError('Category name is too long');
 
+    const image = typeof body.image === 'string' ? body.image.trim() : '';
+    if (!image) throw new ValidationError('Category image is required');
+
     const foodTypeScopeRaw = typeof body.foodTypeScope === 'string' ? body.foodTypeScope.trim() : '';
     if (!foodTypeScopeRaw) {
         throw new ValidationError('Category diet type is required');
@@ -224,7 +227,7 @@ export async function createRestaurantCategory(restaurantId, body = {}) {
 
     const doc = new FoodCategory({
         name,
-        image: typeof body.image === 'string' ? body.image.trim() : '',
+        image,
         type: typeof body.type === 'string' ? body.type.trim() : '',
         foodTypeScope,
         isActive: body.isActive !== false,
@@ -274,7 +277,11 @@ export async function updateRestaurantCategory(restaurantId, id, body = {}) {
         if (name.length > 200) throw new ValidationError('Category name is too long');
         doc.name = name;
     }
-    if (body.image !== undefined) doc.image = String(body.image || '').trim();
+    if (body.image !== undefined) {
+        const image = String(body.image || '').trim();
+        if (!image) throw new ValidationError('Category image is required');
+        doc.image = image;
+    }
     if (body.type !== undefined) doc.type = String(body.type || '').trim();
     if (body.isActive !== undefined) doc.isActive = body.isActive !== false;
     if (body.sortOrder !== undefined) doc.sortOrder = Number(body.sortOrder) || 0;

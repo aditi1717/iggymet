@@ -30,7 +30,8 @@ import {
   HelpCircle, AlertTriangle,
   Wallet, History, User as UserIcon, LayoutGrid,
   Plus, Minus, Navigation2, Target, Play, Clock,
-  Contact, Package, RefreshCcw, Bell
+  Contact, Package, RefreshCcw, Bell,
+  Ambulance, Shield, ShieldCheck, ArrowRight
 } from 'lucide-react';
 
 const INCOMING_ORDER_STORAGE_KEY = 'delivery_v2_incoming_order';
@@ -646,7 +647,51 @@ function OrdersTabV2({
   );
 }
 
-/** Minimal bottom-sheet popup (Restored from legacy FeedNavbar) */
+/** Minimal bottom-sheet popup (self-contained) */
+function BottomPopup({
+  isOpen,
+  onClose,
+  title,
+  children,
+  showCloseButton = true,
+  closeOnBackdropClick = true,
+  maxHeight = "70vh",
+}) {
+  if (!isOpen) return null;
+  return (
+    <div
+      className="fixed inset-0 z-[250] flex items-end"
+      onClick={closeOnBackdropClick ? onClose : undefined}
+    >
+      <div className="absolute inset-0 bg-black/40" />
+      <motion.div
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="relative w-full bg-white rounded-t-2xl shadow-xl p-4"
+        style={{ maxHeight, overflow: "auto" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+          {showCloseButton && (
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 text-sm px-3 py-1 rounded-md"
+            >
+              Close
+            </button>
+          )}
+        </div>
+        {children}
+      </motion.div>
+    </div>
+  );
+}
+
+const normalizePhoneForDial = (value) => String(value || "").replace(/[^\d]/g, "");
+
 /**
  * DeliveryHomeV2 - Premium 1:1 Match with Original App UI.
  * Featuring logical tab switching for Feed, Pocket, History, and Profile.
@@ -673,6 +718,101 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const [currentTab, setCurrentTab] = useState(tab);
   const [orderActionBusy, setOrderActionBusy] = useState({ orderId: '', type: '' });
   const [ordersRefreshTick, setOrdersRefreshTick] = useState(0);
+
+  const [showEmergencyPopup, setShowEmergencyPopup] = useState(false);
+  const [emergencyNumbers, setEmergencyNumbers] = useState({
+    medicalEmergency: "",
+    accidentHelpline: "",
+    contactPolice: "",
+    insurance: "",
+  });
+
+  const emergencyHelpFetched = useRef(false);
+  useEffect(() => {
+    if (emergencyHelpFetched.current) return;
+    emergencyHelpFetched.current = true;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await deliveryAPI.getEmergencyHelp();
+        if (cancelled) return;
+        if (response?.data?.success && response?.data?.data) {
+          setEmergencyNumbers({
+            medicalEmergency: response.data.data.medicalEmergency || "",
+            accidentHelpline: response.data.data.accidentHelpline || "",
+            contactPolice: response.data.data.contactPolice || "",
+            insurance: response.data.data.insurance || "",
+          });
+        }
+      } catch (error) {
+        if (!cancelled) console.warn("Error fetching emergency help:", error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const emergencyOptions = [
+    { 
+      id: "ambulance", 
+      title: "Medical Emergency", 
+      subtitle: "Call an ambulance", 
+      icon: "ambulance", 
+      phone: emergencyNumbers.medicalEmergency,
+      onClick: () => {
+        const phoneToDial = normalizePhoneForDial(emergencyNumbers.medicalEmergency);
+        if (phoneToDial.length >= 3) {
+          window.location.href = `tel:${phoneToDial}`;
+        } else {
+          toast.error("Medical emergency number not configured");
+        }
+      }
+    },
+    { 
+      id: "accident", 
+      title: "Accident Helpline", 
+      subtitle: "Report an accident", 
+      icon: "accident", 
+      phone: emergencyNumbers.accidentHelpline,
+      onClick: () => {
+        const phoneToDial = normalizePhoneForDial(emergencyNumbers.accidentHelpline);
+        if (phoneToDial.length >= 3) {
+          window.location.href = `tel:${phoneToDial}`;
+        } else {
+          toast.error("Accident helpline number not configured");
+        }
+      }
+    },
+    { 
+      id: "police", 
+      title: "Contact Police", 
+      subtitle: "Nearest police support", 
+      icon: "police", 
+      phone: emergencyNumbers.contactPolice,
+      onClick: () => {
+        const phoneToDial = normalizePhoneForDial(emergencyNumbers.contactPolice);
+        if (phoneToDial.length >= 3) {
+          window.location.href = `tel:${phoneToDial}`;
+        } else {
+          toast.error("Police emergency number not configured");
+        }
+      }
+    },
+    { 
+      id: "insurance", 
+      title: "Insurance", 
+      subtitle: "Policy & claim help", 
+      icon: "insurance", 
+      phone: emergencyNumbers.insurance,
+      onClick: () => {
+        const phoneToDial = normalizePhoneForDial(emergencyNumbers.insurance);
+        if (phoneToDial.length >= 3) {
+          window.location.href = `tel:${phoneToDial}`;
+        } else {
+          toast.error("Insurance helpline number not configured");
+        }
+      }
+    },
+  ];
 
   // Track URL changes (Prop changes) to update sub-page content
   useEffect(() => {
@@ -1567,7 +1707,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
             
             <div className="flex items-center gap-2">
               <button onClick={() => navigate('/food/delivery/notifications')} className='relative w-[38px] h-[38px] rounded-full bg-orange-50 flex items-center justify-center text-[#EB590E] active:bg-orange-100 transition-colors border border-orange-100'><Bell className='w-[18px] h-[18px]' />{notificationUnreadCount > 0 && (<span className='absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#EB590E] text-[10px] font-bold text-white ring-2 ring-white'>{notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}</span>)}</button>
-              <button onClick={() => navigate('/food/delivery/help/tickets')} className="w-[38px] h-[38px] rounded-full bg-red-50 flex items-center justify-center text-red-500 active:bg-red-100 transition-colors border border-red-100"><AlertTriangle className="w-[18px] h-[18px]" /></button>
+              <button onClick={() => setShowEmergencyPopup(true)} className="w-[38px] h-[38px] rounded-full bg-red-50 flex items-center justify-center text-red-500 active:bg-red-100 transition-colors border border-red-100"><AlertTriangle className="w-[18px] h-[18px]" /></button>
               <button onClick={() => navigate('/food/delivery/help/id-card')} className="w-[38px] h-[38px] rounded-full bg-brand-50 flex items-center justify-center text-brand-600 active:bg-brand-100 transition-colors border border-brand-100"><Contact className="w-[18px] h-[18px]" /></button>
             </div>
           </div>
@@ -1765,6 +1905,51 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
           <UserIcon className="w-5 h-5" /><span className="text-[10px] font-semibold">Profile</span>
         </button>
       </div>
+
+      {/* Emergency Popup */}
+      <BottomPopup
+        isOpen={showEmergencyPopup}
+        onClose={() => setShowEmergencyPopup(false)}
+        title="Emergency help"
+        showCloseButton={true}
+        closeOnBackdropClick={true}
+        maxHeight="70vh"
+      >
+        <div className="py-2">
+          {emergencyOptions.map((option) => (
+            <button
+              key={option.id}
+              onClick={() => {
+                option.onClick?.();
+                setShowEmergencyPopup(false);
+              }}
+              className="w-full flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 text-slate-900"
+            >
+              <div className="shrink-0 w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+                {option.icon === "ambulance" && (
+                  <Ambulance className="w-6 h-6 text-red-600" />
+                )}
+                {option.icon === "accident" && (
+                  <AlertTriangle className="w-6 h-6 text-orange-600" />
+                )}
+                {option.icon === "police" && (
+                  <Shield className="w-6 h-6 text-brand-600" />
+                )}
+                {option.icon === "insurance" && (
+                  <ShieldCheck className="w-6 h-6 text-green-600" />
+                )}
+              </div>
+
+              <div className="flex-1 text-left">
+                <h3 className="text-base font-semibold text-gray-900 mb-1">{option.title}</h3>
+                <p className="text-sm text-gray-600">{option.subtitle}</p>
+              </div>
+
+              <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+            </button>
+          ))}
+        </div>
+      </BottomPopup>
     </div>
   );
 }

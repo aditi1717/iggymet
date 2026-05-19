@@ -698,7 +698,7 @@ export async function getRestaurants(query, adminScope = {}) {
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
-            .select('restaurantName location area city profileImage coverImages menuImages status ownerName ownerPhone zoneId')
+            .select('restaurantName location area city profileImage coverImages menuImages status ownerName ownerPhone zoneId rating totalRatings')
             .populate('zoneId', 'name zoneName')
             .lean(),
         FoodRestaurant.countDocuments(filter)
@@ -3504,9 +3504,11 @@ export async function getCategories(query) {
 export async function createCategory(body) {
     const name = typeof body.name === 'string' ? body.name.trim() : '';
     if (!name) throw new ValidationError('Category name is required');
+    const image = typeof body.image === 'string' ? body.image.trim() : '';
+    if (!image) throw new ValidationError('Category image is required');
     const doc = new FoodCategory({
         name,
-        image: typeof body.image === 'string' ? body.image.trim() : '',
+        image,
         type: typeof body.type === 'string' ? body.type.trim() : '',
         foodTypeScope: normalizeCategoryFoodTypeScope(body.foodTypeScope, 'Both'),
         zoneId:
@@ -3615,7 +3617,11 @@ export async function updateCategory(id, body) {
     }
 
     if (body.name !== undefined) doc.name = String(body.name || '').trim();
-    if (body.image !== undefined) doc.image = String(body.image || '').trim();
+    if (body.image !== undefined) {
+        const image = String(body.image || '').trim();
+        if (!image) throw new ValidationError('Category image is required');
+        doc.image = image;
+    }
     if (body.type !== undefined) doc.type = String(body.type || '').trim();
     if (body.foodTypeScope !== undefined) doc.foodTypeScope = nextFoodTypeScope;
     if (!doc.restaurantId && doc.createdByRestaurantId) {

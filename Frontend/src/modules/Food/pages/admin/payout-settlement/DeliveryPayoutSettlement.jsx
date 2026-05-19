@@ -282,7 +282,7 @@ export default function DeliveryPayoutSettlement() {
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Name ya ID search karein"
+                  placeholder="Search by name or ID"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400"

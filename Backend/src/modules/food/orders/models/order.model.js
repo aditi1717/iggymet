@@ -149,7 +149,8 @@ const deliveryStateSchema = new mongoose.Schema(
         reachedPickupAt: { type: Date, default: null },
         reachedDropAt: { type: Date, default: null },
         pickedUpAt: { type: Date, default: null },
-        deliveredAt: { type: Date, default: null }
+        deliveredAt: { type: Date, default: null },
+        billImageUrl: { type: String, default: '' }
     },
     { _id: false }
 );

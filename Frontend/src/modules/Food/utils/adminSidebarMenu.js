@@ -147,7 +147,7 @@ export const adminSidebarMenu = [
     items: [
       { type: "link", label: "Delivery Boy Heatmap", path: "/admin/food/zone-setup/delivery-boy-view", icon: "MapPin" },
       { type: "link", label: "Delivery & Platform Fee", path: "/admin/food/fee-settings", icon: "DollarSign" },
-      { type: "link", label: "Delivery Boy Commission", path: "/admin/food/delivery-boy-commission", icon: "DollarSign" },
+      { type: "link", label: "Delivery Boy Earning Setup", path: "/admin/food/delivery-boy-commission", icon: "DollarSign" },
       { type: "link", label: "Delivery Emergency Help", path: "/admin/food/delivery-emergency-help", icon: "Phone" },
       { type: "link", label: "Delivery Support Tickets", path: "/admin/food/delivery-support-tickets", icon: "MessageSquare" },
       {

@@ -48,7 +48,9 @@ const RestaurantImageCarousel = React.memo(({ restaurant, priority = false, back
       .map((img) => img.trim())
       .filter(Boolean);
 
-    return validImages.map((img) => withCacheBuster(img));
+    // Only show one static image
+    const firstImageOnly = validImages.slice(0, 1);
+    return firstImageOnly.map((img) => withCacheBuster(img));
   }, [restaurant.images, restaurant.image, withCacheBuster]);
 
   const [currentIndex, setCurrentIndex] = useState(0);

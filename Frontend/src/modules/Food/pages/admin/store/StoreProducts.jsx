@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -87,6 +88,22 @@ export default function StoreProducts() {
     setCurrentPage(1);
   }, [searchQuery, filterPublished]);
 
+  useEffect(() => {
+    if (products.length > 0) {
+      const lowStockCount = products.reduce((acc, product) => {
+        const lowVariants = (product.variants || []).filter(v => Number(v.stock) < 10);
+        return acc + lowVariants.length;
+      }, 0);
+      
+      if (lowStockCount > 0) {
+        toast.warning(`${lowStockCount} product variant(s) have low stock (< 10)! Please review the alerts below.`, {
+          id: "low-stock-alert-toast",
+          duration: 5000,
+        });
+      }
+    }
+  }, [products]);
+
   const filteredProducts = useMemo(() => {
     let result = [...products];
 
@@ -109,6 +126,21 @@ export default function StoreProducts() {
 
     return result;
   }, [products, searchQuery, filterPublished]);
+
+  const lowStockItems = useMemo(() => {
+    const list = [];
+    products.forEach((product) => {
+      (product.variants || []).forEach((variant) => {
+        if (variant.stock !== "" && Number(variant.stock) < 10) {
+          list.push({
+            product,
+            variant,
+          });
+        }
+      });
+    });
+    return list;
+  }, [products]);
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
   const paginatedProducts = filteredProducts.slice(
@@ -329,6 +361,19 @@ export default function StoreProducts() {
       return;
     }
 
+    // Validate that resulting stock is not negative
+    for (const [variantId, delta] of validEntries) {
+      const variant = stockProduct.variants.find((v) => v._id === variantId);
+      if (variant) {
+        const currentStock = Number(variant.stock) || 0;
+        const newStock = currentStock + Number(delta);
+        if (newStock < 0) {
+          toast.error(`Stock cannot be less than 0 for variant "${variant.name}" (Current: ${currentStock}, Change: ${delta})`);
+          return;
+        }
+      }
+    }
+
     try {
       setUpdatingStock(true);
 
@@ -401,6 +446,39 @@ export default function StoreProducts() {
           </div>
         </div>
       </div>
+
+      {lowStockItems.length > 0 && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50/50 p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-800">
+              <AlertTriangle className="h-5 w-5 text-amber-700" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-amber-900">Low Stock Alert</h3>
+              <p className="text-xs text-amber-700 mt-0.5">
+                The following product variants have low stock (less than 10 units). Please click a variant below to update its stock.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {lowStockItems.map(({ product, variant }) => (
+                  <button
+                    key={`${getProductId(product)}-${variant._id}`}
+                    onClick={() => openStockModal(product)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 shadow-sm transition-all hover:bg-amber-50 hover:border-amber-300"
+                  >
+                    <span className="truncate max-w-[120px] font-bold text-slate-800">{product.name}</span>
+                    <span className="text-[10px] text-amber-600 bg-amber-100 px-1 py-0.5 rounded font-medium">
+                      {variant.name}
+                    </span>
+                    <span className={`text-[10px] font-bold px-1 py-0.5 rounded ${variant.stock === 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                      Stock: {variant.stock}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
@@ -483,13 +561,19 @@ export default function StoreProducts() {
                               {variant.price}
                             </span>
                             <span
-                              className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                                variant.stock > 0
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : "bg-red-100 text-red-600"
+                              className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                                variant.stock === 0
+                                  ? "bg-red-100 text-red-600"
+                                  : variant.stock < 10
+                                  ? "bg-amber-100 text-amber-700 animate-pulse"
+                                  : "bg-emerald-100 text-emerald-700"
                               }`}
                             >
-                              Stock: {variant.stock}
+                              {variant.stock === 0
+                                ? "Out of Stock"
+                                : variant.stock < 10
+                                ? `Low Stock: ${variant.stock}`
+                                : `Stock: ${variant.stock}`}
                             </span>
                           </div>
                         ))}
@@ -762,7 +846,7 @@ export default function StoreProducts() {
 
           <div className="space-y-4 p-6">
             <p className="text-xs text-slate-500">
-              Enter positive number to add stock, negative to reduce. Leave blank to skip.
+              Enter stock change value. Leave blank to skip.
             </p>
 
             {(stockProduct?.variants || []).map((variant) => (
@@ -783,7 +867,7 @@ export default function StoreProducts() {
                       [variant._id]: event.target.value,
                     }))
                   }
-                  placeholder="+/- delta"
+                  placeholder="0"
                   className="w-28 rounded-lg border border-slate-300 px-3 py-2 text-center text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
               </div>

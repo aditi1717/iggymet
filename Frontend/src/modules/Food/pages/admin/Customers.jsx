@@ -273,9 +273,8 @@ export default function Customers() {
                   type="date"
                   value={filters.orderDate}
                   onChange={(e) => handleFilterChange("orderDate", e.target.value)}
-                  className="w-full px-4 py-2.5 pr-10 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
                 />
-                <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               </div>
             </div>
 
@@ -288,9 +287,8 @@ export default function Customers() {
                   type="date"
                   value={filters.joiningDate}
                   onChange={(e) => handleFilterChange("joiningDate", e.target.value)}
-                  className="w-full px-4 py-2.5 pr-10 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
                 />
-                <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               </div>
             </div>
 
@@ -586,7 +584,7 @@ export default function Customers() {
               </div>
 
               {/* Statistics Section */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="bg-brand-50 rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-1">
                     <Package className="w-4 h-4 text-brand-600" />
@@ -602,13 +600,6 @@ export default function Customers() {
                   <p className="text-xl font-bold text-green-600">
                     {"\u20B9"}{(userDetails.totalOrderAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
-                </div>
-                <div className="bg-purple-50 rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <CalendarIcon className="w-4 h-4 text-purple-600" />
-                    <span className="text-xs font-semibold text-slate-700">Member Since</span>
-                  </div>
-                  <p className="text-base font-bold text-purple-600">{formatDateTime(userDetails.joiningDate)}</p>
                 </div>
               </div>
 

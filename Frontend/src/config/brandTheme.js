@@ -32,7 +32,7 @@ const COLORS = {
 };
 
 export const BRAND_THEME = {
-  brandName: "Bakala",
+  brandName: "Iggymet",
   logoReference: {
     fileName: "WhatsApp_Image_2026-04-04_at_11.41.58_AM-removebg-preview.png",
     sourcePath:
@@ -155,7 +155,7 @@ export const BRAND_THEME = {
       cardSurface: "bg-white dark:bg-[#1a1a1a]",
       cardBorder: "border-gray-100 dark:border-gray-800",
       loader: COLORS.brand.primary,
-      brandLabel: "Bakala Legal",
+      brandLabel: "Iggy met",
     },
     wallet: {
       pageBackground: "bg-white dark:bg-[#0a0a0a]",

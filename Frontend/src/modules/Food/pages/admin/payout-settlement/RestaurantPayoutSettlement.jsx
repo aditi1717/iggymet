@@ -240,7 +240,7 @@ export default function RestaurantPayoutSettlement() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Restaurant Settlement</h1>
-              <p className="text-sm text-slate-600 mt-1">Date range select karke restaurant wise pending payout settle karein.</p>
+              <p className="text-sm text-slate-600 mt-1">Select a date range to settle pending payouts for each restaurant.</p>
             </div>
           </div>
         </div>
@@ -265,7 +265,7 @@ export default function RestaurantPayoutSettlement() {
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Name ya ID search karein"
+                  placeholder="Search by name or ID"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400"
