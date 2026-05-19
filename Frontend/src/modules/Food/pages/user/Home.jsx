@@ -429,11 +429,11 @@ export default function Home() {
   const { openSearch, closeSearch, searchValue, setSearchValue } =
     useSearchOverlay();
   const { openLocationSelector } = useLocationSelector();
-  const { vegMode, setVegMode: setVegModeContext } = useProfile();
+  const { vegMode, setVegMode: setVegModeContext, vegModePreference, setVegModePreference } = useProfile();
   const [prevVegMode, setPrevVegMode] = useState(vegMode);
   const [showVegModePopup, setShowVegModePopup] = useState(false);
   const [showSwitchOffPopup, setShowSwitchOffPopup] = useState(false);
-  const [vegModeOption, setVegModeOption] = useState("all"); // "all" or "pure-veg"
+  const [vegModeOption, setVegModeOption] = useState(vegModePreference || "all"); // "all" or "pure-veg"
   const [isApplyingVegMode, setIsApplyingVegMode] = useState(false);
   const [isSwitchingOffVegMode, setIsSwitchingOffVegMode] = useState(false);
   const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0, triangleLeft: 0 });
@@ -793,6 +793,10 @@ export default function Home() {
       setPrevVegMode(vegMode);
     }
   }, [vegMode]);
+
+  useEffect(() => {
+    setVegModeOption(vegModePreference || "all");
+  }, [vegModePreference]);
 
 
   // Keep persisted Veg Mode preference; only reset popup UI state on mount.
@@ -2126,9 +2130,10 @@ export default function Home() {
   const matchesVegMode = useCallback(
     (restaurant) => {
       if (!vegMode) return true;
+      if (vegModePreference !== "pure-veg") return true;
       return restaurant?.pureVegRestaurant === true;
     },
-    [vegMode],
+    [vegMode, vegModePreference],
   );
 
   // Filter restaurants and foods based on active filters
@@ -3653,6 +3658,7 @@ export default function Home() {
                     onClick={() => {
                       setShowVegModePopup(false);
                       setIsApplyingVegMode(true);
+                      setVegModePreference(vegModeOption);
                       setVegModeContext(true);
                       setPrevVegMode(true);
                       setTimeout(() => {

@@ -139,13 +139,6 @@ function RestaurantDetailsContent() {
     () => (Array.isArray(publicRestaurantOffers) ? publicRestaurantOffers : []),
     [publicRestaurantOffers]
   )
-  const offerHighlightTexts = useMemo(() => {
-    const titles =
-      Array.isArray(restaurantItemOffers) && restaurantItemOffers.length > 0
-        ? restaurantItemOffers.map((o) => o.title || o.offerTitle || "Special offer")
-        : []
-    return titles.length > 0 ? titles : ["Special offers available"]
-  }, [restaurantItemOffers])
 
   const getLineItemIdForDish = (item, variant = null) =>
     buildCartLineId(
@@ -215,6 +208,120 @@ function RestaurantDetailsContent() {
   const [restaurantError, setRestaurantError] = useState(null)
   const fetchedRestaurantRef = useRef(false) // Track if restaurant has been fetched for current slug
   const fetchedSlugRef = useRef(null)
+
+  const filteredRestaurantItemOffers = useMemo(() => {
+    const list = Array.isArray(publicRestaurantOffers) ? publicRestaurantOffers : []
+    
+    // Helper to find the section/category a menu item belongs to
+    const findSectionForItem = (itemId) => {
+      if (!restaurant?.menuSections || !itemId) return null
+      for (const section of restaurant.menuSections) {
+        const hasItem = section.items?.some(item => {
+          const idStr = String(item?.id || item?._id || "")
+          return idStr && idStr === String(itemId)
+        })
+        if (hasItem) return section
+
+        if (section.subsections) {
+          for (const sub of section.subsections) {
+            const hasSubItem = sub.items?.some(item => {
+              const idStr = String(item?.id || item?._id || "")
+              return idStr && idStr === String(itemId)
+            })
+            if (hasSubItem) return section
+          }
+        }
+      }
+      return null
+    }
+
+    // Helper to check category visibility based on Veg Mode filter
+    const isCategoryAllowed = (p) => {
+      const isVegFilterActive = vegMode === true || filters.vegNonVeg === "veg"
+      if (!isVegFilterActive) return true
+
+      const itemId = (p.productId && typeof p.productId === "object")
+        ? (p.productId._id || p.productId.id)
+        : (p.productId || p.id || p._id || "")
+
+      const section = findSectionForItem(itemId)
+      if (section) {
+        const scope = (section.foodTypeScope || "").trim()
+        if (scope && scope !== "Veg") {
+          return false
+        }
+      } else {
+        // Fallback to manual ID/Name check if the item wasn't matched in menuSections
+        const categoryId = p.categoryId || p.productId?.categoryId || ""
+        const categoryName = p.categoryName || p.category || p.productId?.categoryName || p.productId?.category || ""
+        const matchedSection = restaurant?.menuSections?.find(s => 
+          String(s?.categoryId || s?._id || s?.id || "") === String(categoryId || "") ||
+          (categoryName && String(s?.name || s?.title || "").trim().toLowerCase() === String(categoryName).trim().toLowerCase())
+        )
+        if (matchedSection) {
+          const scope = (matchedSection.foodTypeScope || "").trim()
+          if (scope && scope !== "Veg") {
+            return false
+          }
+        }
+      }
+      return true
+    }
+
+    return list.map((offer, idx) => {
+      const offerProducts =
+        Array.isArray(offer?.products) && offer.products.length > 0
+          ? offer.products.map(p => ({
+              ...p,
+              foodType: p.foodType || p.productId?.foodType || "Veg",
+              originalPrice: p.price,
+              discountAmount: offer?.discountValue ?? 0,
+              discountType: offer?.discountType === "flat-price" ? "Fixed" : "Percent",
+            }))
+          : [
+              {
+                id: offer?.productId?._id || offer?.productId || `${idx}-product`,
+                name: offer?.productName || offer?.productId?.name || "Offer item",
+                image: offer?.productImage || offer?.productId?.image || FOOD_IMAGE_FALLBACK,
+                foodType: offer?.productId?.foodType || "Veg",
+                preparationTime: offer?.productId?.preparationTime || "",
+                description: offer?.productId?.description || "",
+                price: offer?.productId?.price ?? null,
+                discountedPrice: offer?.productId?.discountedPrice ?? null,
+                originalPrice: offer?.productId?.price ?? null,
+                discountAmount: offer?.discountValue ?? 0,
+                discountType: offer?.discountType === "flat-price" ? "Fixed" : "Percent",
+              },
+            ]
+
+      const filteredProducts = offerProducts.filter(p => {
+        // Veg/Non-Veg item filtering
+        if (vegMode === true && !isItemVeg(p)) return false
+        if (filters.vegNonVeg === "veg" && !isItemVeg(p)) return false
+        if (filters.vegNonVeg === "non-veg" && isItemVeg(p)) return false
+
+        // Category-level filtering
+        if (!isCategoryAllowed(p)) return false
+
+        return true
+      })
+
+      if (filteredProducts.length === 0) return null
+
+      return {
+        ...offer,
+        resolvedProducts: filteredProducts
+      }
+    }).filter(Boolean)
+  }, [publicRestaurantOffers, vegMode, filters.vegNonVeg, restaurant?.menuSections])
+
+  const offerHighlightTexts = useMemo(() => {
+    const titles =
+      Array.isArray(filteredRestaurantItemOffers) && filteredRestaurantItemOffers.length > 0
+        ? filteredRestaurantItemOffers.map((o) => o.title || o.offerTitle || "Special offer")
+        : []
+    return titles.length > 0 ? titles : ["Special offers available"]
+  }, [filteredRestaurantItemOffers])
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -1467,10 +1574,48 @@ function RestaurantDetailsContent() {
       .map((section, index) => {
         if (isRecommendedSection(section)) return null
 
+        // Under Veg Mode / Veg Filter, only show 'Veg' categories, exclude 'Both' or 'Non-Veg'
+        const isVegFilterActive = vegMode === true || filters.vegNonVeg === "veg"
+        if (isVegFilterActive) {
+          const scope = (section?.foodTypeScope || "").trim()
+          const name = String(section?.name || section?.displayName || "").toLowerCase()
+          if (scope && scope !== "Veg") {
+            return null
+          }
+          if (name.includes("non-veg") || name.includes("non veg")) {
+            return null
+          }
+        }
+
         const sectionTitle = getSectionDisplayName(section)
-        const itemCount = Array.isArray(section?.items) ? section.items.length : 0
+        const countVisibleItem = (item) => {
+          if (item?.isAvailable === false) return false
+
+          // Budget filter
+          if (Number.isFinite(activeUnderPriceLimit) && activeUnderPriceLimit !== null) {
+            const price = Number(item?.price || 0)
+            if (price > activeUnderPriceLimit) return false
+          }
+
+          // Search filter
+          if (searchQuery && searchQuery.trim()) {
+            const query = searchQuery.toLowerCase().trim()
+            const itemName = item.name?.toLowerCase() || ""
+            if (!itemName.includes(query)) return false
+          }
+
+          // VegMode filter
+          if (vegMode === true && !isItemVeg(item)) return false
+
+          // Veg/Non-veg filter
+          if (filters.vegNonVeg === "veg" && !isItemVeg(item)) return false
+          if (filters.vegNonVeg === "non-veg" && isItemVeg(item)) return false
+
+          return true
+        }
+        const itemCount = Array.isArray(section?.items) ? section.items.filter(countVisibleItem).length : 0
         const subsectionCount = Array.isArray(section?.subsections)
-          ? section.subsections.reduce((sum, sub) => sum + (Array.isArray(sub?.items) ? sub.items.length : 0), 0)
+          ? section.subsections.reduce((sum, sub) => sum + (Array.isArray(sub?.items) ? sub.items.filter(countVisibleItem).length : 0), 0)
           : 0
         const totalCount = itemCount + subsectionCount
 
@@ -1485,7 +1630,7 @@ function RestaurantDetailsContent() {
         }
       })
       .filter(Boolean)
-  }, [restaurant?.menuSections])
+  }, [restaurant?.menuSections, vegMode, activeUnderPriceLimit, searchQuery, filters.vegNonVeg])
 
   // Count active filters
   const getActiveFilterCount = () => {
@@ -1958,6 +2103,19 @@ function RestaurantDetailsContent() {
         }
       })
       .filter(({ section }) => {
+        // Under Veg Mode / Veg Filter, only show 'Veg' categories, exclude 'Both' or 'Non-Veg'
+        const isVegFilterActive = vegMode === true || filters.vegNonVeg === "veg"
+        if (isVegFilterActive && !isRecommendedSection(section)) {
+          const scope = (section?.foodTypeScope || "").trim()
+          const name = String(section?.name || section?.displayName || "").toLowerCase()
+          if (scope && scope !== "Veg") {
+            return false
+          }
+          if (name.includes("non-veg") || name.includes("non veg")) {
+            return false
+          }
+        }
+
         if (selectedMenuCategory !== "all") {
           if (isRecommendedSection(section)) return false
           const sectionCategoryId = normalizeMenuCategoryId(section?.categoryId || getSectionDisplayName(section))
@@ -2422,38 +2580,15 @@ function RestaurantDetailsContent() {
           </div>
 
           {/* Inline restaurant offers just below filters (outside scroll container) */}
-          {restaurantItemOffers.length > 0 && (
+          {filteredRestaurantItemOffers.length > 0 && (
             <div className="w-full flex flex-col gap-3 px-0">
-              {restaurantItemOffers.map((offer, idx) => (
+              {filteredRestaurantItemOffers.map((offer, idx) => (
                 <div
                   key={`rest-offer-banner-${idx}-${offer?._id || offer?.id || offer?.title || "offer"}`}
                   className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
                 >
                   {(() => {
-                    const offerProducts =
-                      Array.isArray(offer?.products) && offer.products.length > 0
-                        ? offer.products.map(p => ({
-                            ...p,
-                            foodType: p.foodType || p.productId?.foodType || "Veg",
-                            originalPrice: p.price,
-                            discountAmount: offer?.discountValue ?? 0,
-                            discountType: offer?.discountType === "flat-price" ? "Fixed" : "Percent",
-                          }))
-                        : [
-                            {
-                              id: offer?.productId?._id || offer?.productId || `${idx}-product`,
-                              name: offer?.productName || offer?.productId?.name || "Offer item",
-                              image: offer?.productImage || offer?.productId?.image || FOOD_IMAGE_FALLBACK,
-                              foodType: offer?.productId?.foodType || "Veg",
-                              preparationTime: offer?.productId?.preparationTime || "",
-                              description: offer?.productId?.description || "",
-                              price: offer?.productId?.price ?? null,
-                              discountedPrice: offer?.productId?.discountedPrice ?? null,
-                              originalPrice: offer?.productId?.price ?? null,
-                              discountAmount: offer?.discountValue ?? 0,
-                              discountType: offer?.discountType === "flat-price" ? "Fixed" : "Percent",
-                            },
-                          ]
+                    const offerProducts = offer.resolvedProducts || []
 
                     return (
                       <div className="space-y-3">

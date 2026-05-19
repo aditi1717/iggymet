@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, startTransition, useDeferredValue } from "react"
+﻿import { useState, useMemo, useRef, useEffect, startTransition, useDeferredValue } from "react"
 import { useParams, Link, useNavigate } from "react-router-dom"
 import { createPortal } from "react-dom"
 import { motion, AnimatePresence } from "framer-motion"
@@ -31,7 +31,7 @@ const filterOptions = [
   { id: 'under-30-mins', label: 'Under 30 mins' },
   { id: 'price-match', label: 'Price Match', hasIcon: true },
   { id: 'flat-50-off', label: 'Flat 50% OFF', hasIcon: true },
-  { id: 'under-250', label: 'Under ₹250' },
+  { id: 'under-250', label: 'Under â‚¹250' },
   { id: 'rating-4-plus', label: 'Rating 4.0+' },
 ]
 
@@ -44,12 +44,16 @@ const CATEGORY_PAGE_FILTERS_STORAGE_KEY = "food-category-page-filters-v1"
 export default function CategoryPage() {
   const { category } = useParams()
   const navigate = useNavigate()
-  const { vegMode } = useProfile()
+  const { vegMode, vegModePreference } = useProfile()
   const { location } = useLocation()
   const { zoneId, isOutOfService } = useZone(location)
   const [storedUserVegMode, setStoredUserVegMode] = useState(() => {
     if (typeof window === "undefined") return false
     return window.localStorage.getItem("userVegMode") === "true"
+  })
+  const [storedUserVegModePreference, setStoredUserVegModePreference] = useState(() => {
+    if (typeof window === "undefined") return "all"
+    return window.localStorage.getItem("userVegModePreference") === "pure-veg" ? "pure-veg" : "all"
   })
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState(category?.toLowerCase() || 'all')
@@ -80,6 +84,10 @@ export default function CategoryPage() {
   const showCategorySkeleton = useDelayedLoading(loadingCategories)
   const deferredSearchQuery = useDeferredValue(searchQuery)
   const effectiveVegMode = vegMode || storedUserVegMode
+  const effectiveVegModePreference =
+    vegModePreference === "pure-veg" || storedUserVegModePreference === "pure-veg"
+      ? "pure-veg"
+      : "all"
   const BACKEND_ORIGIN = useMemo(() => API_BASE_URL.replace(/\/api\/?$/, ""), [])
   const slugify = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
   const normalizeZoneValue = (value) => {
@@ -200,6 +208,7 @@ export default function CategoryPage() {
 
     const syncStoredVegMode = () => {
       setStoredUserVegMode(window.localStorage.getItem("userVegMode") === "true")
+      setStoredUserVegModePreference(window.localStorage.getItem("userVegModePreference") === "pure-veg" ? "pure-veg" : "all")
     }
 
     syncStoredVegMode()
@@ -636,6 +645,10 @@ export default function CategoryPage() {
               slug: cat.slug || cat.name.toLowerCase().replace(/\s+/g, '-'),
               foodTypeScope: cat.foodTypeScope || cat.foodType || cat.dietType || null,
               type: cat.type,
+              isGlobal:
+                cat.isGlobal === true ||
+                Boolean(cat.globalizedAt) ||
+                (!cat.restaurantId && !cat.createdByRestaurantId),
             }))
           ]
 
@@ -871,9 +884,9 @@ export default function CategoryPage() {
             if (!value) return false
 
             const defaultOffers = [
-              "Flat ₹50 OFF above ₹199",
+              "Flat â‚¹50 OFF above â‚¹199",
               "Flat 50% OFF",
-              "Flat ₹40 OFF above ₹149"
+              "Flat â‚¹40 OFF above â‚¹149"
             ]
             const defaultDeliveryTimes = ["25-30 mins", "20-25 mins", "30-35 mins"]
             const defaultDistances = ["1.2 km", "1 km", "0.8 km"]
@@ -1234,7 +1247,9 @@ export default function CategoryPage() {
   // If category is selected, expand restaurants into dish cards (one card per matching dish)
   const filteredRecommended = useMemo(() => {
     const sourceData = restaurantsData.length > 0 ? restaurantsData : []
-    let filtered = effectiveVegMode ? sourceData.filter(isPureVegRestaurant) : [...sourceData]
+    let filtered = effectiveVegMode && effectiveVegModePreference === "pure-veg"
+      ? sourceData.filter(isPureVegRestaurant)
+      : [...sourceData]
 
     // Filter by category - Dynamic filtering based on menu items
     if (selectedCategory && selectedCategory !== 'all') {
@@ -1279,11 +1294,13 @@ export default function CategoryPage() {
     }
 
     return applyFiltersAndSorting(filtered)
-  }, [selectedCategory, activeFilters, deferredSearchQuery, restaurantsData, categoryKeywords, effectiveVegMode, approvedFoodsData, sortBy])
+  }, [selectedCategory, activeFilters, deferredSearchQuery, restaurantsData, categoryKeywords, effectiveVegMode, effectiveVegModePreference, approvedFoodsData, sortBy])
 
   const filteredAllRestaurants = useMemo(() => {
     const sourceData = restaurantsData.length > 0 ? restaurantsData : []
-    let filtered = effectiveVegMode ? sourceData.filter(isPureVegRestaurant) : [...sourceData]
+    let filtered = effectiveVegMode && effectiveVegModePreference === "pure-veg"
+      ? sourceData.filter(isPureVegRestaurant)
+      : [...sourceData]
 
     // Filter by category - Dynamic filtering based on menu items
     // If category is selected, expand restaurants into dish cards (one card per matching dish)
@@ -1329,25 +1346,23 @@ export default function CategoryPage() {
     }
 
     return applyFiltersAndSorting(filtered)
-  }, [selectedCategory, activeFilters, deferredSearchQuery, restaurantsData, categoryKeywords, effectiveVegMode, approvedFoodsData, sortBy])
+  }, [selectedCategory, activeFilters, deferredSearchQuery, restaurantsData, categoryKeywords, effectiveVegMode, effectiveVegModePreference, approvedFoodsData, sortBy])
 
   const visibleCategories = useMemo(
     () => {
-      if (!effectiveVegMode) return categories
-
-      return categories.filter((category) => {
-        const categorySlug = category.slug || category.id
-        if (categorySlug === "all" || category.id === "all") return true
-        if (!isVegCompatibleCategory(category)) return false
-
-        return restaurantsData.some((restaurant) => {
-          if (!isPureVegRestaurant(restaurant) || !restaurant.menu) return false
-          return getAllCategoryDishesFromMenu(restaurant.menu, categorySlug)
-            .some((dish) => dish.foodType === "Veg")
-        })
+      if (!effectiveVegMode) {
+        // Veg Mode OFF: show all global categories
+        return categories.filter((cat) => cat.isGlobal === true || cat.id === "all")
+      }
+      // Veg Mode ON: show only global Veg categories (mirror homepage behaviour)
+      return categories.filter((cat) => {
+        if (cat.id === "all") return true
+        if (!cat.isGlobal) return false
+        const scope = String(cat.foodTypeScope || "").trim().toLowerCase()
+        return scope === "veg"
       })
     },
-    [categories, effectiveVegMode, restaurantsData]
+    [categories, effectiveVegMode]
   )
 
   const showRestaurantSkeleton = useDelayedLoading(
@@ -1514,7 +1529,7 @@ export default function CategoryPage() {
                 { id: 'distance-under-1km', label: 'Under 1km', icon: MapPin },
                 { id: 'distance-under-2km', label: 'Under 2km', icon: MapPin },
                 { id: 'flat-50-off', label: 'Flat 50% OFF' },
-                { id: 'under-250', label: 'Under ₹250' },
+                { id: 'under-250', label: 'Under â‚¹250' },
               ].map((filter) => {
                 const Icon = filter.icon
                 const isActive = activeFilters.has(filter.id)
@@ -1726,8 +1741,8 @@ export default function CategoryPage() {
                           <div className="absolute top-3 left-3">
                             <div className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm md:text-base font-medium ${BRAND_THEME.tokens.homepage.home.restaurantCard.featuredDishBadge}`}>
                               {isCategoryView
-                                ? `₹${restaurant.categoryDishPrice || restaurant.featuredPrice || 0}`
-                                : `${restaurant.categoryDishName || restaurant.featuredDish} • ₹${restaurant.categoryDishPrice || restaurant.featuredPrice}`}
+                                ? `â‚¹${restaurant.categoryDishPrice || restaurant.featuredPrice || 0}`
+                                : `${restaurant.categoryDishName || restaurant.featuredDish} â€¢ â‚¹${restaurant.categoryDishPrice || restaurant.featuredPrice}`}
                             </div>
                           </div>
                         )}
@@ -2066,7 +2081,7 @@ export default function CategoryPage() {
                               : 'border-gray-200 dark:border-gray-700 hover:border-green-600'
                               }`}
                           >
-                            <span className={`text-sm md:text-base font-medium ${activeFilters.has('price-under-200') ? 'text-[#EB590E]' : 'text-gray-700 dark:text-gray-300'}`}>Under ₹200</span>
+                            <span className={`text-sm md:text-base font-medium ${activeFilters.has('price-under-200') ? 'text-[#EB590E]' : 'text-gray-700 dark:text-gray-300'}`}>Under â‚¹200</span>
                           </button>
                           <button
                             onClick={() => toggleFilter('under-250')}
@@ -2075,7 +2090,7 @@ export default function CategoryPage() {
                               : 'border-gray-200 dark:border-gray-700 hover:border-green-600'
                               }`}
                           >
-                            <span className={`text-sm md:text-base font-medium ${activeFilters.has('under-250') ? 'text-[#EB590E]' : 'text-gray-700 dark:text-gray-300'}`}>Under ₹250</span>
+                            <span className={`text-sm md:text-base font-medium ${activeFilters.has('under-250') ? 'text-[#EB590E]' : 'text-gray-700 dark:text-gray-300'}`}>Under â‚¹250</span>
                           </button>
                           <button
                             onClick={() => toggleFilter('price-under-500')}
@@ -2084,7 +2099,7 @@ export default function CategoryPage() {
                               : 'border-gray-200 dark:border-gray-700 hover:border-green-600'
                               }`}
                           >
-                            <span className={`text-sm md:text-base font-medium ${activeFilters.has('price-under-500') ? 'text-[#EB590E]' : 'text-gray-700 dark:text-gray-300'}`}>Under ₹500</span>
+                            <span className={`text-sm md:text-base font-medium ${activeFilters.has('price-under-500') ? 'text-[#EB590E]' : 'text-gray-700 dark:text-gray-300'}`}>Under â‚¹500</span>
                           </button>
                         </div>
                       </div>

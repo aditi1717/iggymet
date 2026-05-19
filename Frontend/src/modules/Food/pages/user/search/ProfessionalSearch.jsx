@@ -16,6 +16,32 @@ import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailabil
 import { enrichSearchRestaurantsWithOutletTimings, isPureVegRestaurant } from "@food/utils/searchAvailability"
 import { motion, AnimatePresence } from "framer-motion"
 
+const getNormalizedFoodType = (item = {}) =>
+  String(
+    item?.matchedDishFoodType ||
+    item?.matchedFoodType ||
+    item?.foodType ||
+    item?.type ||
+    item?.category ||
+    "",
+  ).trim().toLowerCase()
+
+const isVegSearchResult = (item = {}) => {
+  const normalizedFoodType = getNormalizedFoodType(item)
+  if (normalizedFoodType === "veg" || normalizedFoodType === "vegetarian") return true
+  if (
+    normalizedFoodType === "non-veg" ||
+    normalizedFoodType === "non veg" ||
+    normalizedFoodType === "nonveg" ||
+    normalizedFoodType === "egg"
+  ) {
+    return false
+  }
+  if (item?.matchedDishIsVeg === true || item?.isVeg === true) return true
+  if (item?.matchedDishIsVeg === false || item?.isVeg === false) return false
+  return item?.matchType !== "food"
+}
+
 // Helper to resolve media URLs consistently
 const getMediaUrl = (url) => {
   if (!url || typeof url !== 'string') return null;
@@ -44,7 +70,7 @@ export default function ProfessionalSearch() {
   const [searchParams, setSearchParams] = useSearchParams()
   const initialQuery = searchParams.get("q") || ""
   const navigate = useNavigate()
-  const { vegMode } = useProfile()
+  const { vegMode, vegModePreference } = useProfile()
   const { location: userCoords } = useGeoLocation()
   const { zoneId } = useZone(userCoords)
   
@@ -110,7 +136,11 @@ export default function ProfessionalSearch() {
       if (res.data?.success) {
         // Grouping results into Restaurants and potential Dishes
         const all = (await enrichSearchRestaurantsWithOutletTimings(res.data.data.restaurants || []))
-          .filter((restaurant) => !vegMode || isPureVegRestaurant(restaurant))
+          .filter((restaurant) => {
+            if (!vegMode) return true
+            if (!isVegSearchResult(restaurant)) return false
+            return vegModePreference !== "pure-veg" || isPureVegRestaurant(restaurant)
+          })
         setResults({
           restaurants: all.filter(r => r.matchType === 'restaurant' || !r.matchType),
           dishes: all.filter(r => r.matchType === 'food')
@@ -121,7 +151,7 @@ export default function ProfessionalSearch() {
     } finally {
       setLoading(false)
     }
-  }, [userCoords, zoneId, vegMode])
+  }, [userCoords, zoneId, vegMode, vegModePreference])
 
   useEffect(() => {
     if (!zoneId) {

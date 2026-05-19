@@ -13,11 +13,37 @@ import BRAND_THEME from "@/config/brandTheme"
 
 const SEARCH_HISTORY_KEY = "user_recent_searches_v1"
 
+const getNormalizedFoodType = (item = {}) =>
+  String(
+    item?.matchedDishFoodType ||
+    item?.matchedFoodType ||
+    item?.foodType ||
+    item?.type ||
+    item?.category ||
+    "",
+  ).trim().toLowerCase()
+
+const isVegSearchResult = (item = {}) => {
+  const normalizedFoodType = getNormalizedFoodType(item)
+  if (normalizedFoodType === "veg" || normalizedFoodType === "vegetarian") return true
+  if (
+    normalizedFoodType === "non-veg" ||
+    normalizedFoodType === "non veg" ||
+    normalizedFoodType === "nonveg" ||
+    normalizedFoodType === "egg"
+  ) {
+    return false
+  }
+  if (item?.matchedDishIsVeg === true || item?.isVeg === true) return true
+  if (item?.matchedDishIsVeg === false || item?.isVeg === false) return false
+  return item?.matchType !== "food"
+}
+
 export default function SearchOverlay({ isOpen, onClose, searchValue, onSearchChange }) {
   const { searchOverlay } = BRAND_THEME.tokens
   const { brand } = BRAND_THEME.colors
   const navigate = useNavigate()
-  const { vegMode } = useProfile()
+  const { vegMode, vegModePreference } = useProfile()
   const { location } = useLocation()
   const { zoneId } = useZone(location)
   const inputRef = useRef(null)
@@ -98,7 +124,11 @@ export default function SearchOverlay({ isOpen, onClose, searchValue, onSearchCh
         })
         const restaurants = (await enrichSearchRestaurantsWithOutletTimings(
           res?.data?.data?.restaurants || [],
-        )).filter((restaurant) => !vegMode || isPureVegRestaurant(restaurant))
+        )).filter((restaurant) => {
+          if (!vegMode) return true
+          if (!isVegSearchResult(restaurant)) return false
+          return vegModePreference !== "pure-veg" || isPureVegRestaurant(restaurant)
+        })
         const normalizedFoods = restaurants
           .map((item, index) => {
             const availability = getRestaurantAvailabilityStatus(item, new Date())
@@ -141,7 +171,7 @@ export default function SearchOverlay({ isOpen, onClose, searchValue, onSearchCh
     }, 250)
 
     return () => clearTimeout(timer)
-  }, [isOpen, searchValue, location?.latitude, location?.longitude, zoneId, vegMode])
+  }, [isOpen, searchValue, location?.latitude, location?.longitude, zoneId, vegMode, vegModePreference])
 
   const saveRecentSearch = (term) => {
     const value = String(term || "").trim()

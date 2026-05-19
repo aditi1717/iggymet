@@ -24,6 +24,7 @@ import { hasFoodVariants, getFoodVariants, buildCartLineId } from "@food/utils/f
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
 import { isPureVegRestaurant, isVegCompatibleCategory } from "@food/utils/searchAvailability"
 import BRAND_THEME from "@/config/brandTheme"
+import { foodImages } from "@food/constants/images"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -148,7 +149,11 @@ export default function Under250() {
   const navigate = useNavigate()
   const { openLocationSelector } = useLocationSelector()
   const { openSearch, setSearchValue } = useSearchOverlay()
-  const { vegMode: profileVegMode } = useProfile()
+  const {
+    vegMode: profileVegMode,
+    vegModePreference: profileVegModePreference,
+    setVegModePreference: setProfileVegModePreference,
+  } = useProfile()
   const { addToCart, updateQuantity, removeFromCart, getCartItem, cart } = useCart()
   const [activeCategory, setActiveCategory] = useState(initialFiltersRef.current.activeCategory)
   const [showSortPopup, setShowSortPopup] = useState(false)
@@ -192,10 +197,17 @@ export default function Under250() {
   const [prevVegMode, setPrevVegMode] = useState(vegMode)
   const [showVegModePopup, setShowVegModePopup] = useState(false)
   const [showSwitchOffPopup, setShowSwitchOffPopup] = useState(false)
-  const [vegModeOption, setVegModeOption] = useState("all")
+  const [vegModeOption, setVegModeOption] = useState(() => {
+    if (typeof window === "undefined") return "all"
+    return window.localStorage.getItem("userVegModePreference") === "pure-veg" ? "pure-veg" : "all"
+  })
   const [storedUserVegMode, setStoredUserVegMode] = useState(() => {
     if (typeof window === "undefined") return false
     return window.localStorage.getItem("userVegMode") === "true"
+  })
+  const [storedUserVegModePreference, setStoredUserVegModePreference] = useState(() => {
+    if (typeof window === "undefined") return "all"
+    return window.localStorage.getItem("userVegModePreference") === "pure-veg" ? "pure-veg" : "all"
   })
   const isHandlingSwitchOff = useRef(false)
   const placeholders = useMemo(
@@ -241,6 +253,9 @@ export default function Under250() {
 
     const syncStoredVegMode = () => {
       setStoredUserVegMode(window.localStorage.getItem("userVegMode") === "true")
+      const nextPreference = window.localStorage.getItem("userVegModePreference") === "pure-veg" ? "pure-veg" : "all"
+      setStoredUserVegModePreference(nextPreference)
+      setVegModeOption(nextPreference)
     }
 
     syncStoredVegMode()
@@ -350,12 +365,27 @@ export default function Under250() {
     let filtered = under250Restaurants.map(r => ({ ...r, menuItems: [...(r.menuItems || [])] }))
 
     const effectiveVegMode = vegMode || profileVegMode || storedUserVegMode
+    const effectiveVegModePreference =
+      profileVegModePreference === "pure-veg" ||
+      storedUserVegModePreference === "pure-veg" ||
+      vegModeOption === "pure-veg"
+        ? "pure-veg"
+        : "all"
 
     if (effectiveVegMode) {
       filtered = filtered
-        .filter((restaurant) => isPureVegRestaurant(restaurant))
+        .filter((restaurant) => effectiveVegModePreference !== "pure-veg" || isPureVegRestaurant(restaurant))
         .map((restaurant) => {
-          const vegItems = (restaurant.menuItems || []).filter((item) => item?.isVeg)
+          const vegItems = (restaurant.menuItems || []).filter((item) => {
+            // Must be a veg item
+            if (!item?.isVeg) return false
+
+            // Exclude items that belong to a non-veg section (sectionFoodTypeScope set during fetch)
+            const sectionScope = String(item?.sectionFoodTypeScope || "Both").trim().toLowerCase()
+            if (sectionScope === "non-veg") return false
+
+            return true
+          })
           if (vegItems.length === 0) return null
           return { ...restaurant, menuItems: vegItems }
         })
@@ -425,24 +455,24 @@ export default function Under250() {
     }
 
     return filtered
-  }, [under250Restaurants, selectedSort, under30MinsFilter, activeCategory, categories, vegMode, profileVegMode, storedUserVegMode])
+  }, [under250Restaurants, selectedSort, under30MinsFilter, activeCategory, categories, vegMode, profileVegMode, storedUserVegMode, profileVegModePreference, storedUserVegModePreference, vegModeOption])
 
   const visibleCategories = useMemo(() => {
     const effectiveVegMode = vegMode || profileVegMode || storedUserVegMode
-    if (!effectiveVegMode) return categories
 
+    if (!effectiveVegMode) {
+      // Veg Mode is OFF: only show global categories
+      return categories.filter((category) => category.isGlobal === true)
+    }
+
+    // Veg Mode is ON: show global Veg categories (mirror homepage behaviour â€”
+    // simply filter by foodTypeScope === "Veg", no menu item cross-check needed)
     return categories.filter((category) => {
-      if (!isVegCompatibleCategory(category)) return false
-
-      return under250Restaurants.some((restaurant) => {
-        if (!isPureVegRestaurant(restaurant)) return false
-        return (restaurant.menuItems || []).some((item) => {
-          if (!item?.isVeg) return false
-          return itemMatchesCategory(item, category)
-        })
-      })
+      if (!category.isGlobal) return false
+      const scope = String(category.foodTypeScope || "").trim().toLowerCase()
+      return scope === "veg"
     })
-  }, [categories, under250Restaurants, vegMode, profileVegMode, storedUserVegMode])
+  }, [categories, vegMode, profileVegMode, storedUserVegMode])
 
   // Fetch under-price banner from public API
   useEffect(() => {
@@ -587,6 +617,15 @@ export default function Under250() {
             try {
               const menuResponse = await restaurantAPI.getMenuByRestaurantId(restaurantId)
               const menu = getMenuFromResponse(menuResponse)
+              // Build section name -> foodTypeScope map so each item knows its section diet scope
+              const sectionScopeMap = new Map()
+              if (menu && Array.isArray(menu.sections)) {
+                menu.sections.forEach((sec) => {
+                  const sKey = String(sec?.name || "").trim().toLowerCase()
+                  if (sKey) sectionScopeMap.set(sKey, sec?.foodTypeScope || "Both")
+                })
+              }
+
               const menuItems = flattenMenuItems(menu)
                 .filter((item) => Number(item?.price || 0) <= maxPrice && item?.isAvailable !== false)
                 .map((item) => {
@@ -597,6 +636,7 @@ export default function Under250() {
                     id: String(item?.id || item?._id || `${restaurantId}-${item?.name || "dish"}`),
                     price: Number(item?.price || 0),
                     isVeg,
+                    sectionFoodTypeScope: sectionScopeMap.get(String(item?.sectionName || item?.category || "").trim().toLowerCase()) || "Both",
                     image:
                       item?.image ||
                       restaurant?.coverImages?.[0]?.url ||
@@ -765,10 +805,9 @@ export default function Under250() {
                 Boolean(cat?.globalizedAt) ||
                 (!cat?.restaurantId && !cat?.createdByRestaurantId),
               image:
-                cat?.imageUrl ||
-                cat?.image ||
-                cat?.icon ||
-                "",
+                (cat?.imageUrl || cat?.image || cat?.icon)
+                  ? (cat?.imageUrl || cat?.image || cat?.icon)
+                  : (foodImages[index % foodImages.length] || foodImages[0] || ""),
             }
           })
           .filter(Boolean)
@@ -1242,16 +1281,31 @@ export default function Under250() {
                       transition={{ type: "spring", stiffness: 300, damping: 20 }}
                     >
                       <div
-                        className="w-14 h-14 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full overflow-hidden shadow-md transition-all"
+                        className="w-14 h-14 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full overflow-hidden shadow-md transition-all flex-shrink-0"
                         style={isActive ? { boxShadow: `0 0 0 4px ${BRAND_THEME.colors.brand.primary}33`, borderColor: BRAND_THEME.colors.brand.primary } : undefined}>
-                        <OptimizedImage
-                          src={category.image}
-                          alt={category.name}
-                          className="w-full h-full bg-white rounded-full"
-                          objectFit="cover"
-                          sizes="(max-width: 640px) 62px, (max-width: 768px) 96px, 112px"
-                          placeholder="blur"
-                        />
+                        {category.image ? (
+                          <OptimizedImage
+                            src={category.image}
+                            alt={category.name}
+                            className="w-full h-full bg-white rounded-full"
+                            objectFit="cover"
+                            sizes="(max-width: 640px) 62px, (max-width: 768px) 96px, 112px"
+                            placeholder="blur"
+                          />
+                        ) : (
+                          <div
+                            className={`w-full h-full flex items-center justify-center rounded-full border-2 transition-all ${
+                              isActive
+                                ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-400'
+                                : 'bg-gray-100 dark:bg-gray-800 border-transparent'
+                            }`}
+                            aria-label={`${category.name} category`}
+                          >
+                            <span className="text-sm sm:text-base md:text-lg font-bold text-gray-600 dark:text-gray-300 uppercase">
+                              {String(category.name || "?").trim().slice(0, 2)}
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <span
                         className="text-xs sm:text-sm md:text-base font-semibold text-gray-800 dark:text-gray-200 text-center pb-1"
@@ -1756,7 +1810,7 @@ export default function Under250() {
                               : undefined
                           }
                         >
-                          {variant.name} · {RUPEE_SYMBOL}{Math.round(variant.price)}
+                          {variant.name} Â· {RUPEE_SYMBOL}{Math.round(variant.price)}
                         </button>
                       ))}
                     </div>
@@ -1845,7 +1899,7 @@ export default function Under250() {
                               </span>
                             )}
                             <span className="text-base md:text-lg lg:text-xl font-bold">
-                              {variant ? variant.name + " · " : ""}{RUPEE_SYMBOL}{Math.round(displayPrice)}
+                              {variant ? variant.name + " Â· " : ""}{RUPEE_SYMBOL}{Math.round(displayPrice)}
                             </span>
                           </>
                         )
@@ -2006,6 +2060,11 @@ export default function Under250() {
                 <button
                   onClick={() => {
                     setShowVegModePopup(false)
+                    setProfileVegModePreference?.(vegModeOption)
+                    if (typeof window !== "undefined") {
+                      window.localStorage.setItem("userVegModePreference", vegModeOption)
+                      setStoredUserVegModePreference(vegModeOption)
+                    }
                     setVegMode(true)
                     setPrevVegMode(true)
                   }}

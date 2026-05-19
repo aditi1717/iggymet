@@ -29,13 +29,34 @@ const filterOptions = [
 ]
 const SEARCH_HISTORY_KEY = "user_recent_searches_v1"
 
+const getNormalizedFoodType = (item = {}) =>
+  String(item?.foodType || item?.type || item?.category || "")
+    .trim()
+    .toLowerCase()
+
+const isSearchItemVeg = (item = {}) => {
+  const normalizedFoodType = getNormalizedFoodType(item)
+  if (normalizedFoodType === "veg" || normalizedFoodType === "vegetarian") return true
+  if (
+    normalizedFoodType === "non-veg" ||
+    normalizedFoodType === "non veg" ||
+    normalizedFoodType === "nonveg" ||
+    normalizedFoodType === "egg"
+  ) {
+    return false
+  }
+  if (item?.isVeg === true) return true
+  if (item?.isVeg === false) return false
+  return false
+}
+
 // Mock data removed - using backend data only
 
 export default function SearchResults() {
   const [searchParams, setSearchParams] = useSearchParams()
   const query = searchParams.get("q") || ""
   const navigate = useNavigate()
-  const { vegMode } = useProfile()
+  const { vegMode, vegModePreference } = useProfile()
   const { location } = useLocation()
   const { zoneId, isOutOfService } = useZone(location)
   const [searchQuery, setSearchQuery] = useState(query)
@@ -113,7 +134,7 @@ export default function SearchResults() {
   }, [zoneId])
 
   // Helper function to check if menu has dishes matching category keywords
-  const checkCategoryInMenu = (menu, categoryId) => {
+  const checkCategoryInMenu = (menu, categoryId, vegOnly = false) => {
     if (!menu || !menu.sections || !Array.isArray(menu.sections)) {
       return false
     }
@@ -128,13 +149,14 @@ export default function SearchResults() {
     for (const section of menu.sections) {
       // Check section name
       const sectionNameLower = (section.name || '').toLowerCase()
-      if (keywords.some(keyword => sectionNameLower.includes(keyword))) {
+      if (!vegOnly && keywords.some(keyword => sectionNameLower.includes(keyword))) {
         return true
       }
 
       // Check items in section
       if (section.items && Array.isArray(section.items)) {
         for (const item of section.items) {
+          if (vegOnly && !isSearchItemVeg(item)) continue
           // Check item name
           const itemNameLower = (item.name || '').toLowerCase()
           if (keywords.some(keyword => itemNameLower.includes(keyword))) {
@@ -153,7 +175,7 @@ export default function SearchResults() {
   }
 
   // Helper function to get featured dish for a category from menu
-  const getCategoryDishFromMenu = (menu, categoryId) => {
+  const getCategoryDishFromMenu = (menu, categoryId, vegOnly = false) => {
     if (!menu || !menu.sections || !Array.isArray(menu.sections)) {
       return null
     }
@@ -167,6 +189,7 @@ export default function SearchResults() {
     for (const section of menu.sections) {
       if (section.items && Array.isArray(section.items)) {
         for (const item of section.items) {
+          if (vegOnly && !isSearchItemVeg(item)) continue
           const itemNameLower = (item.name || '').toLowerCase()
           const itemCategoryLower = (item.category || '').toLowerCase()
 
@@ -588,7 +611,7 @@ export default function SearchResults() {
   const filteredRecommended = useMemo(() => {
     // Use ONLY backend data - no hardcoded fallback
     const sourceData = restaurantsData.length > 0
-      ? (vegMode ? restaurantsData.filter(isPureVegRestaurant) : restaurantsData)
+      ? (vegMode && vegModePreference === "pure-veg" ? restaurantsData.filter(isPureVegRestaurant) : restaurantsData)
       : []
     let filtered = [...sourceData]
 
@@ -608,10 +631,10 @@ export default function SearchResults() {
       filtered = filtered.filter(r => {
         // If restaurant has menu data, check menu for category items
         if (r.menu) {
-          const hasCategoryItem = checkCategoryInMenu(r.menu, selectedCategory)
+          const hasCategoryItem = checkCategoryInMenu(r.menu, selectedCategory, vegMode === true)
           if (hasCategoryItem) {
             // Update featured dish for this category
-            const categoryDish = getCategoryDishFromMenu(r.menu, selectedCategory)
+            const categoryDish = getCategoryDishFromMenu(r.menu, selectedCategory, vegMode === true)
             if (categoryDish && !r.categoryFeaturedDish) {
               r.categoryFeaturedDish = categoryDish
             }
@@ -672,12 +695,12 @@ export default function SearchResults() {
     }
 
     return uniqueRestaurants(filtered)
-  }, [deferredQuery, selectedCategory, activeFilters, restaurantsData, categoryKeywords, loadingCategories, vegMode])
+  }, [deferredQuery, selectedCategory, activeFilters, restaurantsData, categoryKeywords, loadingCategories, vegMode, vegModePreference])
 
   const filteredAllRestaurants = useMemo(() => {
     // Use ONLY backend data - no hardcoded fallback
     const sourceData = restaurantsData.length > 0
-      ? (vegMode ? restaurantsData.filter(isPureVegRestaurant) : restaurantsData)
+      ? (vegMode && vegModePreference === "pure-veg" ? restaurantsData.filter(isPureVegRestaurant) : restaurantsData)
       : []
     let filtered = [...sourceData]
 
@@ -695,6 +718,7 @@ export default function SearchResults() {
           for (const section of r.menu.sections) {
             if (section.items) {
               for (const item of section.items) {
+                if (vegMode === true && !isSearchItemVeg(item)) continue
                 if (item.name?.toLowerCase().includes(lowerQuery) ||
                   item.category?.toLowerCase().includes(lowerQuery)) {
                   menuMatch = true
@@ -715,10 +739,10 @@ export default function SearchResults() {
       filtered = filtered.filter(r => {
         // If restaurant has menu data, check menu for category items
         if (r.menu) {
-          const hasCategoryItem = checkCategoryInMenu(r.menu, selectedCategory)
+          const hasCategoryItem = checkCategoryInMenu(r.menu, selectedCategory, vegMode === true)
           if (hasCategoryItem) {
             // Update featured dish for this category
-            const categoryDish = getCategoryDishFromMenu(r.menu, selectedCategory)
+            const categoryDish = getCategoryDishFromMenu(r.menu, selectedCategory, vegMode === true)
             if (categoryDish && !r.categoryFeaturedDish) {
               r.categoryFeaturedDish = categoryDish
             }
@@ -782,7 +806,7 @@ export default function SearchResults() {
     }
 
     return uniqueRestaurants(filtered)
-  }, [deferredQuery, selectedCategory, activeFilters, restaurantsData, categoryKeywords, loadingCategories, vegMode])
+  }, [deferredQuery, selectedCategory, activeFilters, restaurantsData, categoryKeywords, loadingCategories, vegMode, vegModePreference])
 
   const recommendedIds = useMemo(
     () => new Set(filteredRecommended.slice(0, 6).map((restaurant) => restaurant.id)),

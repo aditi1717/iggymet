@@ -21,7 +21,7 @@ const buildMenuFromFoods = async (foods = [], options = {}) => {
 
     const categoryDocs = categoryIds.length
         ? await FoodCategory.find({ _id: { $in: categoryIds } })
-            .select('name image sortOrder visibilityStartTime visibilityEndTime')
+            .select('name image sortOrder foodTypeScope visibilityStartTime visibilityEndTime')
             .lean()
         : [];
     const categoryMap = new Map(categoryDocs.map((doc) => [String(doc._id), doc]));
@@ -46,6 +46,7 @@ const buildMenuFromFoods = async (foods = [], options = {}) => {
                 id: categoryId || null,
                 name: sectionName,
                 image: categoryDoc?.image || '',
+                foodTypeScope: categoryDoc?.foodTypeScope || 'Both',
                 sortOrder: Number.isFinite(Number(categoryDoc?.sortOrder)) ? Number(categoryDoc.sortOrder) : Number.MAX_SAFE_INTEGER,
                 items: []
             });
@@ -86,6 +87,7 @@ const buildMenuFromFoods = async (foods = [], options = {}) => {
         categoryId: group.id || null,
         name: group.name,
         image: group.image || '',
+        foodTypeScope: group.foodTypeScope || 'Both',
         sortOrder: Number.isFinite(Number(group.sortOrder)) ? Number(group.sortOrder) : 0,
         itemCount: group.items.length,
         items: group.items.sort((a, b) => {
@@ -101,6 +103,7 @@ const buildMenuFromFoods = async (foods = [], options = {}) => {
         categoryId: section.categoryId || null,
         name: section.name,
         image: section.image || '',
+        foodTypeScope: section.foodTypeScope || 'Both',
         sortOrder: section.sortOrder || 0,
         itemCount: section.itemCount || 0
     }));
