@@ -26,7 +26,6 @@ import {
   Plus,
   Minus,
   X,
-  RotateCcw,
   Zap,
   Check,
   Lock,
@@ -174,7 +173,6 @@ function RestaurantDetailsContent() {
       return {
         sortBy: null,
         vegNonVeg: null,
-        highlyReordered: false,
       }
     }
     try {
@@ -192,7 +190,6 @@ function RestaurantDetailsContent() {
               savedFilters.vegNonVeg === "veg" || savedFilters.vegNonVeg === "non-veg"
                 ? savedFilters.vegNonVeg
                 : null,
-            highlyReordered: savedFilters.highlyReordered === true,
           }
         }
       }
@@ -202,7 +199,6 @@ function RestaurantDetailsContent() {
     return {
       sortBy: null,
       vegNonVeg: null,
-      highlyReordered: false,
     }
   })
 
@@ -1469,7 +1465,6 @@ function RestaurantDetailsContent() {
     let count = 0
     if (filters.sortBy) count++
     if (filters.vegNonVeg) count++
-    if (filters.highlyReordered) count++
     return count
   }
 
@@ -1796,7 +1791,6 @@ function RestaurantDetailsContent() {
         if (item.foodType !== "Non-Veg") return false
       }
 
-      if (filters.highlyReordered && !isRecommendedItem(item)) return false
       return true
     })
   }
@@ -1973,8 +1967,7 @@ function RestaurantDetailsContent() {
     searchQuery.trim() ||
     vegMode === true ||
     filters.sortBy ||
-    filters.vegNonVeg ||
-    filters.highlyReordered
+    filters.vegNonVeg
   )
 
   const filteredSections = useMemo(
@@ -2988,30 +2981,6 @@ function RestaurantDetailsContent() {
                       </div>
                     </div>
 
-                    {/* Top picks */}
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Top picks:</h3>
-                      <button
-                        onClick={() =>
-                          setFilters((prev) => ({
-                            ...prev,
-                            highlyReordered: !prev.highlyReordered,
-                          }))
-                        }
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 transition-all w-full ${filters.highlyReordered
-                          ? "border-transparent"
-                          : "border-gray-200 dark:border-gray-700 bg-white dark:bg-[#2a2a2a] text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
-                          }`}
-                      style={
-                        filters.highlyReordered
-                          ? { borderColor: BRAND_THEME.colors.brand.primary, backgroundColor: `${BRAND_THEME.colors.brand.primary}14`, color: BRAND_THEME.colors.brand.primary }
-                          : undefined
-                      }
-                      >
-                        <RotateCcw className="h-4 w-4" />
-                        <span className="font-medium">Highly reordered</span>
-                      </button>
-                    </div>
                   </div>
 
                   {/* Bottom Action Bar */}
@@ -3021,7 +2990,6 @@ function RestaurantDetailsContent() {
                         setFilters({
                           sortBy: null,
                           vegNonVeg: null,
-                          highlyReordered: false,
                         })
                       }}
                       className="text-red-600 dark:text-red-400 font-medium text-sm hover:text-red-700 dark:hover:text-red-500"

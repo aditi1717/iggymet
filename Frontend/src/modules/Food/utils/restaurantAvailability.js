@@ -171,8 +171,7 @@ const formatClosingCountdown = (minutesUntilClose, closingTime) => {
     return `Closes in ${minutesUntilClose} min`
   }
 
-  const closingLabel = formatTimeLabel(closingTime)
-  return closingLabel ? `Closes at ${closingLabel}` : "Open now"
+  return null
 }
 
 const getFirstOpenSlotLabel = (slots = []) => {
