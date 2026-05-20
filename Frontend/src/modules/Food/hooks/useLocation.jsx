@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { locationAPI, userAPI } from "@food/api"
+import { Loader } from '@googlemaps/js-api-loader'
 
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -251,9 +252,147 @@ export function useLocation() {
 
   // Google Places API removed - using OLA Maps only
 
-  /* Removed Google Geocoding/Places (maps.googleapis.com). Uses BigDataCloud reverse-geocode only. */
-  const reverseGeocodeWithGoogleMaps = async (latitude, longitude, _options = {}) =>
-    reverseGeocodeDirect(latitude, longitude)
+  const reverseGeocodeWithGoogleMaps = async (latitude, longitude, _options = {}) => {
+    // 1. Start loading Google Maps in background immediately if not loaded to run in parallel
+    let mapsPromise = null
+    if (typeof window !== "undefined" && !window.google?.maps?.Geocoder) {
+      const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ""
+      if (apiKey) {
+        try {
+          const loader = new Loader({ apiKey, version: "weekly" })
+          mapsPromise = loader.load()
+        } catch (e) {
+          // ignore loader error
+        }
+      }
+    }
+
+    try {
+      // 2. Fetch Nominatim with 1.5 second fast timeout to avoid waiting on slow openstreetmap servers
+      let json = null
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 1500)
+        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&lat=${latitude}&lon=${longitude}`
+        const response = await fetch(url, { 
+          signal: controller.signal,
+          headers: { 
+            "Accept-Language": "en",
+            "User-Agent": "AppZeto-Food-App" 
+          } 
+        })
+        clearTimeout(timeoutId)
+        json = await response.json()
+      } catch (fetchErr) {
+        debugWarn("Nominatim fetch failed or timed out:", fetchErr.message)
+      }
+      
+      const addr = json?.address
+      const formatted = json ? String(json.display_name || "").trim() : ""
+      
+      // Build strongest street/locality candidate available
+      const streetCandidate = addr ? [
+        addr.house_number,
+        addr.road,
+        addr.pedestrian,
+        addr.residential,
+        addr.neighbourhood,
+        addr.suburb,
+        addr.city_district,
+        addr.hamlet,
+      ].filter(Boolean).join(", ") : ""
+      const street = streetCandidate || addr?.amenity || addr?.industrial || addr?.quarter || ""
+
+      const city = addr ? (addr.city || addr.town || addr.village || addr.municipality || addr.county || "") : ""
+      const state = addr?.state || ""
+      const postcode = addr?.postcode || ""
+
+      let nextFormatted = formatted
+      let nextStreet = street || ""
+      let nextCity = city || ""
+      let nextState = state || ""
+      let nextZip = postcode || ""
+
+      // Nominatim can return area-level text (e.g. "Juni Indore Tahsil") without street detail.
+      // Promote to Google Maps geocoder result when available and more precise.
+      const nominatimGeneric =
+        !json ||
+        !nextStreet ||
+        nextFormatted.toLowerCase().includes("juni indore") ||
+        nextFormatted.toLowerCase().includes("juni indore tahsil") ||
+        nextFormatted.split(",").length < 4
+
+      if (nominatimGeneric) {
+        // Wait for parallel Google Maps load if it was started
+        if (mapsPromise) {
+          try {
+            await mapsPromise
+          } catch (e) {
+            // ignore
+          }
+        }
+
+        if (typeof window !== "undefined" && window.google?.maps?.Geocoder) {
+          const geocoder = new window.google.maps.Geocoder()
+          const googleResult = await new Promise((resolve) => {
+            geocoder.geocode({ location: { lat: Number(latitude), lng: Number(longitude) } }, (results, status) => {
+              if (status !== "OK" || !Array.isArray(results) || results.length === 0) {
+                resolve(null)
+                return
+              }
+
+              const best = results[0]
+              const byType = (type) =>
+                (best.address_components || []).find((c) => c.types?.includes(type))?.long_name || ""
+
+              const streetNo = byType("street_number")
+              const route = byType("route")
+              const sublocality = byType("sublocality") || byType("sublocality_level_1")
+              const neighborhood = byType("neighborhood")
+              const cityVal = byType("locality") || byType("administrative_area_level_2")
+              const stateVal = byType("administrative_area_level_1")
+              const zipCode = byType("postal_code")
+
+              resolve({
+                formattedAddress: String(best.formatted_address || "").trim(),
+                street: [streetNo, route].filter(Boolean).join(" ").trim() || [route, neighborhood, sublocality].filter(Boolean).join(", "),
+                city: cityVal || "",
+                state: stateVal || "",
+                zipCode: zipCode || "",
+                hasStreetLevel: Boolean(streetNo || route || neighborhood || sublocality),
+              })
+            })
+          })
+
+          if (googleResult?.formattedAddress) {
+            nextFormatted = googleResult.formattedAddress
+            if (googleResult.hasStreetLevel) {
+              nextStreet = googleResult.street || nextStreet
+            }
+            nextCity = googleResult.city || nextCity
+            nextState = googleResult.state || nextState
+            nextZip = googleResult.zipCode || nextZip
+          }
+        }
+      }
+
+      if (nextFormatted) {
+        return {
+          city: nextCity,
+          state: nextState,
+          country: addr?.country || "India",
+          area: nextStreet,
+          address: nextStreet || nextCity,
+          formattedAddress: nextFormatted,
+          postalCode: nextZip,
+        }
+      }
+    } catch (e) {
+      // ignore detailed geocode error, fall back to direct
+    }
+
+    return reverseGeocodeDirect(latitude, longitude)
+  }
 
 
   /* ===================== OLA MAPS REVERSE GEOCODE (DEPRECATED - KEPT FOR FALLBACK) ===================== */
@@ -903,6 +1042,7 @@ export function useLocation() {
 
               debugLog("?? Saving location:", finalLoc)
               localStorage.setItem("userLocation", JSON.stringify(finalLoc))
+              window.dispatchEvent(new CustomEvent("userLocationUpdated", { detail: { location: finalLoc } }))
               setLocation(finalLoc)
               setPermissionGranted(true)
               if (showLoading) setLoading(false)
@@ -937,6 +1077,7 @@ export function useLocation() {
                   }
                   debugLog("? Last resort geocoding succeeded:", lastResortLoc)
                   localStorage.setItem("userLocation", JSON.stringify(lastResortLoc))
+                  window.dispatchEvent(new CustomEvent("userLocationUpdated", { detail: { location: lastResortLoc } }))
                   setLocation(lastResortLoc)
                   setPermissionGranted(true)
                   if (showLoading) setLoading(false)
@@ -1054,8 +1195,8 @@ export function useLocation() {
     // Otherwise, allow cached location for faster response
     return getPositionWithRetry({
       enableHighAccuracy: true,  // Use GPS for exact location (highest accuracy)
-      timeout: 15000,            // 15 seconds timeout (gives GPS more time to get accurate fix)
-      maximumAge: forceFresh ? 0 : 60000  // If forceFresh, get fresh location. Otherwise allow 1 minute cache
+      timeout: 8000,             // 8 seconds timeout (gives GPS enough time to get a fix, but fails faster to prevent hanging)
+      maximumAge: forceFresh ? 10000 : 60000  // Allow a 10s old GPS coordinate even if forceFresh is true to return instantly if recently resolved
     })
   }
 
@@ -1246,6 +1387,7 @@ export function useLocation() {
               prevLocationCoordsRef.current = { latitude: loc.latitude, longitude: loc.longitude }
               debugLog("?? Updating live location:", loc)
               localStorage.setItem("userLocation", JSON.stringify(persistedLocation))
+              window.dispatchEvent(new CustomEvent("userLocationUpdated", { detail: { location: persistedLocation } }))
               setLocation(persistedLocation)
               setPermissionGranted(true)
               setError(null)

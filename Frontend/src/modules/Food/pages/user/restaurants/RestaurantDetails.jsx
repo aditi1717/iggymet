@@ -1613,10 +1613,11 @@ function RestaurantDetailsContent() {
 
           return true
         }
-        const itemCount = Array.isArray(section?.items) ? section.items.filter(countVisibleItem).length : 0
-        const subsectionCount = Array.isArray(section?.subsections)
-          ? section.subsections.reduce((sum, sub) => sum + (Array.isArray(sub?.items) ? sub.items.filter(countVisibleItem).length : 0), 0)
-          : 0
+        const itemCount = toRenderableArray(section?.items).filter(countVisibleItem).length
+        const subsectionCount = toRenderableArray(section?.subsections).reduce(
+          (sum, sub) => sum + toRenderableArray(sub?.items).filter(countVisibleItem).length,
+          0,
+        )
         const totalCount = itemCount + subsectionCount
 
         if (totalCount <= 0) return null
@@ -2118,7 +2119,9 @@ function RestaurantDetailsContent() {
 
         if (selectedMenuCategory !== "all") {
           if (isRecommendedSection(section)) return false
-          const sectionCategoryId = normalizeMenuCategoryId(section?.categoryId || getSectionDisplayName(section))
+          const sectionCategoryId =
+            normalizeMenuCategoryId(section?.categoryId || getSectionDisplayName(section) || originalIndex) ||
+            `section-${originalIndex}`
           if (sectionCategoryId !== selectedMenuCategory) {
             return false
           }
