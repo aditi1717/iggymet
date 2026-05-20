@@ -159,6 +159,21 @@ export function clearModuleAuth(module) {
   localStorage.removeItem(`fcm_web_registered_token_${module}`);
   if (module === "restaurant") {
     clearRestaurantSessionCache();
+    try {
+      const openRequest = indexedDB.open("RestaurantOnboardingFiles");
+      openRequest.onsuccess = (event) => {
+        const db = event.target.result;
+        if (db.objectStoreNames.contains("files")) {
+          const tx = db.transaction("files", "readwrite");
+          const store = tx.objectStore("files");
+          store.delete("backup_restaurant_accessToken");
+          store.delete("backup_restaurant_refreshToken");
+          store.delete("backup_restaurant_user");
+          store.delete("backup_restaurant_pendingPhone");
+          store.delete("onboarding_draft_json");
+        }
+      };
+    } catch (_) {}
   }
   // Also clear any sessionStorage data
   sessionStorage.removeItem(`${module}AuthData`);

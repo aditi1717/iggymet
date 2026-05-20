@@ -1310,36 +1310,41 @@ export default function RestaurantOnboarding() {
           }))
 
           // Map Step 2
-          setStep2((prev) => ({
-            ...prev,
-            menuImages: data.menuImages || prev.menuImages || [],
-            profileImage: data.profileImage || prev.profileImage || null,
-            cuisines: data.cuisines || prev.cuisines || [],
-            openingTime: normalizeTimeValue(data.openingTime) || prev.openingTime,
-            closingTime: normalizeTimeValue(data.closingTime) || prev.closingTime,
-            openDays: data.openDays || prev.openDays || [],
-          }))
+          setStep2((prev) => {
+            const localFiles = (prev.menuImages || []).filter(img => isUploadableFile(img));
+            const serverImages = data.menuImages || [];
+            return {
+              ...prev,
+              menuImages: getUniqueImages(serverImages, localFiles),
+              profileImage: isUploadableFile(prev.profileImage) ? prev.profileImage : (data.profileImage || prev.profileImage || null),
+              cuisines: (data.cuisines && data.cuisines.length > 0) ? data.cuisines : prev.cuisines || [],
+              openingTime: normalizeTimeValue(data.openingTime) || prev.openingTime,
+              closingTime: normalizeTimeValue(data.closingTime) || prev.closingTime,
+              openDays: (data.openDays && data.openDays.length > 0) ? data.openDays : prev.openDays || [],
+            };
+          })
 
           // Map Step 3
           setStep3((prev) => ({
             ...prev,
             panNumber: data.panNumber || prev.panNumber || "",
             nameOnPan: data.nameOnPan || prev.nameOnPan || "",
-            panImage: data.panImage || prev.panImage || null,
+            panImage: isUploadableFile(prev.panImage) ? prev.panImage : (data.panImage || prev.panImage || null),
             gstRegistered: data.gstRegistered !== undefined ? !!data.gstRegistered : prev.gstRegistered,
             gstNumber: data.gstNumber || prev.gstNumber || "",
             gstLegalName: data.gstLegalName || prev.gstLegalName || "",
             gstAddress: data.gstAddress || prev.gstAddress || "",
-            gstImage: data.gstImage || prev.gstImage || null,
+            gstImage: isUploadableFile(prev.gstImage) ? prev.gstImage : (data.gstImage || prev.gstImage || null),
             fssaiNumber: data.fssaiNumber || prev.fssaiNumber || "",
             fssaiExpiry: data.fssaiExpiry ? String(data.fssaiExpiry).split('T')[0] : prev.fssaiExpiry || "",
-            fssaiImage: data.fssaiImage || prev.fssaiImage || null,
+            fssaiImage: isUploadableFile(prev.fssaiImage) ? prev.fssaiImage : (data.fssaiImage || prev.fssaiImage || null),
             accountNumber: data.accountNumber || prev.accountNumber || "",
             confirmAccountNumber: data.accountNumber || prev.confirmAccountNumber || "",
             ifscCode: (data.ifscCode || prev.ifscCode || "").toUpperCase(),
             accountHolderName: data.accountHolderName || prev.accountHolderName || "",
             accountType: normalizeAccountTypeValue(data.accountType || prev.accountType || ""),
           }))
+
 
           // Map Step 4
           setStep4((prev) => ({
