@@ -1,6 +1,3 @@
-import jsPDF from "jspdf"
-import autoTable from "jspdf-autotable"
-
 // Export utility functions for reports
 export const exportReportsToCSV = (data, headers, filename = "report") => {
   const rows = data.map((item, index) => {
@@ -56,36 +53,43 @@ export const exportReportsToExcel = (data, headers, filename = "report") => {
   document.body.removeChild(link)
 }
 
-export const exportReportsToPDF = (data, headers, filename = "report", title = "Report") => {
-  const doc = new jsPDF("landscape");
-  
-  doc.setFontSize(18);
-  doc.text(title, 14, 22);
-  
-  doc.setFontSize(11);
-  doc.setTextColor(100);
-  doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
-  
-  const headerRow = headers.map(h => typeof h === 'string' ? h : h.label);
-  const bodyRows = data.map(item => {
-    return headers.map(header => {
-      const value = item[header.key] || item[header] || "";
-      let val = typeof value === 'object' ? JSON.stringify(value) : String(value);
-      val = val.replace(/₹\s?/g, '');
-      return val;
+export const exportReportsToPDF = async (data, headers, filename = "report", title = "Report") => {
+  try {
+    const { default: jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
+
+    const doc = new jsPDF("landscape");
+    
+    doc.setFontSize(18);
+    doc.text(title, 14, 22);
+    
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+    
+    const headerRow = headers.map(h => typeof h === 'string' ? h : h.label);
+    const bodyRows = data.map(item => {
+      return headers.map(header => {
+        const value = item[header.key] || item[header] || "";
+        let val = typeof value === 'object' ? JSON.stringify(value) : String(value);
+        val = val.replace(/₹\s?/g, '');
+        return val;
+      });
     });
-  });
 
-  autoTable(doc, {
-    startY: 35,
-    head: [headerRow],
-    body: bodyRows,
-    theme: 'grid',
-    styles: { fontSize: 8 },
-    headStyles: { fillColor: [41, 128, 185], textColor: 255 }
-  });
+    autoTable(doc, {
+      startY: 35,
+      head: [headerRow],
+      body: bodyRows,
+      theme: 'grid',
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [41, 128, 185], textColor: 255 }
+    });
 
-  doc.save(`${filename}_${new Date().toISOString().split("T")[0]}.pdf`);
+    doc.save(`${filename}_${new Date().toISOString().split("T")[0]}.pdf`);
+  } catch (error) {
+    console.error("Error generating PDF:", error);
+  }
 }
 
 export const exportReportsToJSON = (data, filename = "report") => {
@@ -168,43 +172,50 @@ export const exportTransactionReportToExcel = (transactions, filename = "transac
   document.body.removeChild(link)
 }
 
-export const exportTransactionReportToPDF = (transactions, filename = "transaction_report") => {
-  const headers = ["SI", "Order ID", "Restaurant", "Customer Name", "Total Item Amount", "Coupon By Admin", "Coupon By Restaurant", "Offer By Restaurant", "VAT/Tax", "Delivery Charge", "Platform Fee", "Order Amount"]
-  
-  const doc = new jsPDF("landscape");
-  
-  doc.setFontSize(18);
-  doc.text("Transaction Report", 14, 22);
-  
-  doc.setFontSize(11);
-  doc.setTextColor(100);
-  doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
-  
-  const bodyRows = transactions.map((transaction, index) => [
-    index + 1,
-    transaction.orderId,
-    transaction.restaurant,
-    transaction.customerName,
-    transaction.totalItemAmount.toFixed(2),
-    (transaction.couponByAdmin || 0).toFixed(2),
-    (transaction.couponByRestaurant || 0).toFixed(2),
-    (transaction.offerByRestaurant || 0).toFixed(2),
-    transaction.vatTax.toFixed(2),
-    transaction.deliveryCharge.toFixed(2),
-    Number(transaction.platformFee || 0).toFixed(2),
-    transaction.orderAmount.toFixed(2)
-  ]);
+export const exportTransactionReportToPDF = async (transactions, filename = "transaction_report") => {
+  try {
+    const { default: jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
 
-  autoTable(doc, {
-    startY: 35,
-    head: [headers],
-    body: bodyRows,
-    theme: 'grid',
-    styles: { fontSize: 8 },
-    headStyles: { fillColor: [41, 128, 185], textColor: 255 }
-  });
+    const headers = ["SI", "Order ID", "Restaurant", "Customer Name", "Total Item Amount", "Coupon By Admin", "Coupon By Restaurant", "Offer By Restaurant", "VAT/Tax", "Delivery Charge", "Platform Fee", "Order Amount"]
+    
+    const doc = new jsPDF("landscape");
+    
+    doc.setFontSize(18);
+    doc.text("Transaction Report", 14, 22);
+    
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+    
+    const bodyRows = transactions.map((transaction, index) => [
+      index + 1,
+      transaction.orderId,
+      transaction.restaurant,
+      transaction.customerName,
+      transaction.totalItemAmount.toFixed(2),
+      (transaction.couponByAdmin || 0).toFixed(2),
+      (transaction.couponByRestaurant || 0).toFixed(2),
+      (transaction.offerByRestaurant || 0).toFixed(2),
+      transaction.vatTax.toFixed(2),
+      transaction.deliveryCharge.toFixed(2),
+      Number(transaction.platformFee || 0).toFixed(2),
+      transaction.orderAmount.toFixed(2)
+    ]);
 
-  doc.save(`${filename}_${new Date().toISOString().split("T")[0]}.pdf`);
+    autoTable(doc, {
+      startY: 35,
+      head: [headers],
+      body: bodyRows,
+      theme: 'grid',
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [41, 128, 185], textColor: 255 }
+    });
+
+    doc.save(`${filename}_${new Date().toISOString().split("T")[0]}.pdf`);
+  } catch (error) {
+    console.error("Error generating PDF:", error);
+  }
 }
 
 export const exportTransactionReportToJSON = (transactions, filename = "transaction_report") => {
