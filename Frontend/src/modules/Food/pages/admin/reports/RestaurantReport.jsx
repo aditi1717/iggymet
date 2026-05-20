@@ -216,20 +216,20 @@ export default function RestaurantReport() {
           <tr>
             <td>${index + 1}</td>
             <td>${htmlEscape(item.restaurantName || "-")}</td>
-            <td class="num">${htmlEscape(item.totalFood ?? 0)}</td>
-            <td class="num">${htmlEscape(item.totalOrder ?? 0)}</td>
-            <td class="num">${htmlEscape(item.totalAdminCommission ?? 0)}</td>
-            <td class="num">${htmlEscape(item.totalCouponByAdmin ?? 0)}</td>
-            <td class="num">${htmlEscape(item.totalCouponByRestaurant ?? 0)}</td>
-            <td class="num">${htmlEscape(item.totalOfferByRestaurant ?? 0)}</td>
-            <td class="num">${htmlEscape(item.totalGST ?? 0)}</td>
-            <td class="num">${htmlEscape(item.totalRestaurantEarning ?? 0)}</td>
-            <td class="num">${htmlEscape(item.paidRestaurantEarning ?? 0)}</td>
-            <td class="num">${htmlEscape(item.unpaidRestaurantEarning ?? 0)}</td>
-            <td class="num">${htmlEscape(item.totalDeliveryCharge ?? 0)}</td>
-            <td class="num">${htmlEscape(item.totalPlatformFee ?? 0)}</td>
-            <td class="num">${htmlEscape(item.totalOrderAmount ?? 0)}</td>
-            <td class="num">${htmlEscape(item.averageRatings ?? 0)}</td>
+            <td class="num">${htmlEscape(toAmountNumber(item.totalFood ?? 0))}</td>
+            <td class="num">${htmlEscape(toAmountNumber(item.totalOrder ?? 0))}</td>
+            <td class="num">${htmlEscape(toAmountNumber(item.totalAdminCommission ?? 0).toFixed(2))}</td>
+            <td class="num">${htmlEscape(toAmountNumber(item.totalCouponByAdmin ?? 0).toFixed(2))}</td>
+            <td class="num">${htmlEscape(toAmountNumber(item.totalCouponByRestaurant ?? 0).toFixed(2))}</td>
+            <td class="num">${htmlEscape(toAmountNumber(item.totalOfferByRestaurant ?? 0).toFixed(2))}</td>
+            <td class="num">${htmlEscape(toAmountNumber(item.totalGST ?? 0).toFixed(2))}</td>
+            <td class="num">${htmlEscape(toAmountNumber(item.totalRestaurantEarning ?? 0).toFixed(2))}</td>
+            <td class="num">${htmlEscape(toAmountNumber(item.paidRestaurantEarning ?? 0).toFixed(2))}</td>
+            <td class="num">${htmlEscape(toAmountNumber(item.unpaidRestaurantEarning ?? 0).toFixed(2))}</td>
+            <td class="num">${htmlEscape(toAmountNumber(item.totalDeliveryCharge ?? 0).toFixed(2))}</td>
+            <td class="num">${htmlEscape(toAmountNumber(item.totalPlatformFee ?? 0).toFixed(2))}</td>
+            <td class="num">${htmlEscape(toAmountNumber(item.totalOrderAmount ?? 0).toFixed(2))}</td>
+            <td class="num">${htmlEscape(toAmountNumber(item.averageRatings ?? 0).toFixed(2))}</td>
           </tr>`,
         )
         .join("")
@@ -237,9 +237,24 @@ export default function RestaurantReport() {
       const avgRating = metrics.ratingsCount > 0 ? metrics.ratingsTotal / metrics.ratingsCount : 0
 
       const xlsHtml = `
-        <html>
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
           <head>
+            <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
             <meta charset="UTF-8" />
+            <!--[if gte mso 9]>
+            <xml>
+              <x:ExcelWorkbook>
+                <x:ExcelWorksheets>
+                  <x:ExcelWorksheet>
+                    <x:Name>Report</x:Name>
+                    <x:WorksheetOptions>
+                      <x:DisplayGridlines/>
+                    </x:WorksheetOptions>
+                  </x:ExcelWorksheet>
+                </x:ExcelWorksheets>
+              </x:ExcelWorkbook>
+            </xml>
+            <![endif]-->
             <style>
               table { border-collapse: collapse; width: 100%; font-family: Calibri, Arial, sans-serif; font-size: 12px; }
               th, td { border: 1px solid #d1d5db; padding: 8px; }
@@ -296,7 +311,7 @@ export default function RestaurantReport() {
         </html>
       `
 
-      const blob = new Blob([xlsHtml], { type: "application/vnd.ms-excel;charset=utf-8;" })
+      const blob = new Blob(["\uFEFF" + xlsHtml], { type: "application/vnd.ms-excel;charset=utf-8;" })
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
       const stamp = new Date().toISOString().slice(0, 10)
@@ -488,10 +503,10 @@ export default function RestaurantReport() {
             <h2 className="text-xl font-bold text-slate-900">Restaurant Report Table {totalRestaurants}</h2>
 
             <div className="flex items-center gap-3">
-              <div className="relative flex-1 sm:flex-initial min-w-[250px]">
+              <div className="relative flex-1 sm:flex-initial min-w-[300px]">
                 <input
                   type="text"
-                  placeholder="Ex: search restaurant nam"
+                  placeholder="Search by restaurant name"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-4 pr-10 py-2.5 w-full text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
@@ -510,10 +525,6 @@ export default function RestaurantReport() {
                 <DropdownMenuContent align="end" className="w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-50 animate-in fade-in-0 zoom-in-95 duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95">
                   <DropdownMenuLabel>Export Format</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => handleExport("csv")} className="cursor-pointer">
-                    <FileText className="w-4 h-4 mr-2" />
-                    Export as CSV
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleExport("excel")} className="cursor-pointer">
                     <FileSpreadsheet className="w-4 h-4 mr-2" />
                     Export as Excel
@@ -522,11 +533,7 @@ export default function RestaurantReport() {
                     <FileText className="w-4 h-4 mr-2" />
                     Export as PDF
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("json")} className="cursor-pointer">
-                    <Code className="w-4 h-4 mr-2" />
-                    Export as JSON
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
+                  </DropdownMenuContent>
               </DropdownMenu>
               <button 
                 onClick={() => setIsSettingsOpen(true)}

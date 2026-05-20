@@ -393,11 +393,9 @@ export default function FeedbackExperienceReport() {
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Export Format</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => handleExport('csv')}>CSV</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleExport('excel')}>Excel</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleExport('pdf')}>PDF</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport('json')}>JSON</DropdownMenuItem>
-              </DropdownMenuContent>
+                </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </div>

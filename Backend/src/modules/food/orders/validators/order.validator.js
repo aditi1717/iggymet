@@ -172,7 +172,14 @@ export function validateOrderStatusDto(body) {
             'cancelled_by_admin'
         ]),
         reason: z.string().optional(),
-        reasonType: z.string().optional()
+        reasonType: z.string().optional(),
+        preparationTimeMinutes: z.preprocess(
+            (value) => {
+                if (value === '' || value === null || value === undefined) return undefined;
+                return Number(value);
+            },
+            z.number().int().min(1).max(240).optional()
+        )
     });
     const result = schema.safeParse(body);
     if (!result.success) {

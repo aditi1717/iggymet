@@ -245,6 +245,63 @@ const getPayableAmountFromOrder = (apiOrder, previousOrder = null, dueAmount = 0
   return orderTotal + Math.max(0, Number(dueAmount) || 0)
 }
 
+const getOrderEtaMinutes = (orderLike = {}) => {
+  const candidates = [
+    orderLike?.eta?.currentEstimatedMinutes,
+    orderLike?.eta?.totalBeforeReadyMinutes,
+    orderLike?.estimatedDeliveryTime,
+    orderLike?.estimatedTime,
+  ]
+
+  for (const candidate of candidates) {
+    const value = toFiniteNumber(candidate)
+    if (value !== null && value >= 0) return Math.round(value)
+  }
+
+  return null
+}
+
+const getRemainingEtaMinutes = (orderLike = {}) => {
+  const arrivalRaw = orderLike?.eta?.estimatedArrivalAt
+  if (arrivalRaw) {
+    const arrivalAt = new Date(arrivalRaw)
+    if (!Number.isNaN(arrivalAt.getTime())) {
+      return Math.max(0, Math.ceil((arrivalAt.getTime() - Date.now()) / 60000))
+    }
+  }
+
+  return getOrderEtaMinutes(orderLike)
+}
+
+const getDistanceKm = (from, to) => {
+  const lat1 = Number(from?.lat)
+  const lng1 = Number(from?.lng)
+  const lat2 = Number(to?.lat)
+  const lng2 = Number(to?.lng)
+  if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return null
+
+  const toRad = (value) => (value * Math.PI) / 180
+  const earthRadiusKm = 6371
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLng / 2) ** 2
+
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+const getDeliveryEtaMinutesByDistance = (restaurantCoords, customerCoords) => {
+  const distanceKm = getDistanceKm(restaurantCoords, customerCoords)
+  if (distanceKm === null) return null
+
+  const averageCitySpeedKmph = 22
+  const travelMinutes = Math.ceil((distanceKm / averageCitySpeedKmph) * 60)
+  return Math.max(5, travelMinutes + 3)
+}
+
 const getDueLabelFromOrder = (apiOrder, previousOrder = null, dueAmount = 0) => {
   if (!(Number(dueAmount) > 0)) return "Previous Due"
 
@@ -354,6 +411,13 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
     assignmentInfo: apiOrder?.assignmentInfo || previousOrder?.assignmentInfo || null,
     tracking: apiOrder?.tracking || previousOrder?.tracking || {},
     deliveryState: apiOrder?.deliveryState || previousOrder?.deliveryState || null,
+    eta: apiOrder?.eta || previousOrder?.eta || null,
+    estimatedDeliveryTime:
+      apiOrder?.eta?.currentEstimatedMinutes ||
+      apiOrder?.eta?.totalBeforeReadyMinutes ||
+      apiOrder?.estimatedDeliveryTime ||
+      previousOrder?.estimatedDeliveryTime ||
+      null,
     createdAt: apiOrder?.createdAt || previousOrder?.createdAt || null,
     totalAmount: apiOrder?.pricing?.total || apiOrder?.totalAmount || previousOrder?.totalAmount || 0,
     deliveryFee: apiOrder?.pricing?.deliveryFee || apiOrder?.deliveryFee || previousOrder?.deliveryFee || 0,
@@ -562,7 +626,7 @@ export default function OrderTracking() {
   const [error, setError] = useState(null)
 
   const [orderStatus, setOrderStatus] = useState('placed')
-  const [estimatedTime, setEstimatedTime] = useState(29)
+  const [estimatedTime, setEstimatedTime] = useState(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showCancelDialog, setShowCancelDialog] = useState(false)
   const [showOrderDetails, setShowOrderDetails] = useState(false)
@@ -889,6 +953,24 @@ export default function OrderTracking() {
       Boolean(order?.deliveredAt),
     [orderStatus, normalizedBackendOrderStatus, order?.deliveredAt],
   )
+  const isRestaurantReadyForPickup = useMemo(
+    () =>
+      [
+        "ready",
+        "ready_for_pickup",
+        "picked_up",
+        "out_for_delivery",
+        "reached_drop",
+        "at_drop",
+        "delivered",
+        "completed",
+      ].includes(normalizedBackendOrderStatus),
+    [normalizedBackendOrderStatus],
+  )
+  const liveRestaurantEtaText =
+    !isRestaurantReadyForPickup && typeof estimatedTime === "number"
+      ? `Arriving in ${estimatedTime} mins`
+      : null
 
   const canShowCancelOrderAction = useMemo(
     () => !isAdminAccepted && !isCancelledOrder && !isDeliveredLikeOrder,
@@ -1024,13 +1106,20 @@ export default function OrderTracking() {
     const ui = mapOrderToTrackingUiStatus(order)
     terminalPollStopRef.current = ui === 'delivered' || ui === 'cancelled'
   }, [order])
-  // Countdown timer
+  // Countdown timer driven by backend ETA. This keeps the display decreasing
+  // without writing every minute back to the database.
   useEffect(() => {
+    if (!order) return undefined
+    const updateRemainingEta = () => {
+      setEstimatedTime(getRemainingEtaMinutes(order))
+    }
+
+    updateRemainingEta()
     const timer = setInterval(() => {
-      setEstimatedTime((prev) => Math.max(0, prev - 1))
+      updateRemainingEta()
     }, 60000)
     return () => clearInterval(timer)
-  }, [])
+  }, [order])
 
   // Listen for order status updates from socket (e.g., "Delivery partner on the way")
   useEffect(() => {
@@ -1238,6 +1327,18 @@ export default function OrderTracking() {
       customer: toMapLatLng(customerRaw),
     }
   }, [order?.restaurantLocation?.coordinates, order?.address?.coordinates])
+  const deliveryDistanceEtaMinutes = useMemo(
+    () =>
+      getDeliveryEtaMinutesByDistance(
+        trackingMapCoords.restaurant,
+        trackingMapCoords.customer,
+      ),
+    [trackingMapCoords.restaurant, trackingMapCoords.customer],
+  )
+  const liveDeliveryEtaText =
+    isRestaurantReadyForPickup && typeof deliveryDistanceEtaMinutes === "number"
+      ? `Delivery in ${deliveryDistanceEtaMinutes} mins`
+      : null
 
   const trackingIds = useMemo(() => {
     const ids = [orderId, resolvedLookupId, order?.orderId, order?.mongoId, order?.id]
@@ -1294,7 +1395,9 @@ export default function OrderTracking() {
   const statusConfig = {
     placed: {
       title: "Order Placed",
-      subtitle: "Waiting for restaurant to accept",
+      subtitle: typeof estimatedTime === 'number'
+        ? `Arriving in ${estimatedTime} mins`
+        : "Waiting for restaurant to accept",
       color: BRAND_THEME.colors.brand.primary,
       iconType: 'food'
     },
@@ -1312,31 +1415,31 @@ export default function OrderTracking() {
     },
     ready_waiting: {
       title: "Food is ready!",
-      subtitle: "Searching for a delivery partner",
+      subtitle: liveDeliveryEtaText || "Searching for a delivery partner",
       color: BRAND_THEME.colors.brand.primary,
       iconType: 'food'
     },
     assigned: {
       title: "Rider is arriving",
-      subtitle: "A delivery partner is arriving at the restaurant",
+      subtitle: liveDeliveryEtaText || liveRestaurantEtaText || "A delivery partner is arriving at the restaurant",
       color: BRAND_THEME.colors.brand.primary,
       iconType: 'rider'
     },
     at_pickup: {
       title: "Rider at restaurant",
-      subtitle: "Rider is waiting for your order",
+      subtitle: liveDeliveryEtaText || liveRestaurantEtaText || "Rider is waiting for your order",
       color: BRAND_THEME.colors.brand.primary,
       iconType: 'rider'
     },
     ready: {
       title: "Handover in progress",
-      subtitle: "Rider is picking up your order",
+      subtitle: liveDeliveryEtaText || "Rider is picking up your order",
       color: BRAND_THEME.colors.brand.primary,
       iconType: 'rider'
     },
     on_way: {
       title: "Picked Up",
-      subtitle: typeof estimatedTime === 'number' ? `Arriving in ${estimatedTime} mins` : "Rider picked your order and is on the way",
+      subtitle: liveDeliveryEtaText || (typeof estimatedTime === 'number' ? `Arriving in ${estimatedTime} mins` : "Rider picked your order and is on the way"),
       color: BRAND_THEME.colors.brand.primary,
       iconType: 'rider'
     },
@@ -1593,7 +1696,9 @@ export default function OrderTracking() {
               </div>
               <div className="flex-1">
                 <p className="font-semibold text-gray-900">{order.deliveryPartner?.name || 'Delivery Partner'}</p>
-                <p className="text-sm text-gray-500">Your delivery partner is arriving</p>
+                <p className="text-sm text-gray-500">
+                  {liveDeliveryEtaText || liveRestaurantEtaText || "Your delivery partner is arriving"}
+                </p>
               </div>
               <motion.button
                 className="w-10 h-10 rounded-full bg-brand-50 flex items-center justify-center"

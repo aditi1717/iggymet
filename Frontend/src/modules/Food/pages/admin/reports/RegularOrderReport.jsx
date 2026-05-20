@@ -468,9 +468,24 @@ export default function RegularOrderReport() {
         .join("")
 
       const xlsHtml = `
-        <html>
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
           <head>
+            <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
             <meta charset="UTF-8" />
+            <!--[if gte mso 9]>
+            <xml>
+              <x:ExcelWorkbook>
+                <x:ExcelWorksheets>
+                  <x:ExcelWorksheet>
+                    <x:Name>Report</x:Name>
+                    <x:WorksheetOptions>
+                      <x:DisplayGridlines/>
+                    </x:WorksheetOptions>
+                  </x:ExcelWorksheet>
+                </x:ExcelWorksheets>
+              </x:ExcelWorkbook>
+            </xml>
+            <![endif]-->
             <style>
               table { border-collapse: collapse; width: 100%; font-family: Calibri, Arial, sans-serif; font-size: 12px; }
               th, td { border: 1px solid #d1d5db; padding: 8px; }
@@ -525,7 +540,7 @@ export default function RegularOrderReport() {
         </html>
       `
 
-      const blob = new Blob([xlsHtml], { type: "application/vnd.ms-excel;charset=utf-8;" })
+      const blob = new Blob(["\uFEFF" + xlsHtml], { type: "application/vnd.ms-excel;charset=utf-8;" })
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
       link.href = url
@@ -855,10 +870,6 @@ export default function RegularOrderReport() {
                 <DropdownMenuContent align="end" className="w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-50 animate-in fade-in-0 zoom-in-95 duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95">
                   <DropdownMenuLabel>Export Format</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => handleExport("csv")} className="cursor-pointer">
-                    <FileText className="w-4 h-4 mr-2" />
-                    Export as CSV
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleExport("excel")} className="cursor-pointer">
                     <FileSpreadsheet className="w-4 h-4 mr-2" />
                     Export as Excel
@@ -867,11 +878,7 @@ export default function RegularOrderReport() {
                     <FileText className="w-4 h-4 mr-2" />
                     Export as PDF
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("json")} className="cursor-pointer">
-                    <Code className="w-4 h-4 mr-2" />
-                    Export as JSON
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
+                  </DropdownMenuContent>
               </DropdownMenu>
               <button 
                 onClick={() => setIsSettingsOpen(true)}

@@ -105,7 +105,7 @@ export default function RestaurantVATReport() {
                   className="w-full px-4 py-2.5 pr-8 text-sm rounded-lg border border-slate-300 bg-white text-slate-700 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500"
                 >
                   <option value="All Restaurants">All Restaurants</option>
-                  <option value="Café Monarch">Café Monarch</option>
+                  <option value="Cafï¿½ Monarch">Cafï¿½ Monarch</option>
                   <option value="Hungry Puppets">Hungry Puppets</option>
                   <option value="Cheesy Restaurant">Cheesy Restaurant</option>
                   <option value="Cheese Burger">Cheese Burger</option>
@@ -194,10 +194,10 @@ export default function RestaurantVATReport() {
             <h2 className="text-xl font-bold text-slate-900">All Restaurant Taxes</h2>
 
             <div className="flex items-center gap-3">
-              <div className="relative flex-1 sm:flex-initial min-w-[200px]">
+              <div className="relative flex-1 sm:flex-initial min-w-[250px]">
                 <input
                   type="text"
-                  placeholder="Ex: Name"
+                  placeholder="Search by restaurant name"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-4 pr-10 py-2.5 w-full text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
@@ -216,10 +216,6 @@ export default function RestaurantVATReport() {
                 <DropdownMenuContent align="end" className="w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-50 animate-in fade-in-0 zoom-in-95 duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95">
                   <DropdownMenuLabel>Export Format</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => handleExport("csv")} className="cursor-pointer">
-                    <FileText className="w-4 h-4 mr-2" />
-                    Export as CSV
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleExport("excel")} className="cursor-pointer">
                     <FileSpreadsheet className="w-4 h-4 mr-2" />
                     Export as Excel
@@ -228,11 +224,7 @@ export default function RestaurantVATReport() {
                     <FileText className="w-4 h-4 mr-2" />
                     Export as PDF
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("json")} className="cursor-pointer">
-                    <Code className="w-4 h-4 mr-2" />
-                    Export as JSON
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
+                  </DropdownMenuContent>
               </DropdownMenu>
               <button 
                 onClick={() => setIsSettingsOpen(true)}

@@ -194,6 +194,25 @@ const deliveryVerificationSchema = new mongoose.Schema(
     { _id: false }
 );
 
+const etaSchema = new mongoose.Schema(
+    {
+        restaurantBaseMinutes: { type: Number, default: null, min: 0 },
+        restaurantPrepMinutes: { type: Number, default: null, min: 0 },
+        restaurantExtraMinutes: { type: Number, default: 0, min: 0 },
+        totalBeforeReadyMinutes: { type: Number, default: null, min: 0 },
+        deliveryTravelMinutes: { type: Number, default: null, min: 0 },
+        currentEstimatedMinutes: { type: Number, default: null, min: 0 },
+        estimatedArrivalAt: { type: Date, default: null },
+        source: {
+            type: String,
+            enum: ['restaurant_default', 'restaurant_accept', 'delivery_distance', 'manual'],
+            default: 'restaurant_default'
+        },
+        updatedAt: { type: Date, default: null }
+    },
+    { _id: false }
+);
+
 const userUnavailableRequestSchema = new mongoose.Schema(
     {
         status: {
@@ -330,6 +349,10 @@ const orderSchema = new mongoose.Schema(
         deliveryOtp: { type: String, default: '', select: false },
         deliveryVerification: {
             type: deliveryVerificationSchema,
+            default: () => ({})
+        },
+        eta: {
+            type: etaSchema,
             default: () => ({})
         },
         userUnavailableRequest: {

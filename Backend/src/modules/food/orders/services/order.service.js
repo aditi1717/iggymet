@@ -340,6 +340,62 @@ function extractLatLngFromLocation(location = {}) {
   return null;
 }
 
+function parseEstimatedMinutes(value) {
+  if (value == null) return null;
+  const direct = Number(value);
+  if (Number.isFinite(direct) && direct >= 0) return Math.round(direct);
+
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) return null;
+  const matches = text.match(/\d+(?:\.\d+)?/g);
+  if (!matches?.length) return null;
+
+  const nums = matches
+    .map((n) => Number(n))
+    .filter((n) => Number.isFinite(n) && n >= 0);
+  if (!nums.length) return null;
+
+  // For labels like "25-30 mins", use the lower bound for the restaurant base.
+  return Math.round(nums[0]);
+}
+
+function getRestaurantBaseEtaMinutes(restaurant = {}) {
+  return (
+    parseEstimatedMinutes(restaurant?.estimatedDeliveryTimeMinutes) ??
+    parseEstimatedMinutes(restaurant?.estimatedDeliveryTime) ??
+    null
+  );
+}
+
+function buildEtaSnapshot({
+  baseMinutes = null,
+  prepMinutes = null,
+  source = "restaurant_default",
+  now = new Date(),
+} = {}) {
+  const base = parseEstimatedMinutes(baseMinutes);
+  const prep = parseEstimatedMinutes(prepMinutes);
+  const total =
+    base != null && prep != null
+      ? base + prep
+      : prep != null
+        ? prep
+        : base;
+
+  return {
+    restaurantBaseMinutes: base,
+    restaurantPrepMinutes: prep,
+    restaurantExtraMinutes: prep || 0,
+    totalBeforeReadyMinutes: total,
+    deliveryTravelMinutes: null,
+    currentEstimatedMinutes: total,
+    estimatedArrivalAt:
+      total != null ? new Date(now.getTime() + total * 60 * 1000) : null,
+    source,
+    updatedAt: now,
+  };
+}
+
 function resolveDeliveryFeeByDistance(distanceKm, feeSettings = {}) {
   if (!Number.isFinite(distanceKm) || distanceKm <= 0) {
     return Number(feeSettings.deliveryFee || 0);
@@ -1351,7 +1407,7 @@ export async function createOrder(userId, dto) {
   let restaurant = null;
   if (orderType === "food") {
     restaurant = await FoodRestaurant.findById(dto.restaurantId)
-      .select("status restaurantName zoneId location")
+      .select("status restaurantName zoneId location estimatedDeliveryTime estimatedDeliveryTimeMinutes")
       .lean();
     if (!restaurant) throw new ValidationError("Restaurant not found");
     if (restaurant.status !== "approved")
@@ -1511,6 +1567,13 @@ export async function createOrder(userId, dto) {
     scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : null,
     riderEarning,
     platformProfit,
+    eta:
+      orderType === "food"
+        ? buildEtaSnapshot({
+            baseMinutes: getRestaurantBaseEtaMinutes(restaurant),
+            source: "restaurant_default",
+          })
+        : undefined,
   });
 
   let razorpayPayload = null;
@@ -2262,7 +2325,13 @@ export async function listOrdersRestaurant(restaurantId, query) {
   return buildPaginatedResult({ docs: docsWithMeta, total, page, limit });
 }
 
-export async function updateOrderStatusRestaurant(orderId, restaurantId, orderStatus, reason = "") {
+export async function updateOrderStatusRestaurant(
+  orderId,
+  restaurantId,
+  orderStatus,
+  reason = "",
+  options = {},
+) {
 
 
 
@@ -2274,6 +2343,21 @@ export async function updateOrderStatusRestaurant(orderId, restaurantId, orderSt
   if (!order) throw new NotFoundError("Order not found");
   const from = order.orderStatus;
   order.orderStatus = orderStatus;
+  if (String(orderStatus) === "preparing") {
+    const restaurant = await FoodRestaurant.findById(restaurantId)
+      .select("estimatedDeliveryTime estimatedDeliveryTimeMinutes")
+      .lean();
+    const baseMinutes =
+      parseEstimatedMinutes(order?.eta?.restaurantBaseMinutes) ??
+      getRestaurantBaseEtaMinutes(restaurant);
+    const prepMinutes = parseEstimatedMinutes(options?.preparationTimeMinutes);
+
+    order.eta = buildEtaSnapshot({
+      baseMinutes,
+      prepMinutes,
+      source: "restaurant_accept",
+    });
+  }
   if (String(orderStatus).includes("cancel")) {
     order.cancellationReason = reason || "";
   }

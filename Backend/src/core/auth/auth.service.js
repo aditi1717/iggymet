@@ -436,12 +436,30 @@ export const logout = async (refreshToken, fcmToken, platform) => {
     throw new ValidationError("Refresh token is required");
   }
 
-  // 1. Remove specific FCM token from ALL collections if provided
-  if (fcmToken) {
-    console.log(`[FCM-Logout] Starting logout-driven token removal: platform=${platform}, tokenPreview=${fcmToken?.slice(0, 10)}...`);
+  // 1. Find the user ID from the refresh token and clear all their FCM tokens
+  const storedToken = await FoodRefreshToken.findOne({ token: refreshToken }).lean();
+  if (storedToken && storedToken.userId) {
+    const userId = storedToken.userId;
+    console.log(`[FCM-Logout] Clearing ALL FCM tokens for userId=${userId} upon logout`);
     
-    // We try to remove the token from all 4 possible models regardless of the user ID, 
-    // ensuring no stale connections are left across any role or app the user was logged into.
+    const models = [FoodUser, FoodRestaurant, FoodDeliveryPartner, FoodAdmin];
+    try {
+      await Promise.all(
+        models.map((model) =>
+          model.updateMany(
+            { _id: userId },
+            { $set: { fcmTokens: [], fcmTokenMobile: [] } }
+          )
+        )
+      );
+      console.log("[FCM-Logout] All FCM tokens cleared for user successfully");
+    } catch (err) {
+      logger.warn({ err }, "Failed to clear all FCM tokens for user during logout");
+    }
+  } else if (fcmToken) {
+    // Fallback: If refresh token not found but fcmToken is provided, 
+    // remove that specific token from all collections just in case
+    console.log(`[FCM-Logout] Refresh token not found, falling back to removing specific token...`);
     const field = platform === "mobile" ? "fcmTokenMobile" : "fcmTokens";
     const models = [FoodUser, FoodRestaurant, FoodDeliveryPartner, FoodAdmin];
     
@@ -454,9 +472,9 @@ export const logout = async (refreshToken, fcmToken, platform) => {
           ),
         ),
       );
-      console.log("[FCM-Logout] Token removed from all collections successfully");
+      console.log("[FCM-Logout] Token removed from all collections successfully (fallback)");
     } catch (err) {
-      logger.warn({ err }, "Failed to remove FCM token from all collections during logout");
+      logger.warn({ err }, "Failed to remove specific FCM token during fallback logout");
     }
   }
 

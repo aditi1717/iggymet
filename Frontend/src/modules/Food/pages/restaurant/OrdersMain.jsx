@@ -96,6 +96,23 @@ const formatOrderDateTime = (dateInput) => {
   }) + `, ${timeStr}`;
 };
 
+const toFiniteMinutes = (value) => {
+  const num = Number(value);
+  return Number.isFinite(num) && num >= 0 ? Math.round(num) : null;
+};
+
+const getOrderEtaMinutes = (order = {}) =>
+  toFiniteMinutes(order?.eta?.currentEstimatedMinutes) ??
+  toFiniteMinutes(order?.eta?.totalBeforeReadyMinutes) ??
+  toFiniteMinutes(order?.estimatedDeliveryTime) ??
+  30;
+
+const getOrderEtaStartTime = (order = {}) => {
+  const updatedAt = order?.eta?.updatedAt || order?.updatedAt || order?.createdAt;
+  const d = new Date(updatedAt || Date.now());
+  return Number.isNaN(d.getTime()) ? new Date() : d;
+};
+
 const getDispatchPartnerId = (orderLike) =>
   orderLike?.deliveryPartnerId || orderLike?.dispatch?.deliveryPartnerId || null;
 
@@ -175,8 +192,9 @@ const transformOrderForList = (order) => ({
   deliveryState: order.deliveryState || null,
   preparingTimestamp: order.tracking?.preparing?.timestamp
     ? new Date(order.tracking.preparing.timestamp)
-    : new Date(order.createdAt || Date.now()),
-  initialETA: order.estimatedDeliveryTime || 30,
+    : getOrderEtaStartTime(order),
+  initialETA: getOrderEtaMinutes(order),
+  etaMeta: order.eta || null,
   sortTimestamp: new Date(order.createdAt || Date.now()).getTime(),
 });
 
@@ -906,6 +924,7 @@ export default function OrdersMain() {
     if (!orderLike || typeof orderLike !== "object") return previous || null;
 
     const source = { ...(previous || {}), ...orderLike };
+    const etaMinutes = getOrderEtaMinutes(source);
     const sourceStatusRaw = String(source?.status || "").trim();
     const formattedStatus = sourceStatusRaw
       ? sourceStatusRaw
@@ -919,6 +938,9 @@ export default function OrdersMain() {
         source?.orderId || source?.id || source?._id || previous?.orderId || "",
       mongoId: source?.mongoId || source?._id || previous?.mongoId || null,
       status: formattedStatus,
+      eta: etaMinutes != null ? `${etaMinutes} mins` : previous?.eta || "",
+      initialETA: etaMinutes ?? previous?.initialETA ?? 30,
+      etaMeta: source?.eta || previous?.etaMeta || null,
       items: Array.isArray(source?.items) ? source.items : previous?.items || [],
       itemsSummary:
         source?.itemsSummary ||
@@ -3799,10 +3821,10 @@ function PreparingOrders({
           );
 
           const transformedOrders = preparingOrders.map((order) => {
-            const initialETA = order.estimatedDeliveryTime || 30; // in minutes
+            const initialETA = getOrderEtaMinutes(order); // in minutes
             const preparingTimestamp = order.tracking?.preparing?.timestamp
               ? new Date(order.tracking.preparing.timestamp)
-              : new Date(order.createdAt); // Fallback to createdAt if preparing timestamp not available
+              : getOrderEtaStartTime(order);
 
             return {
               orderId: order.orderId || order._id,
@@ -3817,6 +3839,7 @@ function PreparingOrders({
               tableOrToken: null,
               timePlaced: formatOrderDateTime(order.createdAt),
               initialETA, // Store initial ETA in minutes
+              etaMeta: order.eta || null,
               preparingTimestamp, // Store when order started preparing
               itemsSummary:
                 order.items

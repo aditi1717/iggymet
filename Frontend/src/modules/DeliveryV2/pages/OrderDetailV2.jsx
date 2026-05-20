@@ -302,6 +302,47 @@ const toFiniteNumber = (value) => {
   return Number.isFinite(num) ? num : null;
 };
 
+const getOrderEtaMinutes = (orderLike = {}) => {
+  const candidates = [
+    orderLike?.eta?.currentEstimatedMinutes,
+    orderLike?.eta?.totalBeforeReadyMinutes,
+    orderLike?.estimatedDeliveryTime,
+    orderLike?.estimatedTime,
+  ];
+
+  for (const candidate of candidates) {
+    const value = toFiniteNumber(candidate);
+    if (value !== null && value >= 0) return Math.round(value);
+  }
+
+  return null;
+};
+
+const getRemainingEtaMinutes = (orderLike = {}) => {
+  const arrivalRaw = orderLike?.eta?.estimatedArrivalAt;
+  if (arrivalRaw) {
+    const arrivalAt = new Date(arrivalRaw);
+    if (!Number.isNaN(arrivalAt.getTime())) {
+      return Math.max(0, Math.ceil((arrivalAt.getTime() - Date.now()) / 60000));
+    }
+  }
+
+  return getOrderEtaMinutes(orderLike);
+};
+
+const isRestaurantMarkedReady = (orderLike = {}) => {
+  const statusValues = [
+    orderLike?.orderStatus,
+    orderLike?.status,
+    orderLike?.orderState?.status,
+    orderLike?.tracking?.ready?.status ? 'ready' : '',
+  ].map((value) => String(value || '').toLowerCase());
+
+  return statusValues.some((status) =>
+    ['ready', 'ready_for_pickup', 'reached_pickup', 'picked_up', 'out_for_delivery'].includes(status),
+  );
+};
+
 const formatMoney = (value) => `Rs ${Number(value || 0).toFixed(2)}`;
 
 const getDueAmount = (orderLike) => {
@@ -572,6 +613,7 @@ const OrderDetailV2 = () => {
   const [dropOtpCode, setDropOtpCode] = useState('');
   const [pickupPhoto, setPickupPhoto] = useState(null);
   const [pickupPhotoPreview, setPickupPhotoPreview] = useState(null);
+  const [remainingEtaMinutes, setRemainingEtaMinutes] = useState(null);
   const pickupFileInputRef = useRef(null);
   const pickupCameraPromptedRef = useRef(false);
 
@@ -780,6 +822,21 @@ const OrderDetailV2 = () => {
     return () => window.clearInterval(poller);
   }, [fetchOrderDetails]);
 
+  useEffect(() => {
+    if (!order) {
+      setRemainingEtaMinutes(null);
+      return undefined;
+    }
+
+    const updateRemainingEta = () => {
+      setRemainingEtaMinutes(getRemainingEtaMinutes(order));
+    };
+
+    updateRemainingEta();
+    const timer = window.setInterval(updateRemainingEta, 60000);
+    return () => window.clearInterval(timer);
+  }, [order]);
+
   const currentStatus = useMemo(() => {
     const rawStatus = String(order?.status || order?.orderStatus || '').toLowerCase();
     const phase = String(order?.deliveryState?.currentPhase || '').toLowerCase();
@@ -791,12 +848,14 @@ const OrderDetailV2 = () => {
     if (['delivered', 'completed'].includes(rawStatus)) return { label: 'Delivered', tone: 'emerald' };
     if (phase === 'at_drop' || rawStatus === 'reached_drop') return { label: 'Reached customer', tone: 'blue' };
     if (['picked_up', 'delivering'].includes(rawStatus)) return { label: 'Picked', tone: 'blue' };
+    if (isRestaurantMarkedReady(order)) return { label: 'Ready for pickup', tone: 'emerald' };
     if (phase === 'at_pickup' || rawStatus === 'reached_pickup') return { label: 'Arrived at pickup', tone: 'amber' };
     if (dispatchStatus === 'accepted') return { label: 'Accepted', tone: 'brand' };
     if (dispatchStatus === 'unassigned') return { label: 'Passed Task', tone: 'amber' };
     if (dispatchStatus) return { label: dispatchStatus.toUpperCase(), tone: 'amber' };
     return { label: 'New Request', tone: 'brand' };
   }, [order]);
+  const isReadyForPickup = useMemo(() => isRestaurantMarkedReady(order), [order]);
 
   const customerMeta = useMemo(() => getCustomerMeta(order), [order]);
   const paymentMethodMeta = useMemo(() => getPaymentMethodMeta(order), [order]);
@@ -1149,6 +1208,16 @@ const OrderDetailV2 = () => {
               <p className="mt-1 text-xs text-slate-500">
                 {getOrderEventDate(order) ? new Date(getOrderEventDate(order)).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}
               </p>
+              {(isReadyForPickup || remainingEtaMinutes !== null) && (
+                <p className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold ${
+                  isReadyForPickup
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-sky-50 text-sky-700'
+                }`}>
+                  <Timer className="h-3.5 w-3.5" />
+                  {isReadyForPickup ? 'Ready for pickup' : `ETA ${Math.max(0, remainingEtaMinutes)} mins`}
+                </p>
+              )}
               <p className="mt-1 text-xs text-slate-500">
                 Order ID: {displayOrderId ? `#${displayOrderId}` : '--'}
               </p>

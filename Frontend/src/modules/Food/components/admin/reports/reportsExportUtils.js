@@ -1,3 +1,6 @@
+import jsPDF from "jspdf"
+import autoTable from "jspdf-autotable"
+
 // Export utility functions for reports
 export const exportReportsToCSV = (data, headers, filename = "report") => {
   const rows = data.map((item, index) => {
@@ -28,7 +31,11 @@ export const exportReportsToExcel = (data, headers, filename = "report") => {
   const rows = data.map((item) => {
     return headers.map(header => {
       const value = item[header.key] || item[header] || ""
-      return typeof value === 'object' ? JSON.stringify(value) : value
+      let val = typeof value === 'object' ? JSON.stringify(value) : value
+      if (typeof val === 'string') {
+        val = val.replace(/₹\s?/g, '')
+      }
+      return val
     })
   })
   
@@ -38,7 +45,7 @@ export const exportReportsToExcel = (data, headers, filename = "report") => {
     ...rows.map(row => row.join("\t"))
   ].join("\n")
   
-  const blob = new Blob([csvContent], { type: "application/vnd.ms-excel" })
+  const blob = new Blob(["\uFEFF" + csvContent], { type: "application/vnd.ms-excel;charset=utf-8;" })
   const link = document.createElement("a")
   const url = URL.createObjectURL(blob)
   link.setAttribute("href", url)
@@ -50,53 +57,35 @@ export const exportReportsToExcel = (data, headers, filename = "report") => {
 }
 
 export const exportReportsToPDF = (data, headers, filename = "report", title = "Report") => {
-  const headerRow = headers.map(h => typeof h === 'string' ? h : h.label)
+  const doc = new jsPDF("landscape");
   
-  let htmlContent = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>${title}</title>
-      <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 10px; }
-        th { background-color: #f2f2f2; font-weight: bold; }
-        tr:nth-child(even) { background-color: #f9f9f9; }
-        h1 { text-align: center; }
-      </style>
-    </head>
-    <body>
-      <h1>${title}</h1>
-      <p>Generated on: ${new Date().toLocaleString()}</p>
-      <table>
-        <thead>
-          <tr>
-            ${headerRow.map(h => `<th>${h}</th>`).join("")}
-          </tr>
-        </thead>
-        <tbody>
-          ${data.map(item => {
-            const cells = headers.map(header => {
-              const value = item[header.key] || item[header] || ""
-              return `<td>${String(value)}</td>`
-            })
-            return `<tr>${cells.join("")}</tr>`
-          }).join("")}
-        </tbody>
-      </table>
-    </body>
-    </html>
-  `
+  doc.setFontSize(18);
+  doc.text(title, 14, 22);
   
-  const printWindow = window.open("", "_blank")
-  printWindow.document.write(htmlContent)
-  printWindow.document.close()
-  printWindow.focus()
-  setTimeout(() => {
-    printWindow.print()
-    printWindow.close()
-  }, 250)
+  doc.setFontSize(11);
+  doc.setTextColor(100);
+  doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+  
+  const headerRow = headers.map(h => typeof h === 'string' ? h : h.label);
+  const bodyRows = data.map(item => {
+    return headers.map(header => {
+      const value = item[header.key] || item[header] || "";
+      let val = typeof value === 'object' ? JSON.stringify(value) : String(value);
+      val = val.replace(/₹\s?/g, '');
+      return val;
+    });
+  });
+
+  autoTable(doc, {
+    startY: 35,
+    head: [headerRow],
+    body: bodyRows,
+    theme: 'grid',
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [41, 128, 185], textColor: 255 }
+  });
+
+  doc.save(`${filename}_${new Date().toISOString().split("T")[0]}.pdf`);
 }
 
 export const exportReportsToJSON = (data, filename = "report") => {
@@ -168,7 +157,7 @@ export const exportTransactionReportToExcel = (transactions, filename = "transac
     ...rows.map(row => row.join("\t"))
   ].join("\n")
   
-  const blob = new Blob([csvContent], { type: "application/vnd.ms-excel" })
+  const blob = new Blob(["\uFEFF" + csvContent], { type: "application/vnd.ms-excel;charset=utf-8;" })
   const link = document.createElement("a")
   const url = URL.createObjectURL(blob)
   link.setAttribute("href", url)
@@ -182,60 +171,40 @@ export const exportTransactionReportToExcel = (transactions, filename = "transac
 export const exportTransactionReportToPDF = (transactions, filename = "transaction_report") => {
   const headers = ["SI", "Order ID", "Restaurant", "Customer Name", "Total Item Amount", "Coupon By Admin", "Coupon By Restaurant", "Offer By Restaurant", "VAT/Tax", "Delivery Charge", "Platform Fee", "Order Amount"]
   
-  let htmlContent = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Transaction Report</title>
-      <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 8px; }
-        th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
-        th { background-color: #f2f2f2; font-weight: bold; }
-        tr:nth-child(even) { background-color: #f9f9f9; }
-        h1 { text-align: center; }
-      </style>
-    </head>
-    <body>
-      <h1>Transaction Report</h1>
-      <p>Generated on: ${new Date().toLocaleString()}</p>
-      <table>
-        <thead>
-          <tr>
-            ${headers.map(h => `<th>${h}</th>`).join("")}
-          </tr>
-        </thead>
-        <tbody>
-          ${transactions.map((transaction, index) => `
-            <tr>
-              <td>${index + 1}</td>
-              <td>${transaction.orderId}</td>
-              <td>${transaction.restaurant}</td>
-              <td>${transaction.customerName}</td>
-              <td>₹${transaction.totalItemAmount.toFixed(2)}</td>
-              <td>₹${(transaction.couponByAdmin || 0).toFixed(2)}</td>
-              <td>₹${(transaction.couponByRestaurant || 0).toFixed(2)}</td>
-              <td>₹${(transaction.offerByRestaurant || 0).toFixed(2)}</td>
-              <td>₹${transaction.vatTax.toFixed(2)}</td>
-              <td>₹${transaction.deliveryCharge.toFixed(2)}</td>
-              <td>₹${Number(transaction.platformFee || 0).toFixed(2)}</td>
-              <td>₹${transaction.orderAmount.toFixed(2)}</td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-    </body>
-    </html>
-  `
+  const doc = new jsPDF("landscape");
   
-  const printWindow = window.open("", "_blank")
-  printWindow.document.write(htmlContent)
-  printWindow.document.close()
-  printWindow.focus()
-  setTimeout(() => {
-    printWindow.print()
-    printWindow.close()
-  }, 250)
+  doc.setFontSize(18);
+  doc.text("Transaction Report", 14, 22);
+  
+  doc.setFontSize(11);
+  doc.setTextColor(100);
+  doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+  
+  const bodyRows = transactions.map((transaction, index) => [
+    index + 1,
+    transaction.orderId,
+    transaction.restaurant,
+    transaction.customerName,
+    transaction.totalItemAmount.toFixed(2),
+    (transaction.couponByAdmin || 0).toFixed(2),
+    (transaction.couponByRestaurant || 0).toFixed(2),
+    (transaction.offerByRestaurant || 0).toFixed(2),
+    transaction.vatTax.toFixed(2),
+    transaction.deliveryCharge.toFixed(2),
+    Number(transaction.platformFee || 0).toFixed(2),
+    transaction.orderAmount.toFixed(2)
+  ]);
+
+  autoTable(doc, {
+    startY: 35,
+    head: [headers],
+    body: bodyRows,
+    theme: 'grid',
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [41, 128, 185], textColor: 255 }
+  });
+
+  doc.save(`${filename}_${new Date().toISOString().split("T")[0]}.pdf`);
 }
 
 export const exportTransactionReportToJSON = (transactions, filename = "transaction_report") => {

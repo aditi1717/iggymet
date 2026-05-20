@@ -1333,8 +1333,14 @@ export const adminAPI = {
    * UI expects this to move order into "preparing" bucket.
    * Backend supports PATCH /food/restaurant/orders/:orderId/status with { orderStatus }.
    */
-  acceptOrder: (orderId, _prepTimeMins = null) =>
-    restaurantAPI.updateOrderStatus(orderId, { orderStatus: "preparing" }),
+  acceptOrder: (orderId, prepTimeMins = null) =>
+    restaurantAPI.updateOrderStatus(orderId, {
+      orderStatus: "preparing",
+      preparationTimeMinutes:
+        Number.isFinite(Number(prepTimeMins)) && Number(prepTimeMins) > 0
+          ? Math.round(Number(prepTimeMins))
+          : undefined,
+    }),
   /**
    * Reject/cancel order by restaurant.
    * Backend orderStatus enum: cancelled_by_restaurant.

@@ -360,10 +360,10 @@ export default function RestaurantCommission() {
           </div>
 
           <div className="mb-4 flex items-center gap-3">
-            <div className="relative flex-1 sm:flex-initial min-w-[250px]">
+            <div className="relative flex-1 sm:flex-initial min-w-[300px]">
               <input
                 type="text"
-                placeholder="Ex: Search by restaurant name or ID"
+                placeholder="Search by restaurant name or ID"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 pr-4 py-2.5 w-full text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400"
@@ -447,7 +447,7 @@ export default function RestaurantCommission() {
                               {commission.defaultCommission?.type === 'percentage' ? (
                                 <>{commission.defaultCommission.value}%</>
                               ) : (
-                                <>${commission.defaultCommission.value}</>
+                                <>₹{commission.defaultCommission.value}</>
                               )}
                             </span>
                           </td>
@@ -574,7 +574,7 @@ export default function RestaurantCommission() {
                     className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   >
                     <option value="percentage">Percentage (%)</option>
-                    <option value="amount">Fixed Amount (\u20B9)</option>
+                    <option value="amount">Fixed Amount</option>
                   </select>
                 </div>
                 <div>
