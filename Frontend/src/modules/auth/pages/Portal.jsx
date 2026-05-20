@@ -105,7 +105,7 @@ export default function SuperAppPortal() {
             transition={{ duration: 4, repeat: Infinity }}
             className="w-6 h-6 bg-gradient-to-br from-[#CB202D] to-red-700 rounded-lg flex items-center justify-center shadow-lg"
           >
-             <span className="text-white text-[10px] font-black italic">A</span>
+             <span className="text-white text-[10px] font-black italic">I</span>
           </motion.div>
           <span className="text-[10px] font-black tracking-[0.2em] text-[#BABCBD] uppercase">Everything you need, delivered</span>
         </motion.div>
@@ -117,7 +117,7 @@ export default function SuperAppPortal() {
           className="text-5xl md:text-7xl font-black text-[#1A202C] tracking-tight leading-none"
         >
           Welcome to <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#CB202D] via-rose-500 to-[#CB202D] bg-[length:200%_auto] animate-gradient block mt-2">AppZeto</span>
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#CB202D] via-rose-500 to-[#CB202D] bg-[length:200%_auto] animate-gradient block mt-2">Iggymet</span>
         </motion.h1>
 
         <motion.p 
@@ -243,7 +243,7 @@ export default function SuperAppPortal() {
       <div className="mt-16 flex flex-col items-center gap-3 opacity-50">
          <div className="flex items-center gap-1.5 grayscale">
             <ShieldCheck className="w-4 h-4" />
-            <span className="text-[10px] font-black uppercase tracking-widest">Secure by AppZeto</span>
+            <span className="text-[10px] font-black uppercase tracking-widest">Secure by Iggymet</span>
          </div>
       </div>
     </div>

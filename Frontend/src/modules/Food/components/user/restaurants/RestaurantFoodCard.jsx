@@ -183,9 +183,9 @@ export default function RestaurantFoodCard({
                 }}
                 disabled={disabled}
                 className={disabled ? "text-gray-400 cursor-not-allowed" : ""}
-                style={disabled ? undefined : { color: BRAND_THEME.colors.brand.primary }}
+                style={disabled ? undefined : { color: "#ffffff" }}
               >
-                <Minus size={14} />
+                <Minus size={14} className="stroke-[3px]" />
               </button>
               <span className={`mx-2 text-sm ${disabled ? "text-gray-400" : ""}`}>{quantity}</span>
               <button
