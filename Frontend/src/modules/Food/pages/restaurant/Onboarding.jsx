@@ -191,7 +191,10 @@ const isUploadableFile = (value) => {
   )
 }
 
-const normalizePhoneDigits = (value) => String(value || "").replace(/\D/g, "").slice(-15)
+const normalizePhoneDigits = (value) => {
+  const digits = String(value || "").replace(/\D/g, "")
+  return digits.length >= 10 ? digits.slice(-10) : digits
+}
 
 const isValidOwnerEmail = (value) => {
   const email = String(value || "").trim().toLowerCase()
@@ -309,6 +312,7 @@ const saveOnboardingToLocalStorage = (step1, step2, step3, step4, currentStep, p
       timestamp: Date.now(),
     }
     localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify(dataToSave))
+    saveDraftToIndexedDB(dataToSave)
   } catch (error) {
     debugError("Failed to save onboarding data to localStorage:", error)
   }
@@ -330,8 +334,118 @@ const clearOnboardingFromLocalStorage = () => {
   try {
     localStorage.removeItem(ONBOARDING_STORAGE_KEY)
     clearAllFilesFromDB()
+    clearSessionBackupFromIndexedDB()
   } catch (error) {
     debugError("Failed to clear onboarding data from localStorage:", error)
+  }
+}
+
+const saveDraftToIndexedDB = async (data) => {
+  try {
+    const db = await openOnboardingFilesDB()
+    const tx = db.transaction(ONBOARDING_FILES_STORE, "readwrite")
+    tx.objectStore(ONBOARDING_FILES_STORE).put(data, "onboarding_draft_json")
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => reject(tx.error || new Error("Draft save error"))
+    })
+  } catch (err) {
+    debugError("Failed to save draft to IndexedDB:", err)
+  }
+}
+
+const loadDraftFromIndexedDB = async () => {
+  try {
+    const db = await openOnboardingFilesDB()
+    const tx = db.transaction(ONBOARDING_FILES_STORE, "readonly")
+    const request = tx.objectStore(ONBOARDING_FILES_STORE).get("onboarding_draft_json")
+    return new Promise((resolve) => {
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => resolve(null)
+    })
+  } catch {
+    return null
+  }
+}
+
+const saveSessionBackupToIndexedDB = async () => {
+  try {
+    if (typeof localStorage === "undefined") return
+    const db = await openOnboardingFilesDB()
+    const tx = db.transaction(ONBOARDING_FILES_STORE, "readwrite")
+    const store = tx.objectStore(ONBOARDING_FILES_STORE)
+
+    const keys = [
+      "restaurant_accessToken",
+      "restaurant_refreshToken",
+      "restaurant_user",
+      "restaurant_pendingPhone"
+    ]
+    for (const key of keys) {
+      const val = localStorage.getItem(key)
+      if (val) {
+        store.put(val, `backup_${key}`)
+      }
+    }
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => reject(tx.error || new Error("Session backup error"))
+    })
+  } catch (err) {
+    debugError("Failed to save session backup to IndexedDB:", err)
+  }
+}
+
+const restoreSessionFromIndexedDB = async () => {
+  try {
+    if (typeof localStorage === "undefined") return false
+    const db = await openOnboardingFilesDB()
+    const tx = db.transaction(ONBOARDING_FILES_STORE, "readonly")
+    const store = tx.objectStore(ONBOARDING_FILES_STORE)
+
+    const keys = [
+      "restaurant_accessToken",
+      "restaurant_refreshToken",
+      "restaurant_user",
+      "restaurant_pendingPhone"
+    ]
+    let restoredAny = false
+    for (const key of keys) {
+      if (!localStorage.getItem(key)) {
+        const val = await new Promise((resolve) => {
+          const req = store.get(`backup_${key}`)
+          req.onsuccess = () => resolve(req.result)
+          req.onerror = () => resolve(null)
+        })
+        if (val) {
+          localStorage.setItem(key, val)
+          restoredAny = true
+        }
+      }
+    }
+    return restoredAny
+  } catch (err) {
+    debugError("Failed to restore session from IndexedDB:", err)
+    return false
+  }
+}
+
+const clearSessionBackupFromIndexedDB = async () => {
+  try {
+    const db = await openOnboardingFilesDB()
+    const tx = db.transaction(ONBOARDING_FILES_STORE, "readwrite")
+    const store = tx.objectStore(ONBOARDING_FILES_STORE)
+    store.delete("backup_restaurant_accessToken")
+    store.delete("backup_restaurant_refreshToken")
+    store.delete("backup_restaurant_user")
+    store.delete("backup_restaurant_pendingPhone")
+    store.delete("onboarding_draft_json")
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => reject(tx.error || new Error("Session clear error"))
+    })
+  } catch (err) {
+    debugError("Failed to clear session backup from IndexedDB:", err)
   }
 }
 
@@ -634,114 +748,137 @@ export default function RestaurantOnboarding() {
   }
 
 
-  // Load from localStorage on mount and check URL parameter
+  // Load from localStorage/IndexedDB on mount and check URL parameter
   useEffect(() => {
-    const verifiedPhone = getVerifiedPhoneFromStoredRestaurant()
-    setVerifiedPhoneNumber(verifiedPhone)
+    let active = true
 
-    // Check if step is specified in URL (from OTP login redirect)
-    const stepParam = searchParams.get("step")
-    if (stepParam) {
-      const stepNum = parseInt(stepParam, 10)
-      if (stepNum >= 1 && stepNum <= 3) {
-        setStep(stepNum)
-      }
-    }
+    const initializeData = async () => {
+      // 1. Try to restore session tokens first
+      await restoreSessionFromIndexedDB()
 
-    const localData = loadOnboardingFromLocalStorage()
-    const savedPhone = normalizePhoneDigits(localData?.phoneContext || localData?.step1?.ownerPhone || "")
-    const currentPhone = normalizePhoneDigits(verifiedPhone)
-    const hasPhoneMismatch = Boolean(savedPhone && currentPhone && savedPhone !== currentPhone)
-    if (hasPhoneMismatch) {
-      clearOnboardingFromLocalStorage()
-      clearOnboardingFileCache()
-    }
+      const verifiedPhone = getVerifiedPhoneFromStoredRestaurant()
+      if (!active) return
+      setVerifiedPhoneNumber(verifiedPhone)
 
-    if (localData && !hasPhoneMismatch) {
-      if (localData.step1) {
-        setStep1({
-          restaurantName: localData.step1.restaurantName || "",
-          pureVegRestaurant:
-            typeof localData.step1.pureVegRestaurant === "boolean"
-              ? localData.step1.pureVegRestaurant
-              : null,
-          ownerName: localData.step1.ownerName || "",
-          ownerEmail: localData.step1.ownerEmail || "",
-          ownerPhone: localData.step1.ownerPhone || "",
-          primaryContactNumber: localData.step1.primaryContactNumber || "",
-          zoneId: normalizeZoneIdValue(localData.step1.zoneId),
-          location: {
-            formattedAddress: localData.step1.location?.formattedAddress || "",
-            addressLine1: localData.step1.location?.addressLine1 || "",
-            addressLine2: localData.step1.location?.addressLine2 || "",
-            area: localData.step1.location?.area || "",
-            city: localData.step1.location?.city || "",
-            state: localData.step1.location?.state || "",
-            pincode: localData.step1.location?.pincode || "",
-            landmark: localData.step1.location?.landmark || "",
-            latitude: localData.step1.location?.latitude ?? "",
-            longitude: localData.step1.location?.longitude ?? "",
-          },
-        })
+      // Check if step is specified in URL (from OTP login redirect)
+      const stepParam = searchParams.get("step")
+      if (stepParam) {
+        const stepNum = parseInt(stepParam, 10)
+        if (stepNum >= 1 && stepNum <= 3) {
+          setStep(stepNum)
+        }
       }
-      if (localData.step2) {
-        const restoredMenuImages = (localData.step2.menuImages || []).filter(
-          (img) => img?.url || (typeof img === "string" && img.startsWith("http"))
-        )
-        const cachedMenuImages = onboardingFileCache.step2.menuImages || []
-        const restoredProfileImage =
-          localData.step2.profileImage?.url ||
-            (typeof localData.step2.profileImage === "string" &&
-              localData.step2.profileImage.startsWith("http"))
-            ? localData.step2.profileImage
-            : null
-        const cachedProfileImage = onboardingFileCache.step2.profileImage || null
 
-        setStep2({
-          menuImages: getUniqueImages(restoredMenuImages, cachedMenuImages),
-          profileImage: cachedProfileImage || restoredProfileImage,
-          cuisines: localData.step2.cuisines || [],
-          openingTime: normalizeTimeValue(localData.step2.openingTime),
-          closingTime: normalizeTimeValue(localData.step2.closingTime),
-          openDays: localData.step2.openDays || [],
-        })
+      let localData = loadOnboardingFromLocalStorage()
+      if (!localData && active) {
+        localData = await loadDraftFromIndexedDB()
+        if (localData) {
+          debugLog("Restored onboarding draft from IndexedDB backup")
+          try {
+            localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify(localData))
+          } catch (_) {}
+        }
       }
-      if (localData.step3) {
-        setStep3({
-          panNumber: localData.step3.panNumber || "",
-          nameOnPan: localData.step3.nameOnPan || "",
-          panImage: onboardingFileCache.step3.panImage || localData.step3.panImage || null,
-          gstRegistered: localData.step3.gstRegistered || false,
-          gstNumber: localData.step3.gstNumber || "",
-          gstLegalName: localData.step3.gstLegalName || "",
-          gstAddress: localData.step3.gstAddress || "",
-          gstImage: onboardingFileCache.step3.gstImage || localData.step3.gstImage || null,
-          fssaiNumber: localData.step3.fssaiNumber || "",
-          fssaiExpiry: localData.step3.fssaiExpiry || "",
-          fssaiImage: onboardingFileCache.step3.fssaiImage || localData.step3.fssaiImage || null,
-          accountNumber: localData.step3.accountNumber || "",
-          confirmAccountNumber: localData.step3.confirmAccountNumber || "",
-          ifscCode: (localData.step3.ifscCode || "").toUpperCase(),
-          accountHolderName: localData.step3.accountHolderName || "",
-          accountType: normalizeAccountTypeValue(localData.step3.accountType || ""),
-        })
+
+      const savedPhone = normalizePhoneDigits(localData?.phoneContext || localData?.step1?.ownerPhone || "")
+      const currentPhone = normalizePhoneDigits(verifiedPhone)
+      const hasPhoneMismatch = Boolean(savedPhone && currentPhone && savedPhone !== currentPhone)
+
+      if (hasPhoneMismatch && active) {
+        clearOnboardingFromLocalStorage()
+        clearOnboardingFileCache()
+        localData = null
       }
-      if (localData.step4) {
-        setStep4({
-          estimatedDeliveryTime: localData.step4.estimatedDeliveryTime || "",
-          featuredDish: localData.step4.featuredDish || "",
-          featuredPrice: localData.step4.featuredPrice || "",
-          offer: localData.step4.offer || "",
-        })
+
+      if (localData && active) {
+        if (localData.step1) {
+          setStep1({
+            restaurantName: localData.step1.restaurantName || "",
+            pureVegRestaurant:
+              typeof localData.step1.pureVegRestaurant === "boolean"
+                ? localData.step1.pureVegRestaurant
+                : null,
+            ownerName: localData.step1.ownerName || "",
+            ownerEmail: localData.step1.ownerEmail || "",
+            ownerPhone: localData.step1.ownerPhone || "",
+            primaryContactNumber: localData.step1.primaryContactNumber || "",
+            zoneId: normalizeZoneIdValue(localData.step1.zoneId),
+            location: {
+              formattedAddress: localData.step1.location?.formattedAddress || "",
+              addressLine1: localData.step1.location?.addressLine1 || "",
+              addressLine2: localData.step1.location?.addressLine2 || "",
+              area: localData.step1.location?.area || "",
+              city: localData.step1.location?.city || "",
+              state: localData.step1.location?.state || "",
+              pincode: localData.step1.location?.pincode || "",
+              landmark: localData.step1.location?.landmark || "",
+              latitude: localData.step1.location?.latitude ?? "",
+              longitude: localData.step1.location?.longitude ?? "",
+            },
+          })
+        }
+        if (localData.step2) {
+          const restoredMenuImages = (localData.step2.menuImages || []).filter(
+            (img) => img?.url || (typeof img === "string" && img.startsWith("http"))
+          )
+          const cachedMenuImages = onboardingFileCache.step2.menuImages || []
+          const restoredProfileImage =
+            localData.step2.profileImage?.url ||
+              (typeof localData.step2.profileImage === "string" &&
+                localData.step2.profileImage.startsWith("http"))
+              ? localData.step2.profileImage
+              : null
+          const cachedProfileImage = onboardingFileCache.step2.profileImage || null
+
+          setStep2({
+            menuImages: getUniqueImages(restoredMenuImages, cachedMenuImages),
+            profileImage: cachedProfileImage || restoredProfileImage,
+            cuisines: localData.step2.cuisines || [],
+            openingTime: normalizeTimeValue(localData.step2.openingTime),
+            closingTime: normalizeTimeValue(localData.step2.closingTime),
+            openDays: localData.step2.openDays || [],
+          })
+        }
+        if (localData.step3) {
+          setStep3({
+            panNumber: localData.step3.panNumber || "",
+            nameOnPan: localData.step3.nameOnPan || "",
+            panImage: onboardingFileCache.step3.panImage || localData.step3.panImage || null,
+            gstRegistered: localData.step3.gstRegistered || false,
+            gstNumber: localData.step3.gstNumber || "",
+            gstLegalName: localData.step3.gstLegalName || "",
+            gstAddress: localData.step3.gstAddress || "",
+            gstImage: onboardingFileCache.step3.gstImage || localData.step3.gstImage || null,
+            fssaiNumber: localData.step3.fssaiNumber || "",
+            fssaiExpiry: localData.step3.fssaiExpiry || "",
+            fssaiImage: onboardingFileCache.step3.fssaiImage || localData.step3.fssaiImage || null,
+            accountNumber: localData.step3.accountNumber || "",
+            confirmAccountNumber: localData.step3.confirmAccountNumber || "",
+            ifscCode: (localData.step3.ifscCode || "").toUpperCase(),
+            accountHolderName: localData.step3.accountHolderName || "",
+            accountType: normalizeAccountTypeValue(localData.step3.accountType || ""),
+          })
+        }
+        if (localData.step4) {
+          setStep4({
+            estimatedDeliveryTime: localData.step4.estimatedDeliveryTime || "",
+            featuredDish: localData.step4.featuredDish || "",
+            featuredPrice: localData.step4.featuredPrice || "",
+            offer: localData.step4.offer || "",
+          })
+        }
+        // Only set step from localStorage if URL doesn't have a step parameter
+        if (localData.currentStep && !stepParam) {
+          setStep(localData.currentStep)
+        }
       }
-      // Only set step from localStorage if URL doesn't have a step parameter
-      if (localData.currentStep && !stepParam) {
-        setStep(localData.currentStep)
-      }
-    }
-    const restoreFiles = async () => {
+
+      // Restore files from IndexedDB
       try {
-        if (hasPhoneMismatch) return
+        if (hasPhoneMismatch) {
+          setHasRestored(true)
+          return
+        }
         const [profileImg, panImg, gstImg, fssaiImg] = await Promise.all([
           getFileFromDB("profileImage"),
           getFileFromDB("panImage"),
@@ -750,6 +887,8 @@ export default function RestaurantOnboarding() {
         ])
         const menuFilePromises = Array.from({ length: MAX_MENU_FILES }, (_, i) => getFileFromDB(`menuImage_${i}`))
         const menuFilesFromDB = (await Promise.all(menuFilePromises)).filter(Boolean)
+
+        if (!active) return
 
         if (profileImg) {
           setStep2(prev => ({ ...prev, profileImage: profileImg }))
@@ -774,12 +913,20 @@ export default function RestaurantOnboarding() {
           setStep3(prev => ({ ...prev, fssaiImage: fssaiImg }))
           onboardingFileCache.step3.fssaiImage = fssaiImg
         }
+      } catch (err) {
+        debugError("Failed to restore files from DB:", err)
       } finally {
-        setHasRestored(true)
+        if (active) {
+          setHasRestored(true)
+        }
       }
     }
 
-    restoreFiles()
+    initializeData()
+
+    return () => {
+      active = false
+    }
   }, [searchParams])
 
   useEffect(() => {
@@ -812,6 +959,7 @@ export default function RestaurantOnboarding() {
   useEffect(() => {
     if (hasRestored) {
       saveOnboardingToLocalStorage(step1, step2, step3, step4, step, verifiedPhoneNumber)
+      saveSessionBackupToIndexedDB()
     }
   }, [step1, step2, step3, step4, step, hasRestored, verifiedPhoneNumber])
 

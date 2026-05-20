@@ -193,7 +193,7 @@ export const openGallery = async ({ onSelectFile, fileNamePrefix = "gallery-phot
       quality: quality,
     }
 
-    const handlerNames = ["openGallery", "pickImage", "openCamera"]
+    const handlerNames = ["openGallery", "pickImage"]
     let result = null
     for (const handlerName of handlerNames) {
       try {

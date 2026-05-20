@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import ms from "ms";
 import { FoodUser } from "../users/user.model.js";
 import { FoodAdmin } from "../admin/admin.model.js";
@@ -8,7 +9,7 @@ import { FoodDeliveryPartner } from "../../modules/food/delivery/models/delivery
 import { FoodReferralSettings } from "../../modules/food/admin/models/referralSettings.model.js";
 import { FoodReferralLog } from "../../modules/food/admin/models/referralLog.model.js";
 import { createOrUpdateOtp, verifyOtp } from "../otp/otp.service.js";
-import { signAccessToken, signRefreshToken } from "./token.util.js";
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from "./token.util.js";
 import { FoodRefreshToken } from "../refreshTokens/refreshToken.model.js";
 import { ValidationError, AuthError } from "./errors.js";
 import { config } from "../../config/env.js";
@@ -436,12 +437,23 @@ export const logout = async (refreshToken, fcmToken, platform) => {
     throw new ValidationError("Refresh token is required");
   }
 
-  // 1. Find the user ID from the refresh token and clear all their FCM tokens
+  // 1. Find the user ID from the refresh token or decode it
   const storedToken = await FoodRefreshToken.findOne({ token: refreshToken }).lean();
-  if (storedToken && storedToken.userId) {
-    const userId = storedToken.userId;
+  let userId = storedToken?.userId;
+  if (!userId) {
+    try {
+      const decoded = verifyRefreshToken(refreshToken);
+      userId = decoded?.userId;
+    } catch (_) {
+      try {
+        const decoded = jwt.decode(refreshToken);
+        userId = decoded?.userId;
+      } catch (_) {}
+    }
+  }
+
+  if (userId) {
     console.log(`[FCM-Logout] Clearing ALL FCM tokens for userId=${userId} upon logout`);
-    
     const models = [FoodUser, FoodRestaurant, FoodDeliveryPartner, FoodAdmin];
     try {
       await Promise.all(
@@ -456,13 +468,13 @@ export const logout = async (refreshToken, fcmToken, platform) => {
     } catch (err) {
       logger.warn({ err }, "Failed to clear all FCM tokens for user during logout");
     }
-  } else if (fcmToken) {
-    // Fallback: If refresh token not found but fcmToken is provided, 
-    // remove that specific token from all collections just in case
-    console.log(`[FCM-Logout] Refresh token not found, falling back to removing specific token...`);
+  }
+
+  // 2. Also, if a specific fcmToken is provided, pull it from all collections just in case
+  if (fcmToken) {
+    console.log(`[FCM-Logout] Specific fcmToken provided, removing from all collections...`);
     const field = platform === "mobile" ? "fcmTokenMobile" : "fcmTokens";
     const models = [FoodUser, FoodRestaurant, FoodDeliveryPartner, FoodAdmin];
-    
     try {
       await Promise.all(
         models.map((model) =>
@@ -472,13 +484,13 @@ export const logout = async (refreshToken, fcmToken, platform) => {
           ),
         ),
       );
-      console.log("[FCM-Logout] Token removed from all collections successfully (fallback)");
+      console.log("[FCM-Logout] Specific FCM token removed from all collections successfully");
     } catch (err) {
-      logger.warn({ err }, "Failed to remove specific FCM token during fallback logout");
+      logger.warn({ err }, "Failed to remove specific FCM token during logout");
     }
   }
 
-  // 2. Invalidate the refresh token (standard logout procedure)
+  // 3. Invalidate the refresh token (standard logout procedure)
   const deleted = await FoodRefreshToken.deleteOne({ token: refreshToken });
   return { invalidated: deleted.deletedCount > 0 };
 };
