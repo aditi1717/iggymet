@@ -667,8 +667,22 @@ export const updateRestaurantProfile = async (restaurantId, body = {}, files = {
         }
     }
 
+    const hasFlatLocationFields = [
+        'formattedAddress',
+        'addressLine1',
+        'addressLine2',
+        'area',
+        'city',
+        'state',
+        'pincode',
+        'landmark',
+        'latitude',
+        'longitude'
+    ].some((field) => body[field] !== undefined);
+
     const requiresReapproval = () => (
         body.location !== undefined ||
+        hasFlatLocationFields ||
         body.zoneId !== undefined ||
         body.fssaiNumber !== undefined ||
         body.fssaiExpiry !== undefined ||
@@ -722,18 +736,32 @@ export const updateRestaurantProfile = async (restaurantId, body = {}, files = {
     }
 
     if (body.cuisines !== undefined) {
-        if (!Array.isArray(body.cuisines)) {
-            throw new ValidationError('Cuisines must be an array of strings');
-        }
-        const cuisines = body.cuisines
+        const cuisineValues = Array.isArray(body.cuisines)
+            ? body.cuisines
+            : String(body.cuisines || '').split(',');
+        const cuisines = cuisineValues
             .map((c) => String(c || '').trim())
             .filter(Boolean)
             .slice(0, 50);
         update.cuisines = cuisines;
     }
 
-    if (body.location !== undefined) {
-        const loc = body.location && typeof body.location === 'object' ? body.location : null;
+    if (body.location !== undefined || hasFlatLocationFields) {
+        const loc = body.location && typeof body.location === 'object'
+            ? body.location
+            : {
+                formattedAddress: body.formattedAddress,
+                address: body.formattedAddress,
+                addressLine1: body.addressLine1,
+                addressLine2: body.addressLine2,
+                area: body.area,
+                city: body.city,
+                state: body.state,
+                pincode: body.pincode,
+                landmark: body.landmark,
+                latitude: body.latitude,
+                longitude: body.longitude
+            };
         if (!loc) {
             throw new ValidationError('Location must be an object');
         }

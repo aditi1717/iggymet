@@ -718,6 +718,7 @@ export default function RestaurantOnboarding() {
     offer: "",
   })
   const previewUrlCacheRef = useRef(new Map())
+  const restoredDraftRef = useRef(false)
   const locationSearchInputRef = useRef(null)
   const placesAutocompleteRef = useRef(null)
   const mapsScriptLoadedRef = useRef(false)
@@ -745,6 +746,31 @@ export default function RestaurantOnboarding() {
     }
 
     return null
+  }
+
+  const getPersistedImageUrl = (value) => {
+    if (!value) return ""
+    if (typeof value === "string" && value.startsWith("http")) return value
+    if (value?.url && typeof value.url === "string" && value.url.startsWith("http")) return value.url
+    return ""
+  }
+
+  const appendImageFileOrUrl = (formData, fieldName, value, { required = false, label = "Image" } = {}) => {
+    if (isUploadableFile(value)) {
+      formData.append(fieldName, value)
+      return true
+    }
+
+    const url = getPersistedImageUrl(value)
+    if (url) {
+      formData.append(fieldName, url)
+      return true
+    }
+
+    if (required) {
+      throw new Error(`${label} is required`)
+    }
+    return false
   }
 
 
@@ -791,6 +817,7 @@ export default function RestaurantOnboarding() {
       }
 
       if (localData && active) {
+        restoredDraftRef.current = true
         if (localData.step1) {
           setStep1({
             restaurantName: localData.step1.restaurantName || "",
@@ -1276,6 +1303,8 @@ export default function RestaurantOnboarding() {
   }, [step])
 
   useEffect(() => {
+    if (!hasRestored) return
+
     const fetchData = async () => {
       try {
         setLoading(true)
@@ -1286,26 +1315,29 @@ export default function RestaurantOnboarding() {
         if (data) {
           setIsEditing(false)
           setIsRegistered(true)
+          const hasLocalDraft = restoredDraftRef.current
           // Map Step 1
           setStep1((prev) => ({
-            restaurantName: data.name || data.restaurantName || "",
-            pureVegRestaurant: typeof data.pureVegRestaurant === "boolean" ? data.pureVegRestaurant : null,
-            ownerName: data.ownerName || "",
-            ownerEmail: data.ownerEmail || "",
-            ownerPhone: data.ownerPhone || "",
+            restaurantName: hasLocalDraft ? (prev.restaurantName || data.name || data.restaurantName || "") : (data.name || data.restaurantName || ""),
+            pureVegRestaurant: hasLocalDraft
+              ? (typeof prev.pureVegRestaurant === "boolean" ? prev.pureVegRestaurant : (typeof data.pureVegRestaurant === "boolean" ? data.pureVegRestaurant : null))
+              : (typeof data.pureVegRestaurant === "boolean" ? data.pureVegRestaurant : null),
+            ownerName: hasLocalDraft ? (prev.ownerName || data.ownerName || "") : (data.ownerName || ""),
+            ownerEmail: hasLocalDraft ? (prev.ownerEmail || data.ownerEmail || "") : (data.ownerEmail || ""),
+            ownerPhone: hasLocalDraft ? (prev.ownerPhone || data.ownerPhone || "") : (data.ownerPhone || ""),
             zoneId: normalizeZoneIdValue(data.zoneId) || prev.zoneId || "",
-            primaryContactNumber: data.primaryContactNumber || "",
+            primaryContactNumber: hasLocalDraft ? (prev.primaryContactNumber || data.primaryContactNumber || "") : (data.primaryContactNumber || ""),
             location: {
-              formattedAddress: data.location?.formattedAddress || data.location?.address || "",
-              addressLine1: data.location?.addressLine1 || "",
-              addressLine2: data.location?.addressLine2 || "",
-              area: data.location?.area || "",
-              city: data.location?.city || "",
-              state: data.location?.state || "",
-              pincode: data.location?.pincode || "",
-              landmark: data.location?.landmark || "",
-              latitude: data.location?.latitude ?? "",
-              longitude: data.location?.longitude ?? "",
+              formattedAddress: hasLocalDraft ? (prev.location?.formattedAddress || data.location?.formattedAddress || data.location?.address || "") : (data.location?.formattedAddress || data.location?.address || ""),
+              addressLine1: hasLocalDraft ? (prev.location?.addressLine1 || data.location?.addressLine1 || "") : (data.location?.addressLine1 || ""),
+              addressLine2: hasLocalDraft ? (prev.location?.addressLine2 || data.location?.addressLine2 || "") : (data.location?.addressLine2 || ""),
+              area: hasLocalDraft ? (prev.location?.area || data.location?.area || "") : (data.location?.area || ""),
+              city: hasLocalDraft ? (prev.location?.city || data.location?.city || "") : (data.location?.city || ""),
+              state: hasLocalDraft ? (prev.location?.state || data.location?.state || "") : (data.location?.state || ""),
+              pincode: hasLocalDraft ? (prev.location?.pincode || data.location?.pincode || "") : (data.location?.pincode || ""),
+              landmark: hasLocalDraft ? (prev.location?.landmark || data.location?.landmark || "") : (data.location?.landmark || ""),
+              latitude: hasLocalDraft ? (prev.location?.latitude ?? data.location?.latitude ?? "") : (data.location?.latitude ?? ""),
+              longitude: hasLocalDraft ? (prev.location?.longitude ?? data.location?.longitude ?? "") : (data.location?.longitude ?? ""),
             },
           }))
 
@@ -1359,7 +1391,9 @@ export default function RestaurantOnboarding() {
           const stepParam = searchParams.get("step")
           if (!stepParam) {
             // If already registered/pending, stay on step 1 for editing
-            if (data.status === "approved" || data.status === "pending") {
+            if (hasLocalDraft) {
+              // Keep the step restored from localStorage/IndexedDB.
+            } else if (data.status === "approved" || data.status === "pending") {
               setStep(1)
             } else {
               const stepToShow = determineStepToShow({ step1: data, step2: data, step3: data, step4: data })
@@ -1382,7 +1416,7 @@ export default function RestaurantOnboarding() {
     }
 
     fetchData()
-  }, [searchParams])
+  }, [searchParams, hasRestored])
 
   const handleUpload = async (file, folder) => {
     try {
@@ -1706,42 +1740,48 @@ export default function RestaurantOnboarding() {
         formData.append("closingTime", normalizeTimeValue(step2.closingTime) || "")
         formData.append("openDays", (step2.openDays || []).join(","))
 
-        const menuFiles = (step2.menuImages || []).filter((f) => isUploadableFile(f))
-        if (menuFiles.length === 0) {
+        const validMenuImages = (step2.menuImages || []).filter((img) => isUploadableFile(img) || getPersistedImageUrl(img))
+        if (validMenuImages.length === 0) {
           throw new Error("At least one menu image must be uploaded")
         }
-        menuFiles.forEach((file) => formData.append("menuImages", file))
+        validMenuImages.forEach((image) => {
+          if (isUploadableFile(image)) {
+            formData.append("menuImages", image)
+          } else {
+            formData.append("menuImages", getPersistedImageUrl(image))
+          }
+        })
 
-        if (!isUploadableFile(step2.profileImage)) {
-          throw new Error("Restaurant profile image is required")
-        }
-        formData.append("profileImage", step2.profileImage)
+        appendImageFileOrUrl(formData, "profileImage", step2.profileImage, {
+          required: true,
+          label: "Restaurant profile image",
+        })
 
         // Step 3
         formData.append("panNumber", step3.panNumber || "")
         formData.append("nameOnPan", step3.nameOnPan || "")
-        if (!isUploadableFile(step3.panImage)) {
-          throw new Error("PAN image is required")
-        }
-        formData.append("panImage", step3.panImage)
+        appendImageFileOrUrl(formData, "panImage", step3.panImage, {
+          required: true,
+          label: "PAN image",
+        })
 
         formData.append("gstRegistered", step3.gstRegistered ? "true" : "false")
         if (step3.gstRegistered) {
           formData.append("gstNumber", step3.gstNumber || "")
           formData.append("gstLegalName", step3.gstLegalName || "")
           formData.append("gstAddress", step3.gstAddress || "")
-          if (!isUploadableFile(step3.gstImage)) {
-            throw new Error("GST image is required when GST registered")
-          }
-          formData.append("gstImage", step3.gstImage)
+          appendImageFileOrUrl(formData, "gstImage", step3.gstImage, {
+            required: true,
+            label: "GST image",
+          })
         }
 
         formData.append("fssaiNumber", step3.fssaiNumber || "")
         formData.append("fssaiExpiry", step3.fssaiExpiry || "")
-        if (!isUploadableFile(step3.fssaiImage)) {
-          throw new Error("FSSAI image is required")
-        }
-        formData.append("fssaiImage", step3.fssaiImage)
+        appendImageFileOrUrl(formData, "fssaiImage", step3.fssaiImage, {
+          required: true,
+          label: "FSSAI image",
+        })
 
         formData.append("accountNumber", step3.accountNumber || "")
         formData.append("ifscCode", (step3.ifscCode || "").toUpperCase())
