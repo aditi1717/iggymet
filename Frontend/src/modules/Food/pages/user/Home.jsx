@@ -1545,7 +1545,7 @@ export default function Home() {
         }
 
         debugLog("Fetching restaurants with params:", params);
-        const responsePromise = restaurantAPI.getRestaurants(params);
+        const responsePromise = restaurantAPI.getRestaurants(params, { noCache: true });
         homeRestaurantsInFlightCache.set(cacheKey, responsePromise);
         const response = await responsePromise;
         debugLog("Restaurants API response:", response.data);

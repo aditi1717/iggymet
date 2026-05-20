@@ -1538,7 +1538,7 @@ const getPublicRestaurantsOnce = (params = {}, config = {}) => {
   }
   if (noCache) {
     return apiClient.get("/food/restaurant/restaurants", {
-      params: { limit: defaultLimit, ...normalizedParams },
+      params: { limit: defaultLimit, ...normalizedParams, _ts: Date.now() },
       ...axiosConfig,
     });
   }

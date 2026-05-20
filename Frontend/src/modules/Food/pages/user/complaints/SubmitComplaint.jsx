@@ -155,27 +155,27 @@ export default function SubmitComplaint() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-lg bg-white rounded-3xl shadow-xl border border-gray-100 p-6 sm:p-8 space-y-6">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0a0a0a] flex items-center justify-center px-4 py-10">
+      <div className="w-full max-w-lg bg-white dark:bg-[#1a1a1a] rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800 p-6 sm:p-8 space-y-6">
         <div className="flex items-start gap-3">
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="mt-1 h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-700"
+            className="mt-1 h-10 w-10 rounded-full bg-slate-100 dark:bg-gray-800 flex items-center justify-center text-slate-700 dark:text-gray-200"
             aria-label="Go back"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div className="space-y-1">
-            <h1 className="text-2xl font-semibold text-gray-900">Restaurant Complaint</h1>
-            <p className="text-sm text-gray-600">
+            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Restaurant Complaint</h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               {isReadOnly ? "Complaint already submitted for this order." : "Tell us what went wrong with this order."}
             </p>
           </div>
         </div>
 
         {isReadOnly && (
-          <div className="rounded-2xl border border-green-200 bg-green-50 p-4 flex gap-3 text-green-800">
+          <div className="rounded-2xl border border-green-200 dark:border-green-900/50 bg-green-50 dark:bg-green-950/30 p-4 flex gap-3 text-green-800 dark:text-green-300">
             <CheckCircle2 className="h-5 w-5 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-semibold">Already submitted</p>
@@ -186,18 +186,18 @@ export default function SubmitComplaint() {
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Order ID</label>
-            <Input value={readableOrderId || form.orderId} readOnly className="bg-slate-50" />
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Order ID</label>
+            <Input value={readableOrderId || form.orderId} readOnly className="bg-slate-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700" />
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Complaint Type</label>
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Complaint Type</label>
             <Select
               value={form.subject}
               onValueChange={(value) => handleChange("subject", value)}
               disabled={isReadOnly}
             >
-              <SelectTrigger className="bg-white">
+              <SelectTrigger className="bg-white dark:bg-gray-800 dark:text-white dark:border-gray-700">
                 <SelectValue placeholder="Select complaint type" />
               </SelectTrigger>
               <SelectContent>
@@ -211,20 +211,21 @@ export default function SubmitComplaint() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Description</label>
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Description</label>
             <Textarea
               rows={5}
               value={form.description}
               readOnly={isReadOnly}
               onChange={(e) => handleChange("description", e.target.value)}
               placeholder="Describe the issue in detail"
+              className="bg-white dark:bg-gray-800 dark:text-white dark:border-gray-700 dark:placeholder-gray-500"
             />
           </div>
 
           {existingTicket?.adminResponse ? (
-            <div className="rounded-2xl border border-brand-100 bg-brand-50 p-4">
-              <p className="text-xs font-bold text-brand-700 uppercase tracking-wide">Admin response</p>
-              <p className="text-sm text-brand-900 mt-1 whitespace-pre-wrap">{existingTicket.adminResponse}</p>
+            <div className="rounded-2xl border border-brand-100 dark:border-brand-900/30 bg-brand-50 dark:bg-brand-950/20 p-4">
+              <p className="text-xs font-bold text-brand-700 dark:text-brand-400 uppercase tracking-wide">Admin response</p>
+              <p className="text-sm text-brand-900 dark:text-brand-200 mt-1 whitespace-pre-wrap">{existingTicket.adminResponse}</p>
             </div>
           ) : null}
 

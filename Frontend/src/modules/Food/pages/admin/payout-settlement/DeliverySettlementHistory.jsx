@@ -225,14 +225,13 @@ export default function DeliverySettlementHistory() {
                     <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">COD Amount</th>
                     <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Gross</th>
                     <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Paid</th>
-                    <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Reference</th>
                     <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Note</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {detailsLoading ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-14 text-center text-sm text-slate-500">
+                      <td colSpan={7} className="px-6 py-14 text-center text-sm text-slate-500">
                         <span className="inline-flex items-center gap-2">
                           <Loader2 className="w-4 h-4 animate-spin" />
                           Loading batch details...
@@ -241,7 +240,7 @@ export default function DeliverySettlementHistory() {
                     </tr>
                   ) : !details?.rows?.length ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-14 text-center text-sm text-slate-500">
+                      <td colSpan={7} className="px-6 py-14 text-center text-sm text-slate-500">
                         No paid rows found for this batch.
                       </td>
                     </tr>
@@ -259,7 +258,6 @@ export default function DeliverySettlementHistory() {
                         </td>
                         <td className="px-5 py-4 text-sm text-slate-700">{toCurrency(row.grossAmount)}</td>
                         <td className="px-5 py-4 text-sm font-semibold text-emerald-700">{toCurrency(row.paidAmount)}</td>
-                        <td className="px-5 py-4 text-sm text-slate-700">{row.referenceNumber || "-"}</td>
                         <td className="px-5 py-4 text-sm text-slate-700">{row.note || "-"}</td>
                       </tr>
                     ))

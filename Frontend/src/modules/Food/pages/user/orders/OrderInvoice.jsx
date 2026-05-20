@@ -2,8 +2,7 @@ import { useNavigate, useParams, Link } from "react-router-dom"
 
 import { Download, ArrowLeft, FileText } from "lucide-react"
 import { useRef, useState, useEffect } from "react"
-import html2canvas from "html2canvas"
-import { jsPDF } from "jspdf"
+import jsPDF from "jspdf"
 import { toast } from "sonner"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import ScrollReveal from "@food/components/user/ScrollReveal"
@@ -14,6 +13,8 @@ import { orderAPI } from "@food/api"
 import { useOrders } from "@food/context/OrdersContext"
 import { useBusinessSettings } from "@food/hooks/useBusinessSettings"
 import BRAND_THEME from "@/config/brandTheme"
+import { normalizeImageUrl } from "@food/utils/common"
+import { getApiOrigin } from "@/services/api/baseUrl"
 
 const toMoneyNumber = (value) => {
   const parsed = Number(value)
@@ -137,8 +138,39 @@ const getInvoiceSubtotal = (order) => {
   }, 0)
 }
 
+const loadImageDataUrl = (src) =>
+  new Promise((resolve) => {
+    if (!src) {
+      resolve(null)
+      return
+    }
+
+    const image = new Image()
+    image.crossOrigin = "anonymous"
+    image.onload = () => {
+      try {
+        const canvas = document.createElement("canvas")
+        canvas.width = image.naturalWidth || image.width
+        canvas.height = image.naturalHeight || image.height
+        const context = canvas.getContext("2d")
+        context.drawImage(image, 0, 0)
+        resolve({
+          dataUrl: canvas.toDataURL("image/png"),
+          width: canvas.width,
+          height: canvas.height,
+        })
+      } catch (error) {
+        resolve(null)
+      }
+    }
+    image.onerror = () => resolve(null)
+    image.src = src
+  })
+
 export default function OrderInvoice() {
   const { companyName, logo } = useBusinessSettings()
+  const backendOrigin = getApiOrigin()
+  const normalizedLogoUrl = logo?.url ? normalizeImageUrl(logo.url, backendOrigin) : ""
   const navigate = useNavigate()
   const { orderId } = useParams()
   const { getOrderById } = useOrders()
@@ -209,32 +241,157 @@ export default function OrderInvoice() {
   const displayOrderId = getOrderDisplayId(order, orderId)
   
   const handleDownloadPDF = async () => {
-    if (!invoiceRef.current) return
-    
     const loadingToast = toast.loading("Generating PDF...")
     try {
-      // Scroll to top to ensure clean capture
-      window.scrollTo(0, 0)
-      
-      // Wait a tiny bit for any layout shifts
-      await new Promise(resolve => setTimeout(resolve, 100))
-
-      const element = invoiceRef.current
-      const canvas = await html2canvas(element, {
-        scale: 1.5, // Slightly lower scale for better performance/reliability
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-        windowWidth: 1200 // Ensure desktop layout for PDF
-      })
-      
-      const imgData = canvas.toDataURL("image/png")
       const pdf = new jsPDF("p", "mm", "a4")
-      const imgProps = pdf.getImageProperties(imgData)
-      const pdfWidth = pdf.internal.pageSize.getWidth()
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width
-      
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight)
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const margin = 14
+      const contentWidth = pageWidth - margin * 2
+      let y = 16
+      const logoImage = await loadImageDataUrl(normalizedLogoUrl)
+
+      const addPageIfNeeded = (requiredHeight = 10) => {
+        if (y + requiredHeight <= pageHeight - margin) return
+        pdf.addPage()
+        y = margin
+      }
+
+      const addText = (text, x, options = {}) => {
+        const {
+          size = 10,
+          style = "normal",
+          maxWidth = contentWidth,
+          lineHeight = 5,
+          color = [30, 41, 59],
+          align,
+        } = options
+        pdf.setFont("helvetica", style)
+        pdf.setFontSize(size)
+        pdf.setTextColor(...color)
+        const lines = pdf.splitTextToSize(String(text || ""), maxWidth)
+        addPageIfNeeded(lines.length * lineHeight)
+        pdf.text(lines, x, y, align ? { align } : undefined)
+        y += lines.length * lineHeight
+      }
+
+      const addAmount = (label, amount, options = {}) => {
+        addPageIfNeeded(7)
+        pdf.setFont("helvetica", options.style || "normal")
+        pdf.setFontSize(options.size || 10)
+        pdf.setTextColor(...(options.color || [30, 41, 59]))
+        pdf.text(label, margin, y)
+        pdf.text(formatCurrency(amount), pageWidth - margin - 4, y, { align: "right" })
+        y += options.lineHeight || 6
+      }
+
+      if (logoImage?.dataUrl) {
+        const logoWidth = 24
+        const logoHeight = Math.min(16, (logoImage.height * logoWidth) / logoImage.width)
+        pdf.addImage(logoImage.dataUrl, "PNG", margin, y - 4, logoWidth, logoHeight)
+        pdf.setFont("helvetica", "bold")
+        pdf.setFontSize(24)
+        pdf.setTextColor(37, 99, 235)
+        pdf.text("INVOICE", margin + logoWidth + 6, y)
+        pdf.setFontSize(10)
+        pdf.setTextColor(100, 116, 139)
+        pdf.text(String(companyName || "Iggymet").toUpperCase(), margin + logoWidth + 6, y + 7)
+      } else {
+        pdf.setFont("helvetica", "bold")
+        pdf.setFontSize(24)
+        pdf.setTextColor(37, 99, 235)
+        pdf.text("INVOICE", margin, y)
+        pdf.setFontSize(10)
+        pdf.setTextColor(100, 116, 139)
+        pdf.text(String(companyName || "Iggymet").toUpperCase(), margin, y + 7)
+      }
+
+      pdf.setFont("helvetica", "bold")
+      pdf.setFontSize(10)
+      pdf.setTextColor(30, 41, 59)
+      pdf.text(`Invoice #: ${displayOrderId}`, pageWidth - margin, y, { align: "right" })
+      pdf.text(`Date: ${formatDate(order.createdAt)}`, pageWidth - margin, y + 6, { align: "right" })
+      pdf.text(`Payment: ${String(invoicePayment).toUpperCase()}`, pageWidth - margin, y + 12, { align: "right" })
+      y += 24
+
+      pdf.setDrawColor(37, 99, 235)
+      pdf.line(margin, y, pageWidth - margin, y)
+      y += 10
+
+      addText(companyName || "Iggymet", margin, { size: 10, color: [100, 116, 139] })
+      addText("Food Delivery Platform", margin, { size: 10, color: [100, 116, 139] })
+      y += 3
+      addText(`Status: ${invoiceStatus}`, margin, { size: 11, style: "bold", color: [37, 99, 235] })
+      y += 4
+
+      addText("Bill To:", margin, { size: 12, style: "bold" })
+      addText(customer.name, margin, { size: 10, style: "bold" })
+      if (customer.phone) addText(customer.phone, margin, { size: 10 })
+      if (customer.addressLines.length) {
+        customer.addressLines.forEach((line) => addText(line, margin, { size: 10, maxWidth: contentWidth * 0.8 }))
+      } else {
+        addText("Address not available", margin, { size: 10, color: [100, 116, 139] })
+      }
+
+      y += 5
+      addText("Order Items", margin, { size: 12, style: "bold" })
+      addPageIfNeeded(10)
+      pdf.setFillColor(241, 245, 249)
+      pdf.rect(margin, y - 4, contentWidth, 8, "F")
+      pdf.setFont("helvetica", "bold")
+      pdf.setFontSize(9)
+      pdf.setTextColor(30, 41, 59)
+      pdf.text("Item", margin + 2, y + 1)
+      pdf.text("Qty", pageWidth - 82, y + 1, { align: "right" })
+      pdf.text("Unit", pageWidth - 52, y + 1, { align: "right" })
+      pdf.text("Total", pageWidth - margin - 4, y + 1, { align: "right" })
+      y += 9
+
+      invoiceItems.forEach((item, index) => {
+        const itemPrice = toMoneyNumber(item?.price ?? item?.unitPrice ?? item?.basePrice)
+        const itemQuantity = Math.max(1, toMoneyNumber(item?.quantity || 1))
+        const itemTotal = toMoneyNumber(item?.total ?? item?.lineTotal) || itemPrice * itemQuantity
+        const itemMetaLines = getItemMetaLines(item)
+        const name = item?.name || item?.foodName || `Item ${index + 1}`
+        const meta = itemMetaLines.length ? ` (${itemMetaLines.join("; ")})` : ""
+        const itemLines = pdf.splitTextToSize(`${name}${meta}`, contentWidth - 92)
+        addPageIfNeeded(Math.max(8, itemLines.length * 4 + 3))
+        pdf.setFont("helvetica", "normal")
+        pdf.setFontSize(9)
+        pdf.setTextColor(30, 41, 59)
+        pdf.text(itemLines, margin + 2, y)
+        pdf.text(String(itemQuantity), pageWidth - 82, y, { align: "right" })
+        pdf.text(formatCurrency(itemPrice), pageWidth - 52, y, { align: "right" })
+        pdf.text(formatCurrency(itemTotal), pageWidth - margin - 4, y, { align: "right" })
+        y += Math.max(8, itemLines.length * 4 + 3)
+      })
+
+      y += 4
+      pdf.setDrawColor(226, 232, 240)
+      pdf.line(margin, y, pageWidth - margin, y)
+      y += 7
+
+      addAmount("Subtotal:", invoiceSubtotal)
+      addAmount("Delivery Fee:", invoiceDeliveryFee)
+      if (invoicePackagingFee > 0) addAmount("Packaging Fee:", invoicePackagingFee)
+      if (invoicePlatformFee > 0) addAmount("Platform Fee:", invoicePlatformFee)
+      addAmount("Tax:", invoiceTax)
+      if (invoiceCouponByAdmin > 0) addAmount("Admin Coupon:", -invoiceCouponByAdmin, { color: [22, 101, 52] })
+      if (invoiceCouponByRestaurant > 0) addAmount("Restaurant Coupon:", -invoiceCouponByRestaurant, { color: [22, 101, 52] })
+      if (invoiceOfferByRestaurant > 0) addAmount("Restaurant Offer:", -invoiceOfferByRestaurant, { color: [22, 101, 52] })
+      if (invoiceOtherDiscount > 0) addAmount("Discount:", -invoiceOtherDiscount, { color: [22, 101, 52] })
+      if (invoicePreviousDue > 0) addAmount("Previous Due:", invoicePreviousDue)
+
+      addPageIfNeeded(14)
+      pdf.setDrawColor(37, 99, 235)
+      pdf.line(margin, y, pageWidth - margin, y)
+      y += 8
+      addAmount("Total:", invoiceTotal, { size: 13, style: "bold", lineHeight: 8 })
+
+      y += 6
+      addText("Thank you for your order!", pageWidth / 2, { size: 10, style: "bold", align: "center", maxWidth: contentWidth })
+      addText("For any queries, please contact our support team.", pageWidth / 2, { size: 9, color: [100, 116, 139], align: "center", maxWidth: contentWidth })
+
       pdf.save(`Invoice-${displayOrderId}.pdf`)
       toast.success("PDF downloaded successfully", { id: loadingToast })
     } catch (err) {
@@ -317,8 +474,8 @@ export default function OrderInvoice() {
               <div className="invoice-header">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
                   <div className="flex items-center gap-3">
-                    {logo?.url ? (
-                      <img src={logo.url} alt={companyName} className="h-10 sm:h-12 md:h-16 w-auto object-contain" />
+                    {normalizedLogoUrl ? (
+                      <img src={normalizedLogoUrl} alt={companyName} crossOrigin="anonymous" className="h-10 sm:h-12 md:h-16 w-auto object-contain" onError={(e) => { e.target.style.display = "none"; e.target.setAttribute("data-html2canvas-ignore", "true"); }} />
                     ) : (
                       <FileText className="h-8 w-8 sm:h-10 sm:w-10" style={{ color: BRAND_THEME.colors.brand.primary }} />
                     )}
@@ -380,15 +537,18 @@ export default function OrderInvoice() {
                         const itemQuantity = Math.max(1, toMoneyNumber(item?.quantity || 1))
                         const itemTotal = toMoneyNumber(item?.total ?? item?.lineTotal) || itemPrice * itemQuantity
                         const itemMetaLines = getItemMetaLines(item)
+                        // no image
                         return (
                         <tr key={item?.id || item?._id || item?.itemId || index} className="border-b">
                           <td className="px-2 sm:px-3 py-2 sm:py-3">
                             <div className="flex items-center gap-2 sm:gap-3">
-                              <img
-                                src={item?.image || ""}
+                              {false ? (
+                                <img
+                                  src=""
                                 alt={item?.name || "Item"}
-                                className="w-8 h-8 sm:w-12 sm:h-12 object-cover rounded flex-shrink-0"
-                              />
+                                crossOrigin="anonymous" className="w-8 h-8 sm:w-12 sm:h-12 object-cover rounded flex-shrink-0"
+                                onError={(e) => { e.target.style.display = "none"; e.target.setAttribute("data-html2canvas-ignore", "true"); }} />
+                              ) : null}
                               <div className="min-w-0 flex-1">
                                 <span className="font-medium block">{item?.name || item?.foodName || "Item"}</span>
                                 {itemMetaLines.map((line) => (

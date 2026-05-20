@@ -6,6 +6,7 @@ import { FoodZone } from '../../admin/models/zone.model.js';
 import { FoodRestaurantCommission } from '../../admin/models/restaurantCommission.model.js';
 import { FoodOffer } from '../../admin/models/offer.model.js';
 import { FoodOfferUsage } from '../../admin/models/offerUsage.model.js';
+import { FoodItem } from '../../admin/models/food.model.js';
 
 const normalizeName = (value) =>
     String(value || '')
@@ -1215,6 +1216,24 @@ export const listApprovedRestaurants = async (query = {}) => {
     if (zoneFilter) {
         filter.$and = [...(filter.$and || []), zoneFilter];
     }
+
+    const visibleRestaurantIds = await FoodItem.distinct('restaurantId', {
+        $or: [
+            { approvalStatus: 'approved' },
+            { approvalStatus: null, isApproved: { $ne: false } },
+            { approvalStatus: { $exists: false }, isApproved: { $ne: false } }
+        ]
+    });
+    const visibleRestaurantObjectIds = visibleRestaurantIds
+        .map((id) => String(id || '').trim())
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+        .map((id) => new mongoose.Types.ObjectId(id));
+
+    if (!visibleRestaurantObjectIds.length) {
+        return { restaurants: [], total: 0, page, limit };
+    }
+
+    filter._id = { $in: visibleRestaurantObjectIds };
 
     const lat = toFiniteNumber(query.lat);
     const lng = toFiniteNumber(query.lng);

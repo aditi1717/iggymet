@@ -230,7 +230,7 @@ export default function RestaurantWelcome() {
 
                   {/* Text Overlay */}
                   <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8 pb-16">
-                    {/* Appzeto Brand */}
+                    {/* Iggymet Brand */}
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -307,7 +307,7 @@ export default function RestaurantWelcome() {
           variant="outline"
           className="w-full border-2 border-brand-600 text-brand-600 hover:bg-brand-600 hover:text-white font-bold py-6 md:py-7 text-base md:text-lg rounded-lg transition-all shadow-lg bg-transparent"
         >
-          Partner with Appzeto
+          Partner with Iggymet
         </Button> */}
 
         {/* Terms and Conditions */}

@@ -1,5 +1,5 @@
-import React, { Suspense, lazy, useEffect, useState } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import React, { Suspense, lazy } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import Loader from "@food/components/Loader";
 
@@ -30,27 +30,9 @@ import NotificationsV2 from './pages/NotificationsV2';
 import ShopV2 from './pages/ShopV2';
 
 const DeliveryV2Router = () => {
-  const location = useLocation();
-  const [refreshTick, setRefreshTick] = useState(0);
-
-  useEffect(() => {
-    const triggerRefresh = () => {
-      if (document.hidden) return;
-      setRefreshTick((prev) => prev + 1);
-    };
-
-    window.addEventListener('focus', triggerRefresh);
-    document.addEventListener('visibilitychange', triggerRefresh);
-
-    return () => {
-      window.removeEventListener('focus', triggerRefresh);
-      document.removeEventListener('visibilitychange', triggerRefresh);
-    };
-  }, []);
-
   return (
     <Suspense fallback={<Loader />}>
-      <Routes key={`${location.pathname}:${refreshTick}`}>
+      <Routes>
         {/* Auth routes */}
         <Route path="welcome" element={<Welcome />} />
         <Route path="login" element={<SignIn />} />

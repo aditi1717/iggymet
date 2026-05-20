@@ -35,10 +35,12 @@ const LEGACY_THEME_STORAGE_KEY = 'appTheme'
 
 const isUserAppRoute = (pathname = '') => {
   const normalized = String(pathname || '').toLowerCase()
+  const isRestaurantRoute = normalized === '/food/restaurant' || normalized.startsWith('/food/restaurant/')
+  const isDeliveryRoute = normalized === '/food/delivery' || normalized.startsWith('/food/delivery/')
   return (
     normalized.startsWith('/food') &&
-    !normalized.startsWith('/food/restaurant') &&
-    !normalized.startsWith('/food/delivery')
+    !isRestaurantRoute &&
+    !isDeliveryRoute
   )
 }
 

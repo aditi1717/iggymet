@@ -29,7 +29,7 @@ import notificationSound from "@food/assets/audio/alert.mp3";
 import { restaurantAPI } from "@food/api";
 import { useRestaurantNotifications } from "@food/hooks/useRestaurantNotifications";
 import { formatOrderAddressWithLabels } from "@food/utils/orderAddressFormatter";
-import { jsPDF } from "jspdf";
+import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import BRAND_THEME from "@/config/brandTheme";
 const debugLog = (...args) => {};

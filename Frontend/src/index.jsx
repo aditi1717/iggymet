@@ -17,10 +17,12 @@ import('./modules/Food/utils/businessSettings.js')
 const USER_THEME_STORAGE_KEY = 'userAppTheme'
 const LEGACY_THEME_STORAGE_KEY = 'appTheme'
 const currentPathname = String(window.location?.pathname || '').toLowerCase()
+const isRestaurantRoute = currentPathname === '/food/restaurant' || currentPathname.startsWith('/food/restaurant/')
+const isDeliveryRoute = currentPathname === '/food/delivery' || currentPathname.startsWith('/food/delivery/')
 const isUserAppRoute =
   currentPathname.startsWith('/food') &&
-  !currentPathname.startsWith('/food/restaurant') &&
-  !currentPathname.startsWith('/food/delivery')
+  !isRestaurantRoute &&
+  !isDeliveryRoute
 const savedTheme =
   localStorage.getItem(USER_THEME_STORAGE_KEY) ||
   localStorage.getItem(LEGACY_THEME_STORAGE_KEY) ||

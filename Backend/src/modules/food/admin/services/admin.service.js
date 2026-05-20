@@ -2242,10 +2242,6 @@ export async function updateSupportTicket(id, body = {}) {
                 addNotificationOwner('DELIVERY_PARTNER', updated?.deliveryPartnerId);
             } else {
                 addNotificationOwner('USER', updated?.userId);
-                // Also notify the restaurant if the user raised a ticket about a specific order/restaurant
-                if (updated?.restaurantId) {
-                    addNotificationOwner('RESTAURANT', updated?.restaurantId);
-                }
             }
             console.log(`[SupportTicket] Notification owners identified: ${notificationOwners.length}`, notificationOwners);
 

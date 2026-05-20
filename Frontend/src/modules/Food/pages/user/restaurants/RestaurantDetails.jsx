@@ -2585,7 +2585,7 @@ function RestaurantDetailsContent() {
               {filteredRestaurantItemOffers.map((offer, idx) => (
                 <div
                   key={`rest-offer-banner-${idx}-${offer?._id || offer?.id || offer?.title || "offer"}`}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                  className="rounded-2xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-[#1a1a1a] p-4 shadow-sm"
                 >
                   {(() => {
                     const offerProducts = offer.resolvedProducts || []
@@ -2593,17 +2593,17 @@ function RestaurantDetailsContent() {
                     return (
                       <div className="space-y-3">
                         <div>
-                          <p className="text-lg font-bold text-slate-900">
+                          <p className="text-lg font-bold text-slate-900 dark:text-white">
                             {offer?.title || "Special offer"}
                           </p>
-                          <p className="mt-1 text-sm text-slate-600">
+                          <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">
                             {offer?.discountType === "flat-price"
                               ? `Flat \u20B9${offer?.discountValue || 0} OFF`
                               : `${offer?.discountValue || 0}% OFF${offer?.maxDiscount ? ` up to \u20B9${offer.maxDiscount}` : ""}`}
                           </p>
                         </div>
 
-                        <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white">
+                        <div className="overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-[#1a1a1a]">
                           {offerProducts.map((product, productIndex) => (
                             <RestaurantFoodCard
                               key={`${product?.id || product?.name || "offer-product"}-${productIndex}`}
@@ -2624,6 +2624,7 @@ function RestaurantDetailsContent() {
                                   ? {
                                       boxShadow: `0 0 0 2px ${BRAND_THEME.colors.brand.primary}`,
                                       borderColor: BRAND_THEME.colors.brand.primary,
+                                      background: BRAND_THEME.gradients.primary,
                                     }
                                   : undefined
                               }
@@ -2662,7 +2663,7 @@ function RestaurantDetailsContent() {
               </div>
             )}
             {filteredSections.length === 0 && (
-              <div className="rounded-3xl border border-dashed border-gray-300 bg-white px-6 py-10 text-center text-sm text-gray-500">
+              <div className="rounded-3xl border border-dashed border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1a1a1a] px-6 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
                 No dishes match the current filters.
               </div>
             )}
