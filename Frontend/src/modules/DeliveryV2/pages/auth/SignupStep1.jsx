@@ -12,6 +12,7 @@ export default function SignupStep1() {
   const navigate = useNavigate()
   const goBack = useDeliveryBackNavigation()
   const [hasRestored, setHasRestored] = useState(false)
+  const [errors, setErrors] = useState({})
   const [formData, setFormData] = useState(() => {
     const saved = localStorage.getItem("deliverySignupDetails")
     const base = {
