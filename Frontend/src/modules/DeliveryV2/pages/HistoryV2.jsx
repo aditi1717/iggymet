@@ -29,6 +29,7 @@ const getTripRouteId = (trip) =>
     trip?.displayOrderId ||
       trip?.orderCode ||
       trip?.orderNumber ||
+      trip?.order_id ||
       trip?.orderId ||
       trip?.id ||
       trip?._id ||
@@ -252,7 +253,7 @@ export const HistoryV2 = () => {
     }
 
     const rows = filteredTrips.map((trip) => {
-      const id = getTripIdentity(trip);
+      const id = getTripRouteId(trip) || getTripIdentity(trip);
       const status = getStatusStyle(trip?.status).label;
       const cod = isCashLike(trip) ? Number(trip?.codCollectedAmount || 0).toFixed(2) : '0.00';
       const earning = getTripEarning(trip).toFixed(2);
@@ -526,6 +527,7 @@ export const HistoryV2 = () => {
                 <tbody>
                   {filteredTrips.map((trip, idx) => {
                     const id = getTripIdentity(trip) || `row-${idx}`;
+                    const displayId = getTripRouteId(trip) || id;
                     const statusStyle = getStatusStyle(trip?.status);
                     const cod = isCashLike(trip) ? Number(trip?.codCollectedAmount || 0) : 0;
                     const earning = getTripEarning(trip);
@@ -535,7 +537,7 @@ export const HistoryV2 = () => {
                         onClick={() => openOrder(trip)}
                         className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
                       >
-                        <td className="px-4 py-3 font-semibold text-gray-900">#{id.slice(-10)}</td>
+                        <td className="px-4 py-3 font-semibold text-gray-900">#{displayId}</td>
                         <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{formatTripTime(trip)}</td>
                         <td className="px-4 py-3 text-gray-700">{trip?.restaurant || trip?.restaurantName || '-'}</td>
                         <td className="px-4 py-3">

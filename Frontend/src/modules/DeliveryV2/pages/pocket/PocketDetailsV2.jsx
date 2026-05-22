@@ -6,7 +6,20 @@ import useDeliveryBackNavigation from '../../hooks/useDeliveryBackNavigation';
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 
-const getTripId = (trip) => String(trip?.orderId || trip?._id || trip?.id || '-');
+const getTripIdentity = (trip) =>
+  String(trip?.orderMongoId || trip?._id || trip?.id || trip?.orderId || trip?.order_id || '-');
+
+const getTripDisplayId = (trip) =>
+  String(
+    trip?.displayOrderId ||
+      trip?.orderCode ||
+      trip?.orderNumber ||
+      trip?.order_id ||
+      trip?.orderId ||
+      trip?.id ||
+      trip?._id ||
+      '-',
+  );
 
 const getTripEarning = (trip) =>
   Number(
@@ -200,7 +213,7 @@ export const PocketDetailsV2 = () => {
 
         const uniqueById = new Map();
         for (const trip of merged) {
-          const id = getTripId(trip);
+          const id = getTripIdentity(trip);
           if (!id || id === '-') continue;
           if (!uniqueById.has(id)) uniqueById.set(id, trip);
         }
@@ -223,7 +236,8 @@ export const PocketDetailsV2 = () => {
         .map((trip) => {
           const adminPaidStatus = getAdminPaidStatus(trip);
           return {
-            id: getTripId(trip),
+            id: getTripIdentity(trip),
+            displayId: getTripDisplayId(trip),
             restaurant: trip?.restaurantName || trip?.restaurantId?.name || 'Restaurant',
             deliveredAt: trip?.deliveredAt || trip?.completedAt || trip?.createdAt || null,
             orderAmount: getTripTotalAmount(trip),
@@ -286,7 +300,7 @@ export const PocketDetailsV2 = () => {
     }
 
     const body = filteredRows.map((row) => [
-      row.id,
+      row.displayId || row.id,
       row.restaurant,
       row.deliveredAt
         ? new Date(row.deliveredAt).toLocaleString('en-IN', {
@@ -530,7 +544,7 @@ export const PocketDetailsV2 = () => {
                 <tbody>
                   {filteredRows.map((row) => (
                     <tr key={row.id} className="border-b border-gray-50 last:border-b-0">
-                      <td className="px-6 py-2.5 font-semibold text-gray-900 whitespace-nowrap">#{row.id.slice(-8)}</td>
+                      <td className="px-6 py-2.5 font-semibold text-gray-900 whitespace-nowrap">#{row.displayId || row.id}</td>
                       <td className="px-6 py-2.5 text-gray-700">{row.restaurant}</td>
                       <td className="px-6 py-2.5 text-gray-600">
                         {row.deliveredAt
