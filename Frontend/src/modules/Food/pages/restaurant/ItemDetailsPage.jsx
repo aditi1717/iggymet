@@ -101,6 +101,45 @@ export default function ItemDetailsPage() {
   const [loadingCategories, setLoadingCategories] = useState(true)
   const [loadingItem, setLoadingItem] = useState(false)
   const [keyboardInset, setKeyboardInset] = useState(0)
+  const [isPureVeg, setIsPureVeg] = useState(false)
+
+  useEffect(() => {
+    const fetchRestaurantProfile = async () => {
+      try {
+        const res = await restaurantAPI.getCurrentRestaurant()
+        const data = res?.data?.data?.restaurant || res?.data?.restaurant
+        if (data) {
+          const pureVeg = data.pureVegRestaurant === true || data.pureVegRestaurant === "true"
+          setIsPureVeg(pureVeg)
+          if (pureVeg && isNewItem) {
+            setFoodType("Veg")
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching restaurant profile:", err)
+      }
+    }
+    fetchRestaurantProfile()
+  }, [isNewItem])
+
+  // Automatically sync foodType with selected category scope or pure-veg status
+  useEffect(() => {
+    if (isPureVeg) {
+      setFoodType("Veg")
+      return
+    }
+    if (categories.length > 0 && selectedCategoryId) {
+      const matchedCategory = categories.find((c) => String(c.id) === String(selectedCategoryId))
+      if (matchedCategory) {
+        const scope = matchedCategory.foodTypeScope || "Both"
+        if (scope === "Veg") {
+          setFoodType("Veg")
+        } else if (scope === "Non-Veg") {
+          setFoodType("Non-Veg")
+        }
+      }
+    }
+  }, [selectedCategoryId, categories, isPureVeg])
 
   const maxNameLength = 70
   const maxDescriptionLength = 1000
@@ -249,12 +288,12 @@ export default function ItemDetailsPage() {
             foodTypeScope: cat.foodTypeScope || "Both",
           }))
 
-          debugLog('Formatted restaurant categories:', formattedCategories)
-          setCategories(formattedCategories)
-          if (!selectedCategoryId && formattedCategories.length > 0) {
+          const displayCategories = isPureVeg ? formattedCategories.filter(cat => cat.foodTypeScope === "Veg") : formattedCategories; debugLog('Formatted restaurant categories:', displayCategories)
+          setCategories(displayCategories)
+          if (!selectedCategoryId && displayCategories.length > 0) {
             const preferredName = String(category || defaultCategory || "").trim()
-            const matchedByName = formattedCategories.find((cat) => cat.name === preferredName)
-            const nextCategory = matchedByName || (isNewItem ? formattedCategories[0] : null)
+            const matchedByName = displayCategories.find((cat) => cat.name === preferredName)
+            const nextCategory = matchedByName || (isNewItem ? displayCategories[0] : null)
             if (nextCategory) {
               setSelectedCategoryId(nextCategory.id)
               setCategory(nextCategory.name)
@@ -274,7 +313,7 @@ export default function ItemDetailsPage() {
     }
 
     fetchCategories()
-  }, [category, defaultCategory, defaultCategoryId, isNewItem, selectedCategoryId])
+  }, [category, defaultCategory, defaultCategoryId, isNewItem, selectedCategoryId, isPureVeg])
 
   // Keep focused form fields visible above mobile keyboard
   useEffect(() => {
@@ -1001,7 +1040,7 @@ export default function ItemDetailsPage() {
                 {descriptionLength} / {maxDescriptionLength}
               </span>
             </div>
-            {/* Dietary Options */}
+            {/* Dietary Options */} {(!isPureVeg && (categories.find((c) => String(c.id) === String(selectedCategoryId))?.foodTypeScope || "Both") === "Both") && (
             <div className="flex gap-2 mt-3">
               <button
                 onClick={() => setFoodType("Veg")}
@@ -1023,7 +1062,7 @@ export default function ItemDetailsPage() {
                 {foodType === "Non-Veg" && <Check className="w-4 h-4" />}
                 <span>Non-Veg</span>
               </button>
-            </div>
+            </div>)}
           </div>
 
           {/* Item Price */}

@@ -216,11 +216,15 @@ const RestaurantProfile = () => {
   useEffect(() => {
     fetchInitialData()
     loadZones()
+    return () => {
+      clearProfileFromLocalStorage()
+    }
   }, [])
 
   // Auto-save changes to localStorage (excluding binary files)
   useEffect(() => {
-    if (!loading) {
+    const isEditing = Object.values(editStates).some(Boolean)
+    if (!loading && isEditing) {
       saveProfileToLocalStorage({
         basicInfo,
         location,
@@ -230,7 +234,7 @@ const RestaurantProfile = () => {
         imageInfo
       })
     }
-  }, [basicInfo, location, opsInfo, kycInfo, bankInfo, imageInfo, loading])
+  }, [basicInfo, location, opsInfo, kycInfo, bankInfo, imageInfo, loading, editStates])
 
   // Sync search input value with state
   useEffect(() => {
@@ -401,7 +405,7 @@ const RestaurantProfile = () => {
       if (data) {
         setBasicInfo({
           name: data.restaurantName || data.name || "",
-          pureVegRestaurant: !!data.pureVegRestaurant,
+          pureVegRestaurant: data.pureVegRestaurant === true || data.pureVegRestaurant === "true",
           ownerName: data.ownerName || "",
           ownerEmail: data.ownerEmail || "",
           ownerPhone: data.ownerPhone || "",
@@ -649,7 +653,7 @@ const RestaurantProfile = () => {
         if (section === 'basic') {
           setBasicInfo({
             name: updatedData.restaurantName || updatedData.name || "",
-            pureVegRestaurant: !!updatedData.pureVegRestaurant,
+            pureVegRestaurant: updatedData.pureVegRestaurant === true || updatedData.pureVegRestaurant === "true",
             ownerName: updatedData.ownerName || "",
             ownerEmail: updatedData.ownerEmail || "",
             ownerPhone: updatedData.ownerPhone || "",
@@ -873,27 +877,7 @@ const RestaurantProfile = () => {
                 className="rounded-xl border-slate-200 focus:ring-[#005128] bg-slate-50/50"
               />
             </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-bold text-slate-500 ml-1">Veg / Non-Veg</Label>
-              <div className="flex items-center gap-4 py-2">
-                <button
-                  type="button"
-                  onClick={() => {}}
-                  className={`flex-1 px-4 py-3 rounded-xl border text-sm font-bold transition-all ${basicInfo.pureVegRestaurant ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-500'}`}
-                  disabled
-                >
-                  Pure Veg
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {}}
-                  className={`flex-1 px-4 py-3 rounded-xl border text-sm font-bold transition-all ${!basicInfo.pureVegRestaurant ? 'bg-rose-50 border-rose-500 text-rose-700' : 'bg-slate-50 border-slate-200 text-slate-500'}`}
-                  disabled
-                >
-                  Mixed / Both
-                </button>
-              </div>
-            </div>
+
             <div className="space-y-2">
               <Label className="text-xs font-bold text-slate-500 ml-1">Owner Name</Label>
               <div className="relative">

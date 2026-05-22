@@ -59,6 +59,13 @@ const resolveRestaurantBackPath = ({ pathname, state }) => {
   }
 
   if (
+    normalizedPath === "/menu-categories/new" ||
+    /^\/menu-categories\/[^/]+\/edit$/.test(normalizedPath)
+  ) {
+    return explicitBackPath || "/food/restaurant/menu-categories"
+  }
+
+  if (
     normalizedPath === "/edit" ||
     normalizedPath === "/edit-owner" ||
     normalizedPath === "/edit-cuisines" ||

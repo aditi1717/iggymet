@@ -70,9 +70,7 @@ const normalizeDetailsFormFromRestaurant = (restaurant) => {
   return {
     name: restaurant?.name || restaurant?.restaurantName || "",
     pureVegRestaurant:
-      typeof restaurant?.pureVegRestaurant === "boolean"
-        ? restaurant.pureVegRestaurant
-        : false,
+      restaurant?.pureVegRestaurant === true || restaurant?.pureVegRestaurant === "true",
     ownerName: restaurant?.ownerName || "",
     ownerEmail: restaurant?.ownerEmail || "",
     ownerPhone: restaurant?.ownerPhone || "",
@@ -417,51 +415,56 @@ export default function EditRestaurant() {
         ) : (
           <div className="space-y-6">
             <section className="bg-white rounded-xl border border-slate-200 p-6">
-              <div className="flex items-center justify-between gap-3 mb-4">
-                <h2 className="text-lg font-semibold text-slate-900">Basic Details</h2>
-                <Button onClick={handleSaveDetails} disabled={savingDetails}>
-                  {savingDetails ? (
-                    <span className="inline-flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Saving...
-                    </span>
-                  ) : (
-                    "Save Details"
-                  )}
-                </Button>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-5 mb-5">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Basic Details</h2>
+                  <p className="text-xs text-slate-500 mt-1">Core restaurant identifiers and ownership</p>
+                </div>
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Restaurant Type</span>
+                    <div className="flex items-center gap-1 bg-slate-150 p-1 rounded-full w-fit border border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setDetailsForm((p) => ({ ...p, pureVegRestaurant: true }))}
+                        className={`px-3 py-1.5 text-[11px] font-bold rounded-full transition-all ${
+                          detailsForm.pureVegRestaurant === true
+                            ? "bg-emerald-600 text-white shadow-sm"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        Pure Veg
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDetailsForm((p) => ({ ...p, pureVegRestaurant: false }))}
+                        className={`px-3 py-1.5 text-[11px] font-bold rounded-full transition-all ${
+                          detailsForm.pureVegRestaurant === false
+                            ? "bg-slate-900 text-white shadow-sm"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        Mixed
+                      </button>
+                    </div>
+                  </div>
+                  <Button onClick={handleSaveDetails} disabled={savingDetails} className="mt-4 sm:mt-0">
+                    {savingDetails ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Saving...
+                      </span>
+                    ) : (
+                      "Save Details"
+                    )}
+                  </Button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label>Restaurant Name</Label>
                   <Input value={detailsForm.name} onChange={(e) => setDetailsForm((p) => ({ ...p, name: e.target.value }))} />
-                </div>
-                <div>
-                  <Label>Pure Veg</Label>
-                  <div className="mt-2 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setDetailsForm((p) => ({ ...p, pureVegRestaurant: true }))}
-                      className={`px-3 py-1.5 text-xs rounded-full border ${
-                        detailsForm.pureVegRestaurant === true
-                          ? "bg-green-600 text-white border-green-600"
-                          : "bg-white text-slate-700 border-slate-300"
-                      }`}
-                    >
-                      Yes
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDetailsForm((p) => ({ ...p, pureVegRestaurant: false }))}
-                      className={`px-3 py-1.5 text-xs rounded-full border ${
-                        detailsForm.pureVegRestaurant === false
-                          ? "bg-slate-900 text-white border-slate-900"
-                          : "bg-white text-slate-700 border-slate-300"
-                      }`}
-                    >
-                      No
-                    </button>
-                  </div>
                 </div>
                 <div>
                   <Label>Primary Email</Label>

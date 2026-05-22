@@ -369,6 +369,7 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
       previousOrder?.userPhone ||
       '',
     address: {
+      label: addr?.label || previousOrder?.address?.label || '',
       street: addr?.street || previousOrder?.address?.street || '',
       city: addr?.city || previousOrder?.address?.city || '',
       state: addr?.state || previousOrder?.address?.state || '',
@@ -833,6 +834,21 @@ export default function OrderTracking() {
 
   const handleBackToOrders = useCallback(() => {
     navigate("/food/orders")
+  }, [navigate])
+
+  useEffect(() => {
+    // Push dummy state to the history stack to intercept hardware/browser back navigation
+    window.history.pushState({ trackingBackIntercept: true }, "")
+
+    const handlePopState = (e) => {
+      // Intercept back action and redirect to orders list instead of exiting the app
+      navigate("/food/orders")
+    }
+
+    window.addEventListener("popstate", handlePopState)
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+    }
   }, [navigate])
 
   const handleOpenRestaurantComplaint = useCallback(() => {
@@ -1783,7 +1799,7 @@ export default function OrderTracking() {
                 className="w-6 h-6 [&_svg]:w-full [&_svg]:h-full [&_svg]:block"
               />
             }
-            title="Delivery at Location"
+            title={order?.address?.label ? `Delivery at ${order.address.label}` : "Delivery at Location"}
             subtitle={(() => {
               const isCoordinateLikeText = (value) => {
                 const text = String(value || "").trim()

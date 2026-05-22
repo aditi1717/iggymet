@@ -40,6 +40,34 @@ export default function EditCategoryPage() {
   const [imagePreview, setImagePreview] = useState("")
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
   const fileInputRef = useRef(null)
+  const [isPureVeg, setIsPureVeg] = useState(false)
+
+  useEffect(() => {
+    if (!isAdmin) {
+      const fetchRestaurantProfile = async () => {
+        try {
+          const res = await restaurantAPI.getCurrentRestaurant()
+          const data = res?.data?.data?.restaurant || res?.data?.restaurant
+          if (data) {
+            const pureVeg = data.pureVegRestaurant === true || data.pureVegRestaurant === "true"
+            setIsPureVeg(pureVeg)
+            if (pureVeg) {
+              setFormData((prev) => ({ ...prev, foodTypeScope: "Veg" }))
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching restaurant profile:", err)
+        }
+      }
+      fetchRestaurantProfile()
+    }
+  }, [isAdmin])
+
+  useEffect(() => {
+    if (isPureVeg) {
+      setFormData((prev) => ({ ...prev, foodTypeScope: "Veg" }))
+    }
+  }, [isPureVeg])
 
   const handleBack = () => {
     if (isAdmin) {
@@ -311,10 +339,17 @@ export default function EditCategoryPage() {
                     value={formData.foodTypeScope}
                     onChange={(e) => setFormData({ ...formData, foodTypeScope: e.target.value })}
                     className="w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 transition-all font-medium appearance-none"
+                    disabled={isPureVeg}
                   >
-                    <option value="Veg">Veg Only</option>
-                    <option value="Non-Veg">Non-Veg</option>
-                    <option value="Both">Both</option>
+                    {isPureVeg ? (
+                      <option value="Veg">Veg Only</option>
+                    ) : (
+                      <>
+                        <option value="Veg">Veg Only</option>
+                        <option value="Non-Veg">Non-Veg</option>
+                        <option value="Both">Both</option>
+                      </>
+                    )}
                   </select>
                   <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                     <ArrowLeft className="h-4 w-4 -rotate-90" />

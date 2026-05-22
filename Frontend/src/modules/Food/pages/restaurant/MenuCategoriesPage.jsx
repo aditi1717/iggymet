@@ -171,17 +171,17 @@ export default function MenuCategoriesPage() {
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <h3 className="font-bold text-slate-900 truncate">{category.name}</h3>
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${approvalBadgeClass(
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${approvalBadgeClass(
                         category.approvalStatus
                       )}`}
                     >
                       {category.approvalStatus || "Pending"}
                     </span>
                     {category.isGlobal && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-brand-600 border border-brand-100 uppercase">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-brand-600 border border-brand-100 uppercase shrink-0">
                         Global
                       </span>
                     )}
@@ -194,7 +194,7 @@ export default function MenuCategoriesPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 flex-shrink-0">
                   {!category.isGlobal && (
                     <button
                       onClick={() => handleToggleStatus(category)}

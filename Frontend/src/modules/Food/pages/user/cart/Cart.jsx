@@ -203,6 +203,7 @@ export default function Cart() {
     name: "",
     phone: "",
   })
+  const [currentLocationLabel, setCurrentLocationLabel] = useState("Home")
 
   const [sendCutlery, setSendCutlery] = useState(true)
   const [isPlacingOrder, setIsPlacingOrder] = useState(false)
@@ -320,7 +321,7 @@ export default function Cart() {
 
     return {
       // Backend deliveryAddressSchema expects label in ['Home','Office','Other'].
-      label: "Home",
+      label: currentLocationLabel === "Work" ? "Office" : currentLocationLabel,
       formattedAddress,
       address: formattedAddress,
       street: loc?.street || loc?.address || loc?.area || "Current Location",
@@ -349,8 +350,8 @@ export default function Cart() {
     currentLocation?.postalCode,
     currentLocation?.zipCode,
     userProfile?.phone,
-    // Re-evaluate derived address when mode changes (overlay closes -> Cart rerenders).
     deliveryAddressMode,
+    currentLocationLabel,
   ])
 
   const defaultAddress = useMemo(() => {
@@ -1987,7 +1988,7 @@ export default function Cart() {
   }
 
   const handleGoToOrders = () => {
-    setShowOrderSuccess(false)
+
     navigate(`/food/orders/${encodeURIComponent(String(placedOrderId))}?confirmed=true`)
   }
 
@@ -2513,32 +2514,31 @@ export default function Cart() {
                           </p>
                         )}
                         {/* Address Selection Buttons */}
-                        <div className="flex flex-wrap gap-2 mt-3">
-                          {["Home", "Work", "Other"].map((label) => {
-                            const normalizedLabel = normalizeAddressLabel(label)
-                            const activeAddress = selectedAddress || defaultAddress
-                            const isSelectedLabel = activeAddress && normalizeAddressLabel(activeAddress.label) === normalizedLabel
-                            const addressExists = addresses.some(addr => normalizeAddressLabel(addr.label) === normalizedLabel)
-                            return (
-                              <button
-                                key={label}
-                                onClick={(e) => {
-                                  e.preventDefault()
-                                  e.stopPropagation()
-                                  handleSelectAddressByLabel(label)
-                                }}
-                                disabled={!addressExists}
-                                className={`text-xs px-4 py-1.5 rounded-full font-semibold transition-all ${isSelectedLabel ? 'text-white shadow-sm' : addressExists
-                                  ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-gray-800 dark:text-gray-300'
-                                  : 'bg-gray-50 text-gray-400 border border-gray-100 cursor-not-allowed dark:bg-gray-900'
-                                  }`}
-                                style={isSelectedLabel ? { backgroundColor: BRAND_THEME.colors.brand.primary } : undefined}
-                              >
-                                {label}
-                              </button>
-                            )
-                          })}
-                        </div>
+                        {deliveryAddressMode === "current" && (
+                          <div className="flex flex-wrap gap-2 mt-3">
+                            {["Home", "Work", "Other"].map((label) => {
+                              const normalizedLabel = normalizeAddressLabel(label)
+                              const isSelectedLabel = normalizeAddressLabel(currentLocationLabel) === normalizedLabel
+                              return (
+                                <button
+                                  key={label}
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    setCurrentLocationLabel(label)
+                                  }}
+                                  className={`text-xs px-4 py-1.5 rounded-full font-semibold transition-all ${isSelectedLabel
+                                    ? 'text-white shadow-sm'
+                                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-gray-800 dark:text-gray-300'
+                                    }`}
+                                  style={isSelectedLabel ? { backgroundColor: BRAND_THEME.colors.brand.primary } : undefined}
+                                >
+                                  {label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
                         {addresses.length > 0 && (
                           <div className="mt-4 space-y-3">
                             {addresses.map((address) => {

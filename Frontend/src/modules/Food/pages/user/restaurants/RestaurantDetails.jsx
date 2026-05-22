@@ -2422,10 +2422,7 @@ function RestaurantDetailsContent() {
           </div>
 
           {/* Location */}
-          <div
-            className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
-            onClick={() => setShowLocationSheet(true)}
-          >
+          <div className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-300">
             <MapPin className="h-4 w-4" />
             <span>{restaurant?.distance || "1.2 km"} • {restaurant?.location || "Location"}</span>
           </div>
@@ -2930,7 +2927,7 @@ function RestaurantDetailsContent() {
 
       {/* Menu Button - Sticky at page bottom right (hidden when filter or menu sheet open) */}
       {!showFilterSheet && !showMenuSheet && !showMenuOptionsSheet && (
-        <div className="sticky dark:bg-[#1a1a1a] bottom-4 flex justify-end px-4 z-50 mt-auto">
+        <div className="sticky bottom-4 flex justify-end px-4 z-50 mt-auto">
           <Button
             className="text-white flex items-center gap-2 px-6 py-6 rounded-full font-bold transform transition-all duration-300 hover:scale-110 active:scale-95 group"
             style={{
@@ -3183,7 +3180,7 @@ function RestaurantDetailsContent() {
         )}
 
       {/* Location Outlets Bottom Sheet - Rendered via Portal */}
-      {typeof window !== "undefined" &&
+      {false && typeof window !== "undefined" &&
         createPortal(
           <AnimatePresence>
             {showLocationSheet && (

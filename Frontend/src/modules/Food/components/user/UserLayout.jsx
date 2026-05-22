@@ -155,10 +155,7 @@ export default function UserLayout() {
 
   return (
     <div
-      className="min-h-screen transition-colors duration-200"
-      style={{
-        backgroundColor: BRAND_THEME.tokens.app.pageBackground,
-      }}
+      className="min-h-screen transition-colors duration-200 bg-white dark:bg-[#0a0a0a]"
     >
       <CartProvider>
         <ProfileProvider>
