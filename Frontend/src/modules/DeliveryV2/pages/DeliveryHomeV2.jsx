@@ -56,6 +56,7 @@ const getOrderRouteId = (orderLike) =>
     orderLike?.displayOrderId ||
     orderLike?.orderCode ||
     orderLike?.orderNumber ||
+    orderLike?.order_id ||
     orderLike?.orderId ||
     orderLike?.id ||
     orderLike?._id ||
@@ -185,6 +186,7 @@ const getOrderDisplayId = (orderLike) =>
     orderLike?.displayOrderId ||
     orderLike?.orderCode ||
     orderLike?.orderNumber ||
+    orderLike?.order_id ||
     orderLike?.orderId ||
     orderLike?._id ||
     orderLike?.id ||

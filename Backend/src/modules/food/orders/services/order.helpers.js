@@ -48,8 +48,8 @@ export function sanitizeOrderForExternal(orderDoc) {
     };
   }
   o.orderMongoId = (o._id || orderDoc?._id || "").toString();
-  // Ensure orderId field for UI always contains the pretty ID
-  o.orderId = o.order_id || o.orderMongoId; 
+  // Ensure orderId field for UI always contains the pretty/public ID (FOD-...)
+  o.orderId = o.orderId || o.order_id || o.orderMongoId;
   return o;
 }
 
@@ -59,7 +59,7 @@ export function emitDeliveryDropOtpToUser(order, plainOtp) {
     if (!io || !plainOtp || !order?.userId) return;
     io.to(rooms.user(order.userId)).emit("delivery_drop_otp", {
       orderMongoId: order._id?.toString?.(),
-      orderId: order.order_id || order._id?.toString?.(),
+      orderId: order.orderId || order.order_id || order._id?.toString?.(),
       otp: plainOtp,
       message:
         "Share this OTP with your delivery partner to hand over the order.",
@@ -153,7 +153,7 @@ export function pushStatusHistory(order, { byRole, byId, from, to, note = "" }) 
 export function normalizeOrderForClient(orderDoc) {
   const order = orderDoc?.toObject ? orderDoc.toObject() : orderDoc || {};
   const mongoId = (order._id || orderDoc?._id || "").toString();
-  const displayId = order.order_id || mongoId;
+  const displayId = order.orderId || order.order_id || mongoId;
   return {
     ...order,
     orderMongoId: mongoId,
@@ -200,7 +200,7 @@ export function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
   return {
     orderMongoId:
       orderDoc?._id?.toString?.() || order?._id?.toString?.() || order?._id,
-    orderId: order?.order_id || order?._id?.toString?.(),
+    orderId: order?.orderId || order?.order_id || order?._id?.toString?.(),
     status: orderDoc?.orderStatus || order?.orderStatus,
     items: order?.items || [],
     pricing: order?.pricing,
@@ -268,7 +268,7 @@ export async function notifyRestaurantNewOrder(orderDoc) {
       const payload = {
         ...orderDoc.toObject(),
         orderMongoId: orderDoc._id?.toString?.() || undefined,
-        orderId: orderDoc.order_id || orderDoc._id?.toString?.(),
+        orderId: orderDoc.orderId || orderDoc.order_id || orderDoc._id?.toString?.(),
       };
       logger.info(
         `[RestaurantOrders] Emitting new_order to ${rooms.restaurant(orderDoc.restaurantId)} for order ${orderDoc._id?.toString?.() || ''}`,
@@ -280,7 +280,7 @@ export async function notifyRestaurantNewOrder(orderDoc) {
       [{ ownerType: "RESTAURANT", ownerId: orderDoc.restaurantId }],
       {
         title: "New order received",
-        body: `Order #${orderDoc.order_id || orderDoc._id} is waiting for review.`,
+        body: `Order #${orderDoc.orderId || orderDoc.order_id || orderDoc._id} is waiting for review.`,
         data: {
           type: "new_order",
           orderId: orderDoc._id.toString(),

@@ -270,6 +270,13 @@ const getGoogleMapsHref = (location, addressText = '') => {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 };
 
+const formatOrderDisplayId = (rawId) => {
+  const text = String(rawId || '').trim();
+  if (!text) return '';
+  if (/^[a-f0-9]{24}$/i.test(text)) return `ORD-${text.slice(-6).toUpperCase()}`;
+  return text;
+};
+
 const getGoogleMapsDirectionsHref = ({
   origin,
   destination,
@@ -631,11 +638,14 @@ const OrderDetailV2 = () => {
 
   const displayOrderId = useMemo(
     () =>
-      pickFirstText(
+      formatOrderDisplayId(pickFirstText(
         order?.displayOrderId,
+        order?.orderCode,
+        order?.orderNumber,
+        order?.order_id,
         order?.orderId,
         routeOrderId,
-      ),
+      )),
     [order, routeOrderId],
   );
 

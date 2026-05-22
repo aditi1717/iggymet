@@ -24,7 +24,7 @@ const OWNER_TOKEN_FIELDS = {
 };
 const OWNER_APP_PREFIXES = {
     USER: '',
-    RESTAURANT: '🏪 [Shop]',
+    RESTAURANT: '',
     DELIVERY_PARTNER: '🛵 [Rider]',
     ADMIN: '🛡️ [Admin]'
 };
