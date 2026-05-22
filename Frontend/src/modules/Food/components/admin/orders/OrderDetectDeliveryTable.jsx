@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import { Eye, Printer, ArrowUpDown, Phone, User, Send } from "lucide-react"
+import { Eye, ArrowUpDown, Phone, User, Send } from "lucide-react"
 
 const getStatusColor = (status) => {
   const colors = {
@@ -24,7 +24,6 @@ export default function OrderDetectDeliveryTable({
   orders,
   visibleColumns,
   onViewOrder,
-  onPrintOrder,
   onAssignOrder,
   onResendOrder,
   onAdminStatusChange,
@@ -212,13 +211,6 @@ export default function OrderDetectDeliveryTable({
                         title={order.deliveryBoyName ? "Reassign Delivery Partner" : "Assign Delivery Partner"}
                       >
                         <Send className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => onPrintOrder(order)}
-                        className="p-1.5 rounded text-brand-600 hover:bg-brand-50 transition-colors"
-                        title="Print Order"
-                      >
-                        <Printer className="w-4 h-4" />
                       </button>
                     </div>
                   </td>

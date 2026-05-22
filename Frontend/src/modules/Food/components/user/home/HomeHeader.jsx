@@ -101,6 +101,26 @@ export default function HomeHeader({
     dismiss: dismissBroadcastNotification,
   } = useNotificationInbox("user", { limit: 20 });
   const { getCartCount } = useCart();
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.__userNotificationPopoverOpen = isNotificationsOpen;
+
+    if (!isNotificationsOpen) return;
+
+    window.history.pushState({ ...(window.history.state || {}), userNotificationPopover: true }, "", window.location.href);
+
+    const handlePopState = () => {
+      setIsNotificationsOpen(false);
+    };
+
+    window.addEventListener("popstate", handlePopState, { once: true });
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [isNotificationsOpen]);
 
   useEffect(() => {
     const sync = () => {
@@ -264,7 +284,7 @@ export default function HomeHeader({
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              <Popover>
+              <Popover open={isNotificationsOpen} onOpenChange={setIsNotificationsOpen}>
                 <PopoverTrigger asChild>
                   <button
                     type="button"

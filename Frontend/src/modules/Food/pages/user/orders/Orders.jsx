@@ -66,6 +66,23 @@ export default function Orders() {
     }
   })
 
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    window.history.pushState(
+      { ...(window.history.state || {}), userOrdersBackGuard: true },
+      "",
+      window.location.href
+    )
+
+    const handlePopState = () => {
+      navigate("/food", { replace: true })
+    }
+
+    window.addEventListener("popstate", handlePopState)
+    return () => window.removeEventListener("popstate", handlePopState)
+  }, [navigate])
+
   // Save to localStorage whenever shownRatingForOrders changes
   useEffect(() => {
     try {

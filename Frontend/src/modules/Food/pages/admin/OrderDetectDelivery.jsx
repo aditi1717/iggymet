@@ -568,7 +568,6 @@ export default function OrderDetectDelivery() {
     handleResetFilters,
     handleExport,
     handleViewOrder,
-    handlePrintOrder,
     toggleColumn,
   } = useGenericTableManagement(
     orders,
@@ -917,7 +916,6 @@ export default function OrderDetectDelivery() {
         orders={tableOrders} 
         visibleColumns={visibleColumns}
         onViewOrder={handleViewOrder}
-        onPrintOrder={handlePrintOrder}
         onAssignOrder={handleOpenAssignDialog}
         onResendOrder={handleResend}
         onAdminStatusChange={handleAdminStatusChange}

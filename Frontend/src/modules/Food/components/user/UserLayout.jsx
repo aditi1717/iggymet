@@ -8,6 +8,19 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
+const isNativeLikeShell = () => {
+  if (typeof window === "undefined") return false
+  const protocol = String(window.location?.protocol || "").toLowerCase()
+  const userAgent = String(window.navigator?.userAgent || "").toLowerCase()
+  return (
+    Boolean(window.flutter_inappwebview) ||
+    Boolean(window.ReactNativeWebView) ||
+    protocol === "file:" ||
+    userAgent.includes(" wv") ||
+    userAgent.includes("; wv")
+  )
+}
+
 import SearchOverlay from "./SearchOverlay"
 import BottomNavigation from "./BottomNavigation"
 import DesktopNavbar from "./DesktopNavbar"
@@ -152,6 +165,58 @@ export default function UserLayout() {
     normalizedPath === "/under-250" ||
     normalizedPath === "/user/under-250" ||
     isUnderPriceRoute
+
+  const isHomeRoute =
+    normalizedPath === "/" ||
+    normalizedPath === "/user" ||
+    normalizedPath === ""
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (!isNativeLikeShell()) return
+    if (!isHomeRoute) return
+
+    if (!window.history.state?.userHomeBackGuard) {
+      window.history.pushState(
+        { ...(window.history.state || {}), userHomeBackGuard: true },
+        "",
+        window.location.href
+      )
+    }
+
+    const handlePopState = async () => {
+      if (window.__userNotificationPopoverOpen) return
+
+      const shouldExit = window.confirm("Exit app?")
+      if (!shouldExit) {
+        window.history.pushState(
+          { ...(window.history.state || {}), userHomeBackGuard: true },
+          "",
+          window.location.href
+        )
+        return
+      }
+
+      try {
+        if (window.flutter_inappwebview?.callHandler) {
+          const exitHandlers = ["exitApp", "closeApp", "onExitApp"]
+          for (const handler of exitHandlers) {
+            try {
+              await window.flutter_inappwebview.callHandler(handler, { module: "user" })
+              return
+            } catch {
+              // Try next handler.
+            }
+          }
+        }
+      } catch {
+        // Ignore bridge failures.
+      }
+    }
+
+    window.addEventListener("popstate", handlePopState)
+    return () => window.removeEventListener("popstate", handlePopState)
+  }, [isHomeRoute])
 
   return (
     <div
