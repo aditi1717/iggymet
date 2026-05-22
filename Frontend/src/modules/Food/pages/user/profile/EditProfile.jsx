@@ -76,16 +76,6 @@ const buildFormDataFromProfile = (profile = {}) => ({
   name: profile.name || "",
   mobile: normalizePhoneToTenDigits(profile.mobile || profile.phone || ""),
   email: profile.email || "",
-  dateOfBirth: profile.dateOfBirth
-    ? (typeof profile.dateOfBirth === 'string'
-      ? dayjs(profile.dateOfBirth)
-      : dayjs(profile.dateOfBirth))
-    : null,
-  anniversary: profile.anniversary
-    ? (typeof profile.anniversary === 'string'
-      ? dayjs(profile.anniversary)
-      : dayjs(profile.anniversary))
-    : null,
   gender: profile.gender || "",
 })
 
@@ -138,10 +128,16 @@ export default function EditProfile() {
   const [fieldErrors, setFieldErrors] = useState({
     mobile: "",
     email: "",
-    dateOfBirth: "",
   })
   const fileInputRef = useRef(null)
   const hydratedFromDraftRef = useRef(Boolean(draftProfile))
+
+  // Clear draft on unmount so navigation/back resets the form to saved profile
+  useEffect(() => {
+    return () => {
+      clearEditProfileDraft()
+    }
+  }, [])
 
   // Update form data when profile changes
   useEffect(() => {
@@ -166,8 +162,6 @@ export default function EditProfile() {
       mobile: formData.mobile,
       email: formData.email,
       profileImage,
-      dateOfBirth: formData.dateOfBirth ? formData.dateOfBirth.format('YYYY-MM-DD') : null,
-      anniversary: formData.anniversary ? formData.anniversary.format('YYYY-MM-DD') : null,
       gender: formData.gender || "",
     })
   }, [formData, profileImage])
@@ -232,19 +226,6 @@ export default function EditProfile() {
     return ""
   }
 
-  const validateDateOfBirth = (value) => {
-    if (!value) return ""
-    const dob = dayjs(value)
-    if (!dob.isValid()) return "Please select a valid date of birth"
-    
-    // Explicitly check for today's date
-    const today = dayjs().startOf('day')
-    const selectedDate = dob.startOf('day')
-    
-    if (selectedDate.isSame(today, "day")) return "Date of birth cannot be today"
-    return selectedDate.isAfter(today, "day") ? "Date of birth cannot be in the future" : ""
-  }
-
   const handleChange = (field, value) => {
     let normalizedValue = value
     let errorMessage = ""
@@ -258,8 +239,6 @@ export default function EditProfile() {
     } else if (field === "email") {
       normalizedValue = String(value || "").trim()
       errorMessage = validateEmail(normalizedValue)
-    } else if (field === "dateOfBirth") {
-      errorMessage = validateDateOfBirth(normalizedValue)
     }
 
     setFormData((prev) => ({
@@ -267,7 +246,7 @@ export default function EditProfile() {
       [field]: normalizedValue
     }))
 
-    if (field === "name" || field === "mobile" || field === "email" || field === "dateOfBirth") {
+    if (field === "name" || field === "mobile" || field === "email") {
       setFieldErrors((prev) => ({
         ...prev,
         [field]: errorMessage
@@ -321,8 +300,6 @@ export default function EditProfile() {
           phone: formData.mobile,
           mobile: formData.mobile,
           email: formData.email,
-          dateOfBirth: formData.dateOfBirth ? formData.dateOfBirth.format('YYYY-MM-DD') : null,
-          anniversary: formData.anniversary ? formData.anniversary.format('YYYY-MM-DD') : null,
           gender: formData.gender || "",
           profileImage: imageUrl,
         }
@@ -367,7 +344,6 @@ export default function EditProfile() {
       name: validateName(formData.name),
       mobile: validateMobile(formData.mobile),
       email: validateEmail(formData.email),
-      dateOfBirth: validateDateOfBirth(formData.dateOfBirth),
     }
     setFieldErrors(nextErrors)
     return !Object.values(nextErrors).some(Boolean)
@@ -388,8 +364,6 @@ export default function EditProfile() {
         name: formData.name,
         email: formData.email || undefined,
         phone: formData.mobile || undefined,
-        dateOfBirth: formData.dateOfBirth ? formData.dateOfBirth.format('YYYY-MM-DD') : undefined,
-        anniversary: formData.anniversary ? formData.anniversary.format('YYYY-MM-DD') : undefined,
         gender: formData.gender || undefined,
         profileImage: profileImage || undefined, // Include profileImage in update
       }
@@ -413,8 +387,6 @@ export default function EditProfile() {
           mobile: updatedUser.phone || formData.mobile,
           email: updatedUser.email || formData.email,
           profileImage: updatedUser.profileImage || profileImage,
-          dateOfBirth: updatedUser.dateOfBirth || formData.dateOfBirth?.format('YYYY-MM-DD'),
-          anniversary: updatedUser.anniversary || formData.anniversary?.format('YYYY-MM-DD'),
           gender: updatedUser.gender || formData.gender,
         })
         clearEditProfileDraft()
@@ -447,6 +419,16 @@ export default function EditProfile() {
 
   return (
     <div className={`min-h-screen ${BRAND_THEME.tokens.profile.pageBackground}`}>
+      <style>{`
+        .dark input:-webkit-autofill,
+        .dark input:-webkit-autofill:hover,
+        .dark input:-webkit-autofill:focus,
+        .dark input:-webkit-autofill:active {
+          -webkit-box-shadow: 0 0 0 1000px #1a1a1a inset !important;
+          -webkit-text-fill-color: #ffffff !important;
+          transition: background-color 5000s ease-in-out 0s;
+        }
+      `}</style>
       {/* Header */}
       <div className="bg-white dark:bg-[#1a1a1a] sticky top-0 z-10 border-b border-gray-100 dark:border-gray-800">
         <div className="max-w-7xl mx-auto flex items-center gap-3 px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-4 md:py-5 lg:py-6">
@@ -571,171 +553,6 @@ export default function EditProfile() {
               )}
             </div>
 
-            {/* Date of Birth Field */}
-            <div className="space-y-1.5">
-              <Label htmlFor="dateOfBirth" className="text-sm font-medium text-gray-700 dark:text-white">
-                Date of birth
-              </Label>
-              <LocalizationProvider dateAdapter={AdapterDayjs}>
-                <DatePicker
-                  value={formData.dateOfBirth}
-                  onChange={(newValue) => handleChange('dateOfBirth', newValue)}
-                  maxDate={dayjs().subtract(1, "day")}
-                  slotProps={{
-                    textField: {
-                      className: "w-full",
-                      sx: {
-                        '& .MuiOutlinedInput-root': {
-                          height: '48px',
-                          borderRadius: '8px',
-                          backgroundColor: '#ffffff !important',
-                          color: '#111827 !important',
-                          '& fieldset': {
-                            borderColor: '#d1d5db !important',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#9ca3af !important',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: BRAND_THEME.tokens.profile.fieldFocus + ' !important',
-                            borderWidth: '1px',
-                          },
-                        },
-                        '& .MuiInputBase-input': {
-                          padding: '12px 14px',
-                          fontSize: '16px',
-                          color: '#111827 !important',
-                          WebkitTextFillColor: '#111827 !important',
-                        },
-                        '& input': {
-                          color: '#111827 !important',
-                          WebkitTextFillColor: '#111827 !important',
-                        },
-                        '& .MuiSvgIcon-root': {
-                          color: '#6b7280 !important',
-                        },
-                        '.dark & .MuiOutlinedInput-root': {
-                          backgroundColor: '#ffffff !important',
-                          color: '#111827 !important',
-                        },
-                        '.dark & .MuiInputBase-input': {
-                          color: '#111827 !important',
-                          WebkitTextFillColor: '#111827 !important',
-                        },
-                        '.dark & input': {
-                          color: '#111827 !important',
-                          WebkitTextFillColor: '#111827 !important',
-                        },
-                        '.dark & .MuiSvgIcon-root': {
-                          color: '#6b7280 !important',
-                        },
-                        '@media (prefers-color-scheme: dark)': {
-                          '& .MuiOutlinedInput-root': {
-                            backgroundColor: '#ffffff !important',
-                            color: '#111827 !important',
-                          },
-                          '& .MuiInputBase-input': {
-                            color: '#111827 !important',
-                            WebkitTextFillColor: '#111827 !important',
-                          },
-                          '& input': {
-                            color: '#111827 !important',
-                            WebkitTextFillColor: '#111827 !important',
-                          },
-                          '& .MuiSvgIcon-root': {
-                            color: '#6b7280 !important',
-                          },
-                        },
-                      },
-                    },
-                  }}
-                />
-              </LocalizationProvider>
-              {fieldErrors.dateOfBirth && (
-                <p className="text-xs text-red-600">{fieldErrors.dateOfBirth}</p>
-              )}
-            </div>
-
-            {/* Anniversary Field */}
-            <div className="space-y-1.5">
-              <Label htmlFor="anniversary" className="text-sm font-medium text-gray-700 dark:text-white">
-                Anniversary <span className="text-gray-400 dark:text-gray-500 font-normal">(Optional)</span>
-              </Label>
-              <LocalizationProvider dateAdapter={AdapterDayjs}>
-                <DatePicker
-                  value={formData.anniversary}
-                  onChange={(newValue) => handleChange('anniversary', newValue)}
-                  slotProps={{
-                    textField: {
-                      className: "w-full",
-                      sx: {
-                        '& .MuiOutlinedInput-root': {
-                          height: '48px',
-                          borderRadius: '8px',
-                          backgroundColor: '#ffffff !important',
-                          color: '#111827 !important',
-                          '& fieldset': {
-                            borderColor: '#d1d5db !important',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#9ca3af !important',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: BRAND_THEME.tokens.profile.fieldFocus + ' !important',
-                            borderWidth: '1px',
-                          },
-                        },
-                        '& .MuiInputBase-input': {
-                          padding: '12px 14px',
-                          fontSize: '16px',
-                          color: '#111827 !important',
-                          WebkitTextFillColor: '#111827 !important',
-                        },
-                        '& input': {
-                          color: '#111827 !important',
-                          WebkitTextFillColor: '#111827 !important',
-                        },
-                        '& .MuiSvgIcon-root': {
-                          color: '#6b7280 !important',
-                        },
-                        '.dark & .MuiOutlinedInput-root': {
-                          backgroundColor: '#ffffff !important',
-                          color: '#111827 !important',
-                        },
-                        '.dark & .MuiInputBase-input': {
-                          color: '#111827 !important',
-                          WebkitTextFillColor: '#111827 !important',
-                        },
-                        '.dark & input': {
-                          color: '#111827 !important',
-                          WebkitTextFillColor: '#111827 !important',
-                        },
-                        '.dark & .MuiSvgIcon-root': {
-                          color: '#6b7280 !important',
-                        },
-                        '@media (prefers-color-scheme: dark)': {
-                          '& .MuiOutlinedInput-root': {
-                            backgroundColor: '#ffffff !important',
-                            color: '#111827 !important',
-                          },
-                          '& .MuiInputBase-input': {
-                            color: '#111827 !important',
-                            WebkitTextFillColor: '#111827 !important',
-                          },
-                          '& input': {
-                            color: '#111827 !important',
-                            WebkitTextFillColor: '#111827 !important',
-                          },
-                          '& .MuiSvgIcon-root': {
-                            color: '#6b7280 !important',
-                          },
-                        },
-                      },
-                    },
-                  }}
-                />
-              </LocalizationProvider>
-            </div>
 
             {/* Gender Field */}
             <div className="space-y-1.5">

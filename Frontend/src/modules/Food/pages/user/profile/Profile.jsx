@@ -236,9 +236,6 @@ export default function Profile() {
       userProfile.profileImage !== "undefined"
     );
 
-    // Check date of birth
-    const hasDateOfBirth = isDateFilled(userProfile.dateOfBirth);
-
     // Check gender - must be valid value
     const validGenders = ["male", "female", "other", "prefer-not-to-say"];
     const hasGender = !!(
@@ -248,21 +245,20 @@ export default function Profile() {
       validGenders.includes(userProfile.gender.trim().toLowerCase())
     );
 
-    // Required fields only (anniversary is NOT counted - it's optional)
-    // Only these 5 fields count towards 100%
+    // Required fields only (anniversary and dateOfBirth are NOT counted)
+    // Only these 4 fields count towards 100%
     const requiredFields = {
       name: hasName,
       contact: hasContact,
       profileImage: hasImage,
-      dateOfBirth: hasDateOfBirth,
       gender: hasGender,
     };
 
-    const totalRequiredFields = 5; // Fixed: name, contact, profileImage, dateOfBirth, gender
+    const totalRequiredFields = 4; // Fixed: name, contact, profileImage, gender
     const completedRequiredFields =
       Object.values(requiredFields).filter(Boolean).length;
 
-    // Calculate percentage based ONLY on required fields (anniversary NOT included)
+    // Calculate percentage based ONLY on required fields
     const percentage = Math.round(
       (completedRequiredFields / totalRequiredFields) * 100,
     );
@@ -277,7 +273,6 @@ export default function Profile() {
         name: hasName ? "?" : "?",
         contact: hasContact ? "?" : "?",
         profileImage: hasImage ? "?" : "?",
-        dateOfBirth: hasDateOfBirth ? "?" : "?",
         gender: hasGender ? "?" : "?",
       },
       rawData: {
@@ -285,9 +280,6 @@ export default function Profile() {
         phone: userProfile.phone || "missing",
         email: userProfile.email || "missing",
         profileImage: userProfile.profileImage ? "exists" : "missing",
-        dateOfBirth: userProfile.dateOfBirth
-          ? String(userProfile.dateOfBirth)
-          : "missing",
         gender: userProfile.gender || "missing",
       },
     });

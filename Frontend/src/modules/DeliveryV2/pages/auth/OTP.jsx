@@ -244,14 +244,14 @@ export default function DeliveryOTP() {
       if (needsRegistration) {
         // No DB record yet; redirect to registration details page WITHOUT creating anything in DB.
         sessionStorage.removeItem("deliveryAuthData")
-        sessionStorage.setItem("deliveryNeedsRegistration", "true")
+        localStorage.setItem("deliveryNeedsRegistration", "true")
         const digits = String(phone || "").replace(/\D/g, "")
         const details = {
           name: "",
           phone: digits.slice(-10),
           countryCode: "+91",
         }
-        sessionStorage.setItem("deliverySignupDetails", JSON.stringify(details))
+        localStorage.setItem("deliverySignupDetails", JSON.stringify(details))
         setIsLoading(false)
         navigate("/food/delivery/signup/details", { replace: true })
         return
@@ -533,13 +533,13 @@ export default function DeliveryOTP() {
                     onClick={() => {
                       const phone = authData?.phone
                       const digits = String(phone || "").replace(/\D/g, "")
-                      sessionStorage.setItem("deliveryNeedsRegistration", "true")
+                      localStorage.setItem("deliveryNeedsRegistration", "true")
                       const details = {
                         name: "",
                         phone: digits.slice(-10),
                         countryCode: "+91",
                       }
-                      sessionStorage.setItem("deliverySignupDetails", JSON.stringify(details))
+                      localStorage.setItem("deliverySignupDetails", JSON.stringify(details))
                       navigate("/food/delivery/signup/details", { replace: true })
                     }}
                     className="w-full py-3 bg-red-600 text-white rounded-lg font-bold text-sm hover:bg-red-700 shadow-md transition-all active:scale-95"

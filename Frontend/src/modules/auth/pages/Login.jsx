@@ -431,7 +431,7 @@ export default function UnifiedOTPFastLogin() {
                className="underline transition-colors hover:opacity-80"
                style={{ color: authTheme.accent }}
              >
-               Terms of Service
+               Terms & Conditions
              </Link>
              <span className="text-slate-300 dark:text-slate-600 mx-2">&</span>
              <Link

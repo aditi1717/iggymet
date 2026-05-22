@@ -384,7 +384,7 @@ export default function SignupStep2() {
       return
     }
 
-    const raw = sessionStorage.getItem("deliverySignupDetails")
+    const raw = localStorage.getItem("deliverySignupDetails")
     if (!raw) {
       toast.error("Session expired. Please start from Create Account.")
       navigate("/food/delivery/signup", { replace: true })
@@ -453,7 +453,7 @@ export default function SignupStep2() {
       formData.append("platform", platform);
     }
 
-    const isCompleteProfile = sessionStorage.getItem("deliveryNeedsRegistration") === "true"
+    const isCompleteProfile = localStorage.getItem("deliveryNeedsRegistration") === "true"
 
     setIsSubmitting(true)
 

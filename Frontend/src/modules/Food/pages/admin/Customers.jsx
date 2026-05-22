@@ -659,38 +659,14 @@ export default function Customers() {
               )}
 
               {/* Additional Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {userDetails.gender && (
+              {userDetails.gender && (
+                <div className="grid grid-cols-1 gap-3">
                   <div className="bg-slate-50 rounded-lg p-3">
                     <p className="text-xs font-semibold text-slate-700 mb-1">Gender</p>
                     <p className="text-sm text-slate-600 capitalize">{userDetails.gender}</p>
                   </div>
-                )}
-                {userDetails.dateOfBirth && (
-                  <div className="bg-slate-50 rounded-lg p-3">
-                    <p className="text-xs font-semibold text-slate-700 mb-1">Date of Birth</p>
-                    <p className="text-sm text-slate-600">
-                      {new Date(userDetails.dateOfBirth).toLocaleDateString('en-GB', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric'
-                      })}
-                    </p>
-                  </div>
-                )}
-                {userDetails.anniversary && (
-                  <div className="bg-slate-50 rounded-lg p-3">
-                    <p className="text-xs font-semibold text-slate-700 mb-1">Anniversary</p>
-                    <p className="text-sm text-slate-600">
-                      {new Date(userDetails.anniversary).toLocaleDateString('en-GB', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric'
-                      })}
-                    </p>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="py-8 text-center">
