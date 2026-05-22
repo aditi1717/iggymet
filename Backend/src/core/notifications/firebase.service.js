@@ -25,8 +25,8 @@ const OWNER_TOKEN_FIELDS = {
 const OWNER_APP_PREFIXES = {
     USER: '',
     RESTAURANT: '',
-    DELIVERY_PARTNER: '🛵 [Rider]',
-    ADMIN: '🛡️ [Admin]'
+    DELIVERY_PARTNER: '',
+    ADMIN: ''
 };
 
 let cachedAccessToken = null;
