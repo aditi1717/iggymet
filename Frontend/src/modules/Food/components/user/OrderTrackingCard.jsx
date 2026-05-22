@@ -88,19 +88,61 @@ const isActiveOrder = (order) => {
   return true;
 };
 
+const isDeliveredLikeOrder = (order) => {
+  const status = String(order?.orderStatus || order?.status || "").toLowerCase();
+  const phase = String(order?.deliveryState?.currentPhase || "").toLowerCase();
+  return status === "delivered" || status === "completed" || phase === "delivered" || phase === "completed";
+};
+
+const hasPendingRating = (order) => {
+  const restaurantRating = Number(order?.ratings?.restaurant?.rating ?? order?.restaurantRating);
+  const hasRestaurantRating = Number.isFinite(restaurantRating) && restaurantRating > 0;
+  const hasDeliveryPartner = Boolean(order?.isDeliveryAccepted) && !!(order?.deliveryPartnerId || order?.deliveryPartnerName);
+  const deliveryPartnerRating = Number(order?.ratings?.deliveryPartner?.rating ?? order?.deliveryPartnerRating);
+  const hasDeliveryRating = Number.isFinite(deliveryPartnerRating) && deliveryPartnerRating > 0;
+  return !hasRestaurantRating || (hasDeliveryPartner && !hasDeliveryRating);
+};
+
+const toFiniteNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const getOrderEtaMinutes = (orderLike = {}) => {
+  const candidates = [
+    orderLike?.eta?.currentEstimatedMinutes,
+    orderLike?.eta?.totalBeforeReadyMinutes,
+    orderLike?.estimatedDeliveryTime,
+    orderLike?.estimatedTime,
+    orderLike?.estimated_delivery_time,
+  ];
+
+  for (const candidate of candidates) {
+    const value = toFiniteNumber(candidate);
+    if (value !== null && value >= 0) return Math.round(value);
+  }
+
+  return null;
+};
+
 const getTimeRemaining = (order) => {
   if (!order) return null;
 
-  const orderTime = new Date(
-    order.createdAt || order.orderDate || order.created_at || order.date || Date.now(),
-  );
-  const estimatedMinutes =
-    order.estimatedDeliveryTime ||
-    order.estimatedTime ||
-    order.estimated_delivery_time ||
-    35;
-  const deliveryTime = new Date(orderTime.getTime() + estimatedMinutes * 60000);
-  return Math.max(0, Math.floor((deliveryTime - new Date()) / 60000));
+  const arrivalRaw = order?.eta?.estimatedArrivalAt;
+  if (arrivalRaw) {
+    const arrivalAt = new Date(arrivalRaw);
+    if (!Number.isNaN(arrivalAt.getTime())) {
+      return Math.max(0, Math.ceil((arrivalAt.getTime() - Date.now()) / 60000));
+    }
+  }
+
+  const etaMinutes = getOrderEtaMinutes(order);
+  if (typeof etaMinutes === "number") return Math.max(0, etaMinutes);
+
+  const orderTime = new Date(order.createdAt || order.orderDate || order.created_at || order.date || Date.now());
+  const fallbackMinutes = 35;
+  const deliveryTime = new Date(orderTime.getTime() + fallbackMinutes * 60000);
+  return Math.max(0, Math.ceil((deliveryTime - new Date()) / 60000));
 };
 
 /** Cheap fingerprint so we skip setState when list content is unchanged (fewer re-renders). */
@@ -111,7 +153,7 @@ function ordersFingerprint(orders) {
     .join("|");
 }
 
-function OrderTrackingCardInner({ hasBottomNav = true }) {
+function OrderTrackingCardInner({ hasBottomNav = true, otpOnly = false, showOtpBanner = true }) {
   const navigate = useNavigate();
   const { orders: contextOrders } = useOrders();
   const hasCustomerAuth = !!getCustomerToken();
@@ -124,6 +166,7 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
   const activeOrderKeyRef = useRef("");
   const activeOrderSnapshotRef = useRef(null);
   const [invalidOrderIds, setInvalidOrderIds] = useState(new Set());
+  const [dismissedOtpKey, setDismissedOtpKey] = useState(null);
 
   const fetchOrders = useCallback(async () => {
     if (!getCustomerToken()) {
@@ -211,6 +254,11 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
     return candidate;
   }, [uniqueOrders, activeOrderOverride]);
 
+  const deliveredOrderForRating = useMemo(
+    () => uniqueOrders.find((order) => isDeliveredLikeOrder(order) && hasPendingRating(order)) || null,
+    [uniqueOrders],
+  );
+
   useEffect(() => {
     const key = String(getOrderKey(activeOrder) || "");
     activeOrderKeyRef.current = key;
@@ -234,6 +282,12 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
         deliveryState: detail?.deliveryState
           ? { ...(prev?.deliveryState || snap?.deliveryState || {}), ...detail.deliveryState }
           : prev?.deliveryState || snap?.deliveryState,
+        deliveryVerification: detail?.deliveryVerification
+          ? {
+              ...(prev?.deliveryVerification || snap?.deliveryVerification || {}),
+              ...detail.deliveryVerification,
+            }
+          : prev?.deliveryVerification || snap?.deliveryVerification,
         status: detail?.status || prev?.status || snap?.status,
       }));
 
@@ -298,7 +352,16 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
 
     const verifyOrderExists = async () => {
       try {
-        await orderAPI.getOrderDetails(key);
+        const response = await orderAPI.getOrderDetails(key);
+        const fresh = response?.data?.data?.order || response?.data?.order || response?.data?.data || null;
+        if (fresh) {
+          setActiveOrderOverride((prev) => {
+            const prevKey = getOrderKey(prev);
+            const freshKey = getOrderKey(fresh);
+            if (prevKey && freshKey && String(prevKey) !== String(freshKey)) return prev;
+            return { ...(prev || activeOrder || {}), ...fresh };
+          });
+        }
       } catch (error) {
         if (error?.response?.status === 404 || error?.response?.status === 400) {
           setInvalidOrderIds((prev) => {
@@ -319,12 +382,14 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
     return null;
   }
 
-  if (!activeOrder) {
+  const displayOrder = activeOrder || deliveredOrderForRating;
+
+  if (!displayOrder) {
     return null;
   }
 
-  const currentOrderKey = getOrderKey(activeOrder);
-  const orderRouteId = getOrderRouteId(activeOrder);
+  const currentOrderKey = getOrderKey(displayOrder);
+  const orderRouteId = getOrderRouteId(displayOrder);
   if (dismissedKey === currentOrderKey) {
     return null;
   }
@@ -332,20 +397,33 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
     return null;
   }
 
-  const orderStatus = getOrderStatus(activeOrder) || "preparing";
-  const orderPhase = getOrderPhase(activeOrder);
-  if (orderStatus === "delivered" || orderStatus === "completed") {
-    return null;
-  }
+  const orderStatus = getOrderStatus(displayOrder) || "preparing";
+  const orderPhase = getOrderPhase(displayOrder);
+  const isDeliveredCard = isDeliveredLikeOrder(displayOrder);
+  const deliveryOtpCode = String(
+    displayOrder?.deliveryVerification?.dropOtp?.code ||
+      displayOrder?.deliveryVerification?.code ||
+      displayOrder?.handoverOtp ||
+      "",
+  ).trim();
+  const otpKey = `${String(orderRouteId)}:${deliveryOtpCode}`;
+  const showGlobalOtp = showOtpBanner && Boolean(deliveryOtpCode) && dismissedOtpKey !== otpKey;
 
   const restaurantName =
-    activeOrder.restaurant || activeOrder.restaurantName || "Restaurant";
+    displayOrder.restaurantName ||
+    displayOrder.restaurant ||
+    displayOrder?.restaurantId?.restaurantName ||
+    displayOrder?.restaurantId?.name ||
+    (typeof displayOrder?.restaurant === "object"
+      ? displayOrder?.restaurant?.restaurantName || displayOrder?.restaurant?.name
+      : null) ||
+    "Restaurant";
   const statusText = (() => {
     const s = String(orderStatus);
     const p = String(orderPhase);
 
     if (s === "confirmed") return "Order confirmed";
-    if (s === "preparing" || s === "created" || s === "pending") return "Preparing your order";
+    if (s === "preparing" || s === "created" || s === "pending") return `Preparing your food at ${restaurantName}`;
     if (s === "ready_for_pickup") return "Ready for pickup";
 
     if (s === "reached_pickup" || p === "at_pickup") return "Delivery partner reached restaurant";
@@ -356,8 +434,62 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
     return "Preparing your order";
   })();
 
+  if (otpOnly) {
+    if (!showGlobalOtp) return null;
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ y: -30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -30, opacity: 0 }}
+          transition={{ type: "spring", damping: 24, stiffness: 220 }}
+          className="fixed top-3 left-4 right-4 z-[10001]"
+        >
+          <div className="relative rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-lg shadow-[0_12px_34px_rgba(15,23,42,0.18)] px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setDismissedOtpKey(otpKey)}
+              className="absolute right-3 top-3 rounded-full p-1 text-slate-500 hover:bg-slate-100"
+            >
+              <X className="w-4 h-4 pointer-events-none" />
+            </button>
+            <p className="text-sm font-semibold text-slate-900">Delivery OTP</p>
+            <p className="text-xs text-slate-500 mt-0.5 pr-6">Share this OTP only after receiving your order.</p>
+            <div className="mt-2 rounded-xl border border-brand-100 bg-brand-50 px-3 py-2">
+              <span className="text-2xl font-black tracking-[0.28em] text-brand-700">{deliveryOtpCode}</span>
+            </div>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
+
   return (
     <AnimatePresence>
+      {showGlobalOtp && (
+        <motion.div
+          initial={{ y: -30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -30, opacity: 0 }}
+          transition={{ type: "spring", damping: 24, stiffness: 220 }}
+          className="fixed top-3 left-4 right-4 z-[10001]"
+        >
+          <div className="relative rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-lg shadow-[0_12px_34px_rgba(15,23,42,0.18)] px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setDismissedOtpKey(otpKey)}
+              className="absolute right-3 top-3 rounded-full p-1 text-slate-500 hover:bg-slate-100"
+            >
+              <X className="w-4 h-4 pointer-events-none" />
+            </button>
+            <p className="text-sm font-semibold text-slate-900">Delivery OTP</p>
+            <p className="text-xs text-slate-500 mt-0.5 pr-6">Share this OTP only after receiving your order.</p>
+            <div className="mt-2 rounded-xl border border-brand-100 bg-brand-50 px-3 py-2">
+              <span className="text-2xl font-black tracking-[0.28em] text-brand-700">{deliveryOtpCode}</span>
+            </div>
+          </div>
+        </motion.div>
+      )}
       <motion.div
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -365,45 +497,63 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
         className={`fixed ${hasBottomNav ? "bottom-20" : "bottom-6"} left-4 right-4 z-[9999]`}
       >
-        <div 
-          onClick={() =>
-            navigate(
-              `/food/orders/${encodeURIComponent(String(orderRouteId))}`,
-            )
-          }
-          className="relative bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-xl rounded-[20px] p-4 shadow-[0_8px_30px_rgba(41,121,251,0.16)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)] border border-brand-100/70 dark:border-white/10 overflow-visible cursor-pointer group"
+        <div
+          onClick={() => {
+            if (isDeliveredCard) {
+              navigate("/food/orders", {
+                state: {
+                  openRatingOrderId: String(orderRouteId),
+                  fromBottomRatingPrompt: true,
+                },
+              });
+              return;
+            }
+            navigate(`/food/orders/${encodeURIComponent(String(orderRouteId))}`);
+          }}
+          className="relative bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-xl rounded-[20px] p-4 shadow-[0_10px_28px_rgba(15,23,42,0.18)] dark:shadow-[0_10px_28px_rgba(0,0,0,0.42)] border border-brand-100/70 dark:border-white/10 overflow-visible cursor-pointer group"
         >
           {/* Subtle gradient background mesh */}
           <div className="absolute inset-0 bg-gradient-to-r from-brand-50/60 via-white/50 to-white/85 dark:from-brand-900/20 dark:via-transparent dark:to-transparent opacity-70 pointer-events-none rounded-[20px]" />
           
-          <button 
+          <button
              onClick={(e) => { e.stopPropagation(); setDismissedKey(currentOrderKey); }}
-             className="absolute top-2 right-2 p-1.5 rounded-full bg-brand-50/80 dark:bg-white/10 text-brand-400 hover:text-brand-600 dark:hover:text-brand-300 hover:bg-brand-100/80 dark:hover:bg-white/20 transition-colors z-20 shadow-sm"
+             className="absolute top-3 right-3 p-1.5 rounded-full bg-slate-100/90 dark:bg-white/10 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/80 dark:hover:bg-white/20 transition-colors z-20"
           >
             <X className="w-3.5 h-3.5 pointer-events-none" />
           </button>
 
-          <div className="flex items-center gap-4 relative z-10 w-full">
+          <div className="flex items-center gap-3.5 relative z-10 w-full">
             <CookingAnimation className="dark:invert" />
 
-            <div className="flex-1 min-w-0 pr-4">
+            <div className="flex-1 min-w-0 pr-3">
               <p className="text-gray-900 dark:text-white font-bold text-base md:text-lg truncate tracking-tight">{restaurantName}</p>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <p className="text-gray-500 dark:text-gray-400 font-medium text-xs md:text-sm truncate">{statusText}</p>
+              <div className="flex items-center gap-1 mt-1">
+                <p className={`font-medium text-xs md:text-sm leading-tight ${isDeliveredCard ? "text-slate-600 dark:text-slate-300" : "text-gray-500 dark:text-gray-400"} truncate`}>
+                  {isDeliveredCard ? "How was your order? Give your rating" : statusText}
+                </p>
                 <ChevronRight className="w-3.5 h-3.5 shrink-0 group-hover:translate-x-1 transition-transform" style={{ color: BRAND_THEME.colors.brand.primary }} />
               </div>
             </div>
 
-            <div className="rounded-xl px-4 py-2 shrink-0 flex flex-col items-center justify-center border" style={{ background: BRAND_THEME.gradients.primary, borderColor: `${BRAND_THEME.colors.brand.primary}33`, boxShadow: `0 15px 35px -20px ${BRAND_THEME.colors.brand.primaryDark}` }}>
-              <p className="text-brand-50 text-[10px] font-bold uppercase tracking-wider opacity-95 leading-tight mb-[2px]">
-                arriving in
-              </p>
-              <p className="text-white text-base md:text-[17px] font-black leading-tight drop-shadow-sm">
-                {timeRemaining !== null
-                  ? `${Math.max(1, timeRemaining)} min`
-                  : "--"}
-              </p>
-            </div>
+            {isDeliveredCard ? (
+              <div
+                className="rounded-xl px-4 py-2.5 shrink-0 flex flex-col items-center justify-center border min-w-[116px]"
+                style={{ background: BRAND_THEME.gradients.primary, borderColor: `${BRAND_THEME.colors.brand.primary}33`, boxShadow: `0 12px 28px -20px ${BRAND_THEME.colors.brand.primaryDark}` }}
+              >
+                <p className="text-white text-[11px] font-extrabold leading-tight uppercase tracking-[0.06em]">Give Rating</p>
+              </div>
+            ) : (
+              <div className="rounded-xl px-4 py-2 shrink-0 flex flex-col items-center justify-center border" style={{ background: BRAND_THEME.gradients.primary, borderColor: `${BRAND_THEME.colors.brand.primary}33`, boxShadow: `0 15px 35px -20px ${BRAND_THEME.colors.brand.primaryDark}` }}>
+                <p className="text-brand-50 text-[10px] font-bold uppercase tracking-wider opacity-95 leading-tight mb-[2px]">
+                  arriving in
+                </p>
+                <p className="text-white text-base md:text-[17px] font-black leading-tight drop-shadow-sm">
+                  {timeRemaining !== null
+                    ? `${Math.max(1, timeRemaining)} mins`
+                    : "--"}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </motion.div>
