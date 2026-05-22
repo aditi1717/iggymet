@@ -4268,8 +4268,8 @@ export default function Home() {
         )}
 
       <StickyCartCard />
-      {/* Live order strip: only on homepage (not in UserLayout) */}
-      <OrderTrackingCard hasBottomNav />
+      {/* Live order strip: homepage only */}
+      <OrderTrackingCard hasBottomNav showOtpBanner={false} />
     </div>
   );
 }

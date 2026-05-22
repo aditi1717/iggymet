@@ -24,6 +24,7 @@ const isNativeLikeShell = () => {
 import SearchOverlay from "./SearchOverlay"
 import BottomNavigation from "./BottomNavigation"
 import DesktopNavbar from "./DesktopNavbar"
+import OrderTrackingCard from "@food/components/user/OrderTrackingCard"
 import { useUserNotifications } from "../../hooks/useUserNotifications"
 import BRAND_THEME from "@/config/brandTheme"
 
@@ -236,6 +237,7 @@ export default function UserLayout() {
                   <main className={showBottomNav ? "md:pt-40" : ""}>
                     <Outlet />
                   </main>
+                  <OrderTrackingCard otpOnly showOtpBanner hasBottomNav={showBottomNav} />
                   {showBottomNav && <BottomNavigation />}
                 </LocationSelectorProvider>
               </SearchOverlayProvider>

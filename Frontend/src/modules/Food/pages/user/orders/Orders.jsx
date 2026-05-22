@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import { ArrowLeft, Search, MoreVertical, ChevronRight, Star, RotateCcw, AlertCircle, Loader2, Clock, X, Share2, MessageCircle, Send, Copy, Mail, MessagesSquare, Link2 } from "lucide-react"
 import { orderAPI } from "@food/api"
 import { useCart } from "@food/context/CartContext"
@@ -41,6 +41,7 @@ const getOrderRouteId = (order) =>
 
 export default function Orders() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { replaceCart } = useCart()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
@@ -673,6 +674,27 @@ Order again from this restaurant in the ${companyName} app.`
     setRestaurantFeedbackText(order.ratings?.restaurant?.comment || "")
     setDeliveryFeedbackText(order.ratings?.deliveryPartner?.comment || "")
   }
+
+  useEffect(() => {
+    const routeOrderId = location?.state?.openRatingOrderId
+    if (!routeOrderId || !orders.length || ratingModal.open) return
+
+    const targetOrder = orders.find((order) => {
+      const candidates = [
+        order?.mongoId,
+        order?.id,
+        order?.orderId,
+        order?._id,
+      ]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+      return candidates.includes(String(routeOrderId).trim())
+    })
+
+    if (!targetOrder) return
+    handleOpenRating(targetOrder)
+    navigate(location.pathname, { replace: true, state: {} })
+  }, [handleOpenRating, location, navigate, orders, ratingModal.open])
 
   const handleCloseRating = () => {
     setRatingModal({ open: false, order: null })
