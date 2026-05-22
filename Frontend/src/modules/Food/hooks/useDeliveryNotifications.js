@@ -915,6 +915,11 @@ export const useDeliveryNotifications = () => {
         orderMongoId: data?.orderMongoId || data?.order_mongo_id,
         ...data
       };
+      // Guard: do not re-ring for already progressed/completed order stages.
+      // This keeps new-order ringing behavior unchanged while avoiding post-pickup re-rings.
+      if (shouldStopAlertForStatusPayload(normalizedData)) {
+        return;
+      }
       // Force immediate buzz for notification events, even if dedupe would skip.
       activeOrderRef.current = normalizedData || { id: Date.now() };
       playNotificationSound(normalizedData);

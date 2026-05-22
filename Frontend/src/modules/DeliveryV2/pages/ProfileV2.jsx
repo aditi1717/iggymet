@@ -2,7 +2,6 @@ import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import {
-  User,
   Bike,
   Ticket,
   ChevronRight,
@@ -13,6 +12,7 @@ import {
   Store,
 } from "lucide-react"
 import { deliveryAPI } from "@food/api"
+import { DEFAULT_USER_AVATAR, resolveProfileAvatar } from "@food/utils/profileAvatar"
 import { toast } from "sonner"
 import { clearModuleAuth } from "@food/utils/auth"
 import BRAND_THEME from "@/config/brandTheme"
@@ -20,6 +20,7 @@ import BRAND_THEME from "@/config/brandTheme"
 export const ProfileV2 = () => {
   const navigate = useNavigate()
   const [profile, setProfile] = useState(null)
+  const [profileAvatar, setProfileAvatar] = useState(DEFAULT_USER_AVATAR)
   const [loading, setLoading] = useState(true)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [logoutSubmitting, setLogoutSubmitting] = useState(false)
@@ -31,7 +32,9 @@ export const ProfileV2 = () => {
         setLoading(true)
         const response = await deliveryAPI.getProfile()
         if (response?.data?.success && response?.data?.data?.profile) {
-          setProfile(response.data.data.profile)
+          const fetchedProfile = response.data.data.profile
+          setProfile(fetchedProfile)
+          setProfileAvatar(resolveProfileAvatar(fetchedProfile))
         }
       } catch (error) {
         toast.error("Failed to load profile data")
@@ -80,11 +83,15 @@ export const ProfileV2 = () => {
         <div className="flex items-center gap-4 relative z-10">
           {/* Circular Profile Photo on Header */}
           <div className="w-16 h-16 rounded-full overflow-hidden shrink-0 border-2 border-white/20 bg-white/10 flex items-center justify-center shadow-lg">
-            {profile?.profileImage?.url ? (
-              <img src={profile.profileImage.url} alt="Profile" className="w-full h-full object-cover" />
-            ) : (
-              <User className="w-8 h-8 text-white/60" />
-            )}
+            <img
+              src={profileAvatar}
+              alt="Profile"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.onerror = null
+                e.currentTarget.src = DEFAULT_USER_AVATAR
+              }}
+            />
           </div>
           
           {/* Name and ID */}
@@ -230,4 +237,3 @@ export const ProfileV2 = () => {
 }
 
 export default ProfileV2;
-

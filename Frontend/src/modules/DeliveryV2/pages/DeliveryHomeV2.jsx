@@ -24,6 +24,7 @@ import { getHaversineDistance, calculateETA, calculateHeading } from '@/modules/
 import useNotificationInbox from '@food/hooks/useNotificationInbox';
 import { useCompanyName } from "@food/hooks/useCompanyName";
 import { registerWebPushForCurrentModule } from '@food/utils/firebaseMessaging';
+import { DEFAULT_USER_AVATAR, resolveProfileAvatar } from '@food/utils/profileAvatar';
 
 // Icons
 import {
@@ -172,8 +173,15 @@ const getPaymentLabel = (order) => {
   return method.charAt(0).toUpperCase() + method.slice(1);
 };
 
+const formatOrderDisplayId = (rawId) => {
+  const text = String(rawId || '').trim();
+  if (!text) return '';
+  if (/^[a-f0-9]{24}$/i.test(text)) return `ORD-${text.slice(-6).toUpperCase()}`;
+  return text;
+};
+
 const getOrderDisplayId = (orderLike) =>
-  String(
+  formatOrderDisplayId(
     orderLike?.displayOrderId ||
     orderLike?.orderCode ||
     orderLike?.orderNumber ||
@@ -181,7 +189,7 @@ const getOrderDisplayId = (orderLike) =>
     orderLike?._id ||
     orderLike?.id ||
     '',
-  ).trim();
+  );
 
 const pickFirstText = (...values) => {
   for (const value of values) {
@@ -1101,7 +1109,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
         const profileRes = await deliveryAPI.getProfile();
         if (profileRes?.data?.success && profileRes.data.data?.profile) {
           const profile = profileRes.data.data.profile;
-          setProfileImage(profile.profileImage?.url || profile.documents?.photo || null);
+          setProfileImage(resolveProfileAvatar(profile));
         }
       } catch (err) { console.warn('Navbar Data Fetch Error:', err); }
     })();
@@ -1667,16 +1675,24 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
       {/* ─── 1. TOP HEADER (Neat & Clean) ─── */}
       {currentTab !== 'history' && (
         <div className="absolute top-0 inset-x-0 bg-white/95 backdrop-blur-md z-[200] safe-top border-b border-gray-100">
-          <div className="flex items-center justify-between px-4 py-2.5">
+          <div className={`flex items-center justify-between px-4 ${currentTab !== 'feed' ? 'py-3.5' : 'py-4'}`}>
             <div className="flex items-center gap-3">
               <div
                 onClick={() => navigate('/food/delivery/profile')}
-                className="w-10 h-10 rounded-full border border-gray-200 overflow-hidden bg-gray-50 cursor-pointer active:bg-gray-100 transition-colors shrink-0"
+                className={`${currentTab !== 'feed' ? 'w-11 h-11' : 'w-11 h-11'} rounded-full border border-gray-200 overflow-hidden bg-gray-50 cursor-pointer active:bg-gray-100 transition-colors shrink-0`}
               >
-                <img src={profileImage || "https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png"} alt="Profile" className="w-full h-full object-cover" />
+                <img
+                  src={profileImage || DEFAULT_USER_AVATAR}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = DEFAULT_USER_AVATAR;
+                  }}
+                />
               </div>
               {currentTab !== 'feed' && (
-                <h1 className="text-base font-bold text-slate-900">
+                <h1 className="text-[25px] font-extrabold text-slate-900 leading-none">
                   {headerTabTitle}
                 </h1>
               )}
@@ -1694,21 +1710,21 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                       deliveryAPI.updateOnlineStatus(false).catch(() => { });
                     }
                   }}
-                  className={`relative w-[86px] h-8 rounded-full p-1 transition-all duration-300 flex items-center shadow-sm border ${isOnline ? 'border-green-500 bg-green-500' : 'border-gray-200 bg-gray-100'}`}
+                  className={`relative w-[98px] h-9 rounded-full p-1 transition-all duration-300 flex items-center shadow-sm border ${isOnline ? 'border-green-500 bg-green-500' : 'border-gray-200 bg-gray-100'}`}
                 >
-                  <div className={`flex items-center justify-between w-full px-2 text-[9px] font-bold uppercase tracking-wider ${isOnline ? 'text-white' : 'text-gray-500'}`}>
+                  <div className={`flex items-center justify-between w-full px-2 text-[10px] font-bold uppercase tracking-wider ${isOnline ? 'text-white' : 'text-gray-500'}`}>
                     <span>{isOnline ? 'On' : ''}</span>
                     <span>{!isOnline ? 'Off' : ''}</span>
                   </div>
-                  <motion.div animate={{ x: isOnline ? 54 : 0 }} className="absolute left-1 w-6 h-6 bg-white rounded-full shadow-sm" />
+                  <motion.div animate={{ x: isOnline ? 62 : 0 }} className="absolute left-1 w-7 h-7 bg-white rounded-full shadow-sm" />
                 </button>
               )}
             </div>
             
             <div className="flex items-center gap-2">
-              <button onClick={() => navigate('/food/delivery/notifications')} className='relative w-[38px] h-[38px] rounded-full bg-orange-50 flex items-center justify-center text-[#EB590E] active:bg-orange-100 transition-colors border border-orange-100'><Bell className='w-[18px] h-[18px]' />{notificationUnreadCount > 0 && (<span className='absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#EB590E] text-[10px] font-bold text-white ring-2 ring-white'>{notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}</span>)}</button>
-              <button onClick={() => setShowEmergencyPopup(true)} className="w-[38px] h-[38px] rounded-full bg-red-50 flex items-center justify-center text-red-500 active:bg-red-100 transition-colors border border-red-100"><AlertTriangle className="w-[18px] h-[18px]" /></button>
-              <button onClick={() => navigate('/food/delivery/help/id-card')} className="w-[38px] h-[38px] rounded-full bg-brand-50 flex items-center justify-center text-brand-600 active:bg-brand-100 transition-colors border border-brand-100"><Contact className="w-[18px] h-[18px]" /></button>
+              <button onClick={() => navigate('/food/delivery/notifications')} className='relative w-[44px] h-[44px] rounded-full bg-orange-50 flex items-center justify-center text-[#EB590E] active:bg-orange-100 transition-colors border border-orange-100'><Bell className='w-5 h-5' />{notificationUnreadCount > 0 && (<span className='absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#EB590E] text-[10px] font-bold text-white ring-2 ring-white'>{notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}</span>)}</button>
+              <button onClick={() => setShowEmergencyPopup(true)} className="w-[44px] h-[44px] rounded-full bg-red-50 flex items-center justify-center text-red-500 active:bg-red-100 transition-colors border border-red-100"><AlertTriangle className="w-5 h-5" /></button>
+              <button onClick={() => navigate('/food/delivery/help/id-card')} className="w-[44px] h-[44px] rounded-full bg-brand-50 flex items-center justify-center text-brand-600 active:bg-brand-100 transition-colors border border-brand-100"><Contact className="w-5 h-5" /></button>
             </div>
           </div>
 

@@ -143,7 +143,7 @@ export default function DeliverySignIn() {
               type="tel"
               inputMode="numeric"
               maxLength={10}
-              placeholder="Enter 10-digit mobile number"
+              placeholder="Enter 10-digit number"
               value={formData.phone}
               onChange={handlePhoneChange}
               autoComplete="off"

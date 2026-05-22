@@ -343,7 +343,7 @@ export const HistoryV2 = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-32" style={{ fontFamily: "'Poppins', sans-serif" }}>
-      <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-[100]">
+      <div className="bg-white border-b border-gray-100 px-4 py-4 flex items-center justify-between sticky top-0 z-[100]">
         <div className="flex items-center gap-3">
           <button
             onClick={goBack}
@@ -352,7 +352,7 @@ export const HistoryV2 = () => {
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
-            <h1 className="text-base font-bold text-gray-900">Trip History</h1>
+            <h1 className="text-2xl font-extrabold text-gray-900 leading-none">Trip History</h1>
             <p className="text-[10px] text-gray-500 font-medium">Filter by date and open order details</p>
           </div>
         </div>

@@ -967,22 +967,8 @@ const OrderDetailV2 = () => {
   useEffect(() => {
     if (hasPickedOrder || isClosedOrder) {
       pickupCameraPromptedRef.current = false;
-      return;
     }
-    if (!isAcceptedFlow || attemptPhase !== 'normal') return;
-    if (pickupPhoto || pickupPhotoPreview) return;
-    if (pickupCameraPromptedRef.current) return;
-    pickupCameraPromptedRef.current = true;
-    handleOpenPickupCamera();
-  }, [
-    attemptPhase,
-    handleOpenPickupCamera,
-    hasPickedOrder,
-    isAcceptedFlow,
-    isClosedOrder,
-    pickupPhoto,
-    pickupPhotoPreview,
-  ]);
+  }, [hasPickedOrder, isClosedOrder]);
 
   const handleAccept = useCallback(() => runAction(
     'accept',

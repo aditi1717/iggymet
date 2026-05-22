@@ -35,13 +35,20 @@ const LEGACY_THEME_STORAGE_KEY = 'appTheme'
 
 const isUserAppRoute = (pathname = '') => {
   const normalized = String(pathname || '').toLowerCase()
-  const isRestaurantRoute = normalized === '/food/restaurant' || normalized.startsWith('/food/restaurant/')
-  const isDeliveryRoute = normalized === '/food/delivery' || normalized.startsWith('/food/delivery/')
-  return (
-    normalized.startsWith('/food') &&
-    !isRestaurantRoute &&
-    !isDeliveryRoute
-  )
+  const isAdminRoute = normalized === '/admin' || normalized.startsWith('/admin/')
+  const isAuthRoute = normalized === '/user/auth' || normalized.startsWith('/user/auth/')
+  const isRestaurantRoute =
+    normalized === '/food/restaurant' ||
+    normalized.startsWith('/food/restaurant/') ||
+    normalized === '/restaurant' ||
+    normalized.startsWith('/restaurant/')
+  const isDeliveryRoute =
+    normalized === '/food/delivery' ||
+    normalized.startsWith('/food/delivery/') ||
+    normalized === '/delivery' ||
+    normalized.startsWith('/delivery/')
+
+  return !isAdminRoute && !isAuthRoute && !isRestaurantRoute && !isDeliveryRoute
 }
 
 const AppRoutes = () => {

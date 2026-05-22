@@ -6,6 +6,7 @@ import { deliveryAPI, zoneAPI } from "@food/api"
 import { clearModuleAuth } from "@food/utils/auth"
 import useDeliveryBackNavigation from "../../hooks/useDeliveryBackNavigation"
 import { openCamera, openGallery } from "@food/utils/imageUploadUtils"
+import { DEFAULT_USER_AVATAR } from "@food/utils/profileAvatar"
 import DocumentUploadActions from "@food/components/DocumentUploadActions"
 
 const emptyForm = {
@@ -148,7 +149,8 @@ export const EditDeliveryBoy = () => {
   const profileImageUrl = profileImageRawUrl
     ? `${profileImageRawUrl}${profileImageRawUrl.includes("?") ? "&" : "?"}v=${encodeURIComponent(String(profileImageVersion))}`
     : null
-  const visibleProfileImageUrl = profilePhotoPreviewUrl || profileImageUrl
+  const visibleProfileImageUrl = profilePhotoPreviewUrl || profileImageUrl || DEFAULT_USER_AVATAR
+  const hasRealProfileImage = Boolean(profilePhotoPreviewUrl || profileImageUrl)
   const aadharNumber = profile?.documents?.aadhar?.number || profile?.aadharNumber || "Not added"
   const panNumber = profile?.documents?.pan?.number || profile?.panNumber || "Not added"
   const drivingNumber = profile?.documents?.drivingLicense?.number || profile?.drivingLicenseNumber || "Not added"
@@ -695,31 +697,33 @@ export const EditDeliveryBoy = () => {
           </div>
           <div className="flex items-center gap-3">
             <div className="relative w-20 h-20 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center overflow-visible">
-              {visibleProfileImageUrl ? (
-                <div className="relative w-full h-full overflow-hidden rounded-full">
-                  <img src={visibleProfileImageUrl} alt="Profile" className="w-full h-full rounded-full object-cover" />
-                  {uploading === "profilePhoto" && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/35">
-                      <Loader2 className="w-5 h-5 animate-spin text-white" />
-                    </div>
-                  )}
-                  {profilePhotoUploadState === "selected" && uploading !== "profilePhoto" && profilePhotoPreviewUrl && (
-                    <div className="absolute bottom-0 left-0 right-0 bg-amber-500/90 py-0.5 text-center text-[9px] font-semibold text-white">
-                      Preview
-                    </div>
-                  )}
-                  {profilePhotoUploadState === "saved" && uploading !== "profilePhoto" && profilePhotoPreviewUrl && (
-                    <div className="absolute bottom-0 left-0 right-0 bg-emerald-600/90 py-0.5 text-center text-[9px] font-semibold text-white">
-                      Saved
-                    </div>
-                  )}
-                </div>
-              ) : uploading === "profilePhoto" ? (
-                <Loader2 className="w-5 h-5 animate-spin text-slate-500" />
-              ) : (
-                <span className="text-xs text-slate-400">No Photo</span>
-              )}
-              {visibleProfileImageUrl && uploading !== "profilePhoto" && (
+              <div className="relative w-full h-full overflow-hidden rounded-full">
+                <img
+                  src={visibleProfileImageUrl}
+                  alt="Profile"
+                  className="w-full h-full rounded-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null
+                    e.currentTarget.src = DEFAULT_USER_AVATAR
+                  }}
+                />
+                {uploading === "profilePhoto" && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/35">
+                    <Loader2 className="w-5 h-5 animate-spin text-white" />
+                  </div>
+                )}
+                {profilePhotoUploadState === "selected" && uploading !== "profilePhoto" && profilePhotoPreviewUrl && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-amber-500/90 py-0.5 text-center text-[9px] font-semibold text-white">
+                    Preview
+                  </div>
+                )}
+                {profilePhotoUploadState === "saved" && uploading !== "profilePhoto" && profilePhotoPreviewUrl && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-emerald-600/90 py-0.5 text-center text-[9px] font-semibold text-white">
+                    Saved
+                  </div>
+                )}
+              </div>
+              {hasRealProfileImage && uploading !== "profilePhoto" && (
                 <button
                   type="button"
                   onClick={handleRemoveProfilePhoto}

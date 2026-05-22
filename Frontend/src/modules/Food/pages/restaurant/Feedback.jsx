@@ -58,7 +58,7 @@ export default function Feedback() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const tabFromUrl = searchParams.get("tab")
-  const activeTab = tabFromUrl === "complaints" ? "complaints" : "reviews"
+  const [activeTab, setActiveTab] = useState(tabFromUrl === "complaints" ? "complaints" : "reviews")
 
   const [restaurantData, setRestaurantData] = useState(null)
   const [isLoadingRestaurant, setIsLoadingRestaurant] = useState(true)
@@ -88,6 +88,10 @@ export default function Feedback() {
   const touchStartY = useRef(0)
   const isSwiping = useRef(false)
 
+
+  useEffect(() => {
+    setActiveTab(tabFromUrl === "complaints" ? "complaints" : "reviews")
+  }, [tabFromUrl])
 
   useEffect(() => {
     const fetchRestaurantData = async () => {
@@ -352,7 +356,30 @@ export default function Feedback() {
             </button>
           </div>
         </div>
-        {/* Tab switcher removed as per request for separate views */}
+        <div className="mt-3 rounded-xl bg-gray-100 p-1 flex">
+          <button
+            type="button"
+            onClick={() => handleTabChange("reviews")}
+            className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide transition-colors ${
+              activeTab === "reviews"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500"
+            }`}
+          >
+            Feedback
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTabChange("complaints")}
+            className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide transition-colors ${
+              activeTab === "complaints"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500"
+            }`}
+          >
+            Complaints
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 p-3">
@@ -511,7 +538,7 @@ export default function Feedback() {
               animate={{ y: 0 }}
               exit={{ y: 280 }}
               transition={{ type: "spring", stiffness: 260, damping: 24 }}
-              className="w-full bg-white rounded-t-3xl p-5 space-y-5"
+              className="w-full bg-white rounded-t-3xl p-5 space-y-5 max-h-[78vh] overflow-y-auto pb-28"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between">
@@ -557,7 +584,7 @@ export default function Feedback() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2 sticky bottom-0 bg-white pt-2">
                 <button
                   className="py-3 rounded-xl border border-gray-200 text-sm font-semibold"
                   onClick={() => setReviewsFilterValues({ sortBy: "newest", rating: "all" })}
@@ -591,7 +618,7 @@ export default function Feedback() {
               animate={{ y: 0 }}
               exit={{ y: 280 }}
               transition={{ type: "spring", stiffness: 260, damping: 24 }}
-              className="w-full bg-white rounded-t-3xl p-5 space-y-5"
+              className="w-full bg-white rounded-t-3xl p-5 space-y-5 max-h-[78vh] overflow-y-auto pb-28"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between">
@@ -637,7 +664,7 @@ export default function Feedback() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2 sticky bottom-0 bg-white pt-2">
                 <button
                   className="py-3 rounded-xl border border-gray-200 text-sm font-semibold"
                   onClick={() => setComplaintsFilterValues({ status: "all", issueType: "all" })}

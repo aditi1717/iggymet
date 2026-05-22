@@ -1462,7 +1462,7 @@ export default function CategoryPage() {
                         </span>
                       </div>
                     )}
-                    <span className={`text-xs md:text-sm font-medium whitespace-nowrap ${isSelected ? 'text-[#EB590E] dark:text-[#EB590E]' : 'text-gray-600 dark:text-gray-400'
+                    <span className={`text-xs md:text-sm font-medium text-center leading-tight w-[88px] md:w-[108px] line-clamp-2 break-words ${isSelected ? 'text-[#EB590E] dark:text-[#EB590E]' : 'text-gray-600 dark:text-gray-400'
                       }`}>
                       {cat.name}
                     </span>

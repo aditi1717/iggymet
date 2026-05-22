@@ -4,6 +4,7 @@ import { adminAPI } from "@food/api"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@food/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@food/components/ui/dialog"
 import { exportDeliverymenToExcel, exportDeliverymenToPDF } from "@food/components/admin/deliveryman/deliverymanExportUtils"
+import { DEFAULT_USER_AVATAR, resolveProfileAvatar } from "@food/utils/profileAvatar"
 import { toast } from "sonner"
 const debugError = () => {}
 
@@ -752,17 +753,15 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
                                 className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:opacity-80 transition-all border border-slate-100"
                                 onClick={() => handleView(dm)}
                               >
-                                {(dm.profileImage?.url ?? dm.profilePhoto) ? (
-                                  <img
-                                    src={dm.profileImage?.url ?? dm.profilePhoto}
-                                    alt={dm.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <span className="text-sm font-medium text-slate-500">
-                                    {dm.name?.trim() ? dm.name.slice(0, 2).toUpperCase() : "?"}
-                                  </span>
-                                )}
+                                <img
+                                  src={resolveProfileAvatar(dm)}
+                                  alt={dm.name || "Delivery partner"}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.onerror = null
+                                    e.currentTarget.src = DEFAULT_USER_AVATAR
+                                  }}
+                                />
                               </div>
                               <div className="flex items-center gap-2">
                                 <span 
@@ -825,18 +824,6 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
                               >
                                 <MapPin className="w-4 h-4" />
                               </button>
-                              <button
-                                onClick={() => handleDelete(dm)}
-                                disabled={deletingDeliveryId === String(dm._id)}
-                                className="p-1.5 rounded bg-red-50 text-red-600 hover:bg-red-100 transition-colors disabled:opacity-50"
-                                title="Delete Delivery Partner"
-                              >
-                                {deletingDeliveryId === String(dm._id) ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <Trash2 className="w-4 h-4" />
-                                )}
-                              </button>
                             </div>
                           </td>
                         )}
@@ -862,17 +849,15 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
                 {/* Profile Image & Basic Info */}
                 <div className="flex items-start gap-6 pb-6 border-b border-slate-200">
                   <div className="flex-shrink-0">
-                    {viewDetails.profileImage?.url ? (
-                      <img 
-                        src={viewDetails.profileImage.url} 
-                        alt={viewDetails.name}
-                        className="w-24 h-24 rounded-full object-cover border-2 border-slate-200"
-                      />
-                    ) : (
-                      <div className="w-24 h-24 rounded-full bg-slate-200 flex items-center justify-center">
-                        <User className="w-12 h-12 text-slate-400" />
-                      </div>
-                    )}
+                    <img 
+                      src={resolveProfileAvatar(viewDetails)}
+                      alt={viewDetails.name || "Delivery partner"}
+                      className="w-24 h-24 rounded-full object-cover border-2 border-slate-200"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null
+                        e.currentTarget.src = DEFAULT_USER_AVATAR
+                      }}
+                    />
                   </div>
                   <div className="flex-1 grid grid-cols-2 gap-4">
                     <div>

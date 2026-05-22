@@ -2,11 +2,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { HelpCircle, ArrowRight, Phone, Ambulance, AlertTriangle, Shield, ShieldCheck, User } from "lucide-react";
+import { HelpCircle, ArrowRight, Phone, Ambulance, AlertTriangle, Shield, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { deliveryAPI } from "@food/api";
 import { useCompanyName } from "@food/hooks/useCompanyName";
 import { getCachedSettings, loadBusinessSettings } from "@food/utils/businessSettings";
+import { DEFAULT_USER_AVATAR, resolveProfileAvatar } from "@food/utils/profileAvatar";
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -285,7 +286,6 @@ export default function FeedNavbar({ className = "" }) {
   const [showEmergencyPopup, setShowEmergencyPopup] = useState(false);
   const [showHelpPopup, setShowHelpPopup] = useState(false);
   const [profileImage, setProfileImage] = useState(null);
-  const [imageError, setImageError] = useState(false);
   const [approvalStatus, setApprovalStatus] = useState("pending");
 
 
@@ -394,12 +394,7 @@ export default function FeedNavbar({ className = "" }) {
           }
 
           // Use profileImage.url first, fallback to documents.photo
-          const imageUrl = profile.profileImage?.url || profile.documents?.photo;
-
-          if (imageUrl) {
-            setProfileImage(imageUrl);
-            setImageError(false);
-          }
+          setProfileImage(resolveProfileAvatar(profile));
         }
       } catch (error) {
         // Skip logging network and timeout errors (handled by axios interceptor)
@@ -489,18 +484,15 @@ export default function FeedNavbar({ className = "" }) {
 
         {/* Profile */}
         <button onClick={handleProfileClick} className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-gray-300 flex items-center justify-center bg-gray-200" title="Profile">
-          {profileImage && !imageError ? (
-            <img
-              src={profileImage}
-              alt="Profile"
-              className="w-full h-full object-cover"
-              onError={() => {
-                setImageError(true);
-              }}
-            />
-          ) : (
-            <User className="w-5 h-5 text-gray-500" />
-          )}
+          <img
+            src={profileImage || DEFAULT_USER_AVATAR}
+            alt="Profile"
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = DEFAULT_USER_AVATAR;
+            }}
+          />
         </button>
       </div>
     </div>

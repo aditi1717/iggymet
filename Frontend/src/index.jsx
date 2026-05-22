@@ -5,6 +5,7 @@ import { isModuleAuthenticated } from './modules/Food/utils/auth.js'
 import './shared/styles/global.css'
 
 const NATIVE_LAST_ROUTE_KEY = 'native_last_route'
+const NATIVE_SESSION_ACTIVE_KEY = 'native_session_active'
 
 // ─── Quick-spicy Food Module Initialization ───────────────────────────────────
 
@@ -17,18 +18,29 @@ import('./modules/Food/utils/businessSettings.js')
 const USER_THEME_STORAGE_KEY = 'userAppTheme'
 const LEGACY_THEME_STORAGE_KEY = 'appTheme'
 const currentPathname = String(window.location?.pathname || '').toLowerCase()
-const isRestaurantRoute = currentPathname === '/food/restaurant' || currentPathname.startsWith('/food/restaurant/')
-const isDeliveryRoute = currentPathname === '/food/delivery' || currentPathname.startsWith('/food/delivery/')
-const isUserAppRoute =
-  currentPathname.startsWith('/food') &&
-  !isRestaurantRoute &&
-  !isDeliveryRoute
+const isUserAppRoute = (pathname = '') => {
+  const normalized = String(pathname || '').toLowerCase()
+  const isAdminRoute = normalized === '/admin' || normalized.startsWith('/admin/')
+  const isAuthRoute = normalized === '/user/auth' || normalized.startsWith('/user/auth/')
+  const isRestaurantRoute =
+    normalized === '/food/restaurant' ||
+    normalized.startsWith('/food/restaurant/') ||
+    normalized === '/restaurant' ||
+    normalized.startsWith('/restaurant/')
+  const isDeliveryRoute =
+    normalized === '/food/delivery' ||
+    normalized.startsWith('/food/delivery/') ||
+    normalized === '/delivery' ||
+    normalized.startsWith('/delivery/')
+
+  return !isAdminRoute && !isAuthRoute && !isRestaurantRoute && !isDeliveryRoute
+}
 const savedTheme =
   localStorage.getItem(USER_THEME_STORAGE_KEY) ||
   localStorage.getItem(LEGACY_THEME_STORAGE_KEY) ||
   'light'
 
-if (isUserAppRoute && savedTheme === 'dark') {
+if (isUserAppRoute(currentPathname) && savedTheme === 'dark') {
   document.documentElement.classList.add('dark')
 } else {
   document.documentElement.classList.remove('dark')
@@ -54,30 +66,29 @@ function resolveNativeInitialRoute() {
 
   const rawPathname = String(window.location?.pathname || '')
   const pathname = rawPathname.replace(/\/index\.html$/i, '') || '/'
-  const storedRoute = String(localStorage.getItem(NATIVE_LAST_ROUTE_KEY) || '').trim()
 
   if (pathname.startsWith('/food/')) return pathname
   if (pathname.startsWith('/restaurant')) return `/food${pathname}`
   if (pathname.startsWith('/delivery')) return `/food${pathname}`
   if (pathname.startsWith('/user')) return `/food${pathname}`
   if (pathname.startsWith('/admin')) return pathname
-  if (storedRoute.startsWith('/food/') || storedRoute.startsWith('/admin')) {
-    return storedRoute
-  }
 
   if (isModuleAuthenticated('restaurant')) return '/food/restaurant'
   if (isModuleAuthenticated('delivery')) return '/food/delivery'
   if (isModuleAuthenticated('admin')) return '/admin'
-  if (isModuleAuthenticated('user')) return '/food/user'
+  if (isModuleAuthenticated('user')) return '/food'
 
-  return '/food/user'
+  return '/food'
 }
 
 function bootstrapNativeHashRoute() {
   if (!isNativeLikeShell() || typeof window === 'undefined') return
 
+  const hasActiveSession = sessionStorage.getItem(NATIVE_SESSION_ACTIVE_KEY) === '1'
+  sessionStorage.setItem(NATIVE_SESSION_ACTIVE_KEY, '1')
+
   const currentHash = String(window.location?.hash || '')
-  if (currentHash.startsWith('#/')) return
+  if (hasActiveSession && currentHash.startsWith('#/')) return
 
   const targetPath = resolveNativeInitialRoute()
   const search = String(window.location?.search || '')

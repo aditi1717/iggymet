@@ -4048,7 +4048,9 @@ export default function Home() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4 }}
                   className="text-xl font-normal text-gray-800 dark:text-gray-200 text-center relative z-10 mt-56 w-full">
-                  Explore veg dishes from all restaurants
+                  {vegModeOption === "pure-veg"
+                    ? "Explore veg dishes from pure veg restaurants"
+                    : "Explore veg dishes from all restaurants"}
                 </motion.p>
               </div>
             </motion.div>

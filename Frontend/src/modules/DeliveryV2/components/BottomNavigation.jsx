@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from "react-router-dom"
 import { useEffect, useState } from "react"
-import { User } from "lucide-react"
 import { deliveryAPI } from "@food/api"
+import { DEFAULT_USER_AVATAR, resolveProfileAvatar } from "@food/utils/profileAvatar"
 
 // Heroicons Outline
 import {
@@ -25,7 +25,6 @@ export default function BottomNavigation() {
   const navigate = useNavigate()
   const location = useLocation()
   const [profileImage, setProfileImage] = useState(null)
-  const [imageError, setImageError] = useState(false)
 
   const isActive = (path) => {
     if (path === "/delivery") return location.pathname === "/delivery"
@@ -53,10 +52,7 @@ export default function BottomNavigation() {
         if (response?.data?.success && response?.data?.data?.profile) {
           const profile = response.data.data.profile
           // Use profileImage.url first, fallback to documents.photo
-          const imageUrl = profile.profileImage?.url || profile.documents?.photo
-          if (imageUrl) {
-            setProfileImage(imageUrl)
-          }
+          setProfileImage(resolveProfileAvatar(profile))
         }
       } catch (error) {
         // Skip logging network and timeout errors (handled by axios interceptor)
@@ -119,24 +115,17 @@ export default function BottomNavigation() {
           onClick={() => navigate("/delivery/profile")}
           className="flex flex-col items-center gap-1 p-2"
         >
-          {profileImage && !imageError ? (
-            <img
-              src={profileImage}
-              alt="Profile"
-              className={`w-7 h-7 rounded-full border-2 object-cover ${
-                isActive("/delivery/profile") ? "border-[#2979fb]" : "border-gray-300"
-              }`}
-              onError={() => {
-                setImageError(true)
+          <img
+            src={profileImage || DEFAULT_USER_AVATAR}
+            alt="Profile"
+            className={`w-7 h-7 rounded-full border-2 object-cover ${
+              isActive("/delivery/profile") ? "border-[#2979fb]" : "border-gray-300"
+            }`}
+              onError={(e) => {
+                e.currentTarget.onerror = null
+                e.currentTarget.src = DEFAULT_USER_AVATAR
               }}
             />
-          ) : (
-            <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center bg-gray-200 ${
-              isActive("/delivery/profile") ? "border-[#2979fb]" : "border-gray-300"
-            }`}>
-              <User className="w-4 h-4 text-gray-500" />
-            </div>
-          )}
           {TabLabel(isActive("/delivery/profile"), "Profile")}
         </button>
       </div>

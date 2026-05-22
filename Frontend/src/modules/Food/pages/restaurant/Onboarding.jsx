@@ -613,6 +613,13 @@ export default function RestaurantOnboarding() {
     if (isLoggingOut) return
     setIsLoggingOut(true)
     try {
+      // Explicit logout should wipe onboarding draft/session backups to avoid stale restore.
+      try {
+        sessionStorage.setItem("restaurant_skip_restore_once", "1")
+      } catch (_) { }
+      clearOnboardingFromLocalStorage()
+      clearOnboardingFileCache()
+
       await restaurantAPI.logout()
       clearModuleAuth("restaurant")
       clearAuthData()
@@ -621,6 +628,8 @@ export default function RestaurantOnboarding() {
       navigate("/food/restaurant/login", { replace: true })
     } catch (error) {
       debugError("Logout failed:", error)
+      clearOnboardingFromLocalStorage()
+      clearOnboardingFileCache()
       clearModuleAuth("restaurant")
       navigate("/food/restaurant/login", { replace: true })
     } finally {
@@ -779,8 +788,19 @@ export default function RestaurantOnboarding() {
     let active = true
 
     const initializeData = async () => {
-      // 1. Try to restore session tokens first
-      await restoreSessionFromIndexedDB()
+      // Skip one-time restore immediately after explicit logout to prevent stale account revival.
+      let skipRestoreOnce = false
+      try {
+        skipRestoreOnce = sessionStorage.getItem("restaurant_skip_restore_once") === "1"
+        if (skipRestoreOnce) {
+          sessionStorage.removeItem("restaurant_skip_restore_once")
+        }
+      } catch (_) { }
+
+      // 1. Try to restore session tokens first (except explicit post-logout load).
+      if (!skipRestoreOnce) {
+        await restoreSessionFromIndexedDB()
+      }
 
       const verifiedPhone = getVerifiedPhoneFromStoredRestaurant()
       if (!active) return
@@ -809,8 +829,9 @@ export default function RestaurantOnboarding() {
       const savedPhone = normalizePhoneDigits(localData?.phoneContext || localData?.step1?.ownerPhone || "")
       const currentPhone = normalizePhoneDigits(verifiedPhone)
       const hasPhoneMismatch = Boolean(savedPhone && currentPhone && savedPhone !== currentPhone)
+      const hasMissingDraftPhone = Boolean(localData && currentPhone && !savedPhone)
 
-      if (hasPhoneMismatch && active) {
+      if ((hasPhoneMismatch || hasMissingDraftPhone) && active) {
         clearOnboardingFromLocalStorage()
         clearOnboardingFileCache()
         localData = null
@@ -827,7 +848,7 @@ export default function RestaurantOnboarding() {
                 : null,
             ownerName: localData.step1.ownerName || "",
             ownerEmail: localData.step1.ownerEmail || "",
-            ownerPhone: localData.step1.ownerPhone || "",
+            ownerPhone: verifiedPhone || localData.step1.ownerPhone || "",
             primaryContactNumber: localData.step1.primaryContactNumber || "",
             zoneId: normalizeZoneIdValue(localData.step1.zoneId),
             location: {
@@ -1175,7 +1196,7 @@ export default function RestaurantOnboarding() {
         }))
 
         if (locationSearchInputRef.current) {
-          locationSearchInputRef.current.value = pincode || ""
+          locationSearchInputRef.current.value = formattedAddress || ""
         }
       })
     }
@@ -1324,7 +1345,7 @@ export default function RestaurantOnboarding() {
               : (typeof data.pureVegRestaurant === "boolean" ? data.pureVegRestaurant : null),
             ownerName: hasLocalDraft ? (prev.ownerName || data.ownerName || "") : (data.ownerName || ""),
             ownerEmail: hasLocalDraft ? (prev.ownerEmail || data.ownerEmail || "") : (data.ownerEmail || ""),
-            ownerPhone: hasLocalDraft ? (prev.ownerPhone || data.ownerPhone || "") : (data.ownerPhone || ""),
+            ownerPhone: verifiedPhoneNumber || data.ownerPhone || prev.ownerPhone || "",
             zoneId: normalizeZoneIdValue(data.zoneId) || prev.zoneId || "",
             primaryContactNumber: hasLocalDraft ? (prev.primaryContactNumber || data.primaryContactNumber || "") : (data.primaryContactNumber || ""),
             location: {
@@ -1957,7 +1978,7 @@ export default function RestaurantOnboarding() {
                 setStep1({ ...step1, ownerPhone: pasted })
               }}
               inputMode="numeric"
-              readOnly={Boolean(verifiedPhoneNumber)}
+              readOnly
               className="mt-1 bg-white text-sm text-black placeholder-black"
               placeholder="+91 98XXXXXX"
               disabled={!isEditing}
