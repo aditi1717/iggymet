@@ -73,7 +73,7 @@ function getRefundDisplayInfo(orderLike) {
   const amount = Number(refund.amount || orderLike.payment?.amountDue || orderLike.pricing?.total || 0)
 
   const label =
-    status === "processed" ? "Refund processed" :
+    status === "processed" ? "Refund has been credited" :
     status === "failed" ? "Refund failed" :
     "Refund in process"
 

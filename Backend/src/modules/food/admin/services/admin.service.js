@@ -8275,17 +8275,103 @@ export async function updateStoreOrderStatus(orderId, body = {}) {
         throw new ValidationError('Invalid order status');
     }
 
+    const existingOrder = await StoreOrder.findById(orderId);
+    if (!existingOrder) {
+        throw new ValidationError('Store order not found');
+    }
+
+    const updateSet = { orderStatus: nextStatus };
+
+    // Admin-cancel flow: if already paid, initiate refund to original payment source (Razorpay).
+    if (nextStatus === 'cancelled') {
+        const isPaid = String(existingOrder.paymentStatus || '').toLowerCase() === 'paid';
+        const alreadyRefunded = ['initiated', 'processed'].includes(String(existingOrder.refundStatus || '').toLowerCase());
+
+        if (isPaid && !alreadyRefunded) {
+            const paymentMethod = String(existingOrder.paymentMethod || '').toLowerCase();
+            const refundAmount = Number(existingOrder.totalAmount || 0);
+            const reason = String(body?.refundReason || 'Cancelled by admin').trim();
+
+            if (paymentMethod === 'razorpay' && existingOrder.razorpayPaymentId && refundAmount > 0) {
+                try {
+                    const { initiateRazorpayRefund } = await import('../../orders/helpers/razorpay.helper.js');
+                    const refundRes = await initiateRazorpayRefund(existingOrder.razorpayPaymentId, refundAmount);
+
+                    if (refundRes?.success) {
+                        const normalizedRefundStatus = String(refundRes?.status || '').trim().toLowerCase();
+                        updateSet.refundStatus = normalizedRefundStatus === 'processed' ? 'processed' : 'initiated';
+                        updateSet.refundId = String(refundRes.refundId || '');
+                        updateSet.refundAmount = refundAmount;
+                        updateSet.refundReason = reason;
+                        updateSet.refundedAt = new Date();
+                        updateSet.refundMeta = refundRes?.raw || null;
+                    } else {
+                        updateSet.refundStatus = 'failed';
+                        updateSet.refundAmount = refundAmount;
+                        updateSet.refundReason = reason;
+                        updateSet.refundMeta = { error: refundRes?.error || 'Refund API failed' };
+                    }
+                } catch (err) {
+                    updateSet.refundStatus = 'failed';
+                    updateSet.refundAmount = refundAmount;
+                    updateSet.refundReason = reason;
+                    updateSet.refundMeta = { error: err?.message || 'Refund initiation failed' };
+                }
+            } else if (refundAmount > 0) {
+                // For non-razorpay paid flows, mark as not_required for now.
+                updateSet.refundStatus = 'not_required';
+                updateSet.refundAmount = refundAmount;
+                updateSet.refundReason = reason;
+            }
+        }
+    }
+
     const updated = await StoreOrder.findByIdAndUpdate(
         orderId,
-        { $set: { orderStatus: nextStatus } },
+        { $set: updateSet },
         { new: true }
     )
         .populate('deliveryPartnerId', 'name phone profilePhoto')
         .populate('productId', 'name image category')
         .lean();
 
-    if (!updated) {
-        throw new ValidationError('Store order not found');
+    if (!updated) throw new ValidationError('Store order not found');
+
+    // Push notify delivery partner when admin cancels store order.
+    if (nextStatus === 'cancelled' && updated?.deliveryPartnerId?._id) {
+        try {
+            const { notifyOwnerSafely } = await import('../../../../core/notifications/firebase.service.js');
+            const title = 'Store Order Cancelled';
+            const orderRef = `#${String(updated?.checkoutGroupId || updated?._id || '').slice(-8).toUpperCase()}`;
+            const currentRefundStatus = String(updated?.refundStatus || '').toLowerCase();
+            const refundLine =
+                currentRefundStatus === 'processed'
+                    ? ' Refund has been credited successfully to your original payment account.'
+                    : currentRefundStatus === 'initiated'
+                        ? ' Refund has been initiated to your original payment account.'
+                        : '';
+            const notificationType =
+                currentRefundStatus === 'processed' ? 'store_order_refund_credited' : 'store_order_cancelled';
+            const bodyText = `Your store order ${orderRef} was cancelled by admin.${refundLine}`;
+
+            await notifyOwnerSafely(
+                { ownerType: 'DELIVERY_PARTNER', ownerId: String(updated.deliveryPartnerId._id) },
+                {
+                    title,
+                    body: bodyText,
+                    skipHighlighter: true,
+                    data: {
+                        type: notificationType,
+                        orderId: String(updated?._id || ''),
+                        checkoutGroupId: String(updated?.checkoutGroupId || ''),
+                        refundStatus: String(updated?.refundStatus || ''),
+                        link: '/food/delivery/shop'
+                    }
+                }
+            );
+        } catch (e) {
+            console.error('Failed to send store order cancellation notification:', e);
+        }
     }
 
     return updated;

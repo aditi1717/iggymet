@@ -33,6 +33,23 @@ const formatPartnerName = (partner) => {
   return partner.name || [partner.firstName, partner.lastName].filter(Boolean).join(" ") || "Unknown";
 };
 
+const getRefundStatusLabel = (group) => {
+  const explicit = String(group?.refundStatus || "").trim().toLowerCase();
+  const refundLabelMap = {
+    initiated: "refund initiated",
+    processed: "refunded successful",
+    failed: "refund failed",
+    not_required: "not required",
+  };
+  if (explicit && explicit !== "none") return refundLabelMap[explicit] || explicit.replace(/_/g, " ");
+
+  const orderStatus = String(group?.orderStatus || "").toLowerCase();
+  const paymentStatus = String(group?.paymentStatus || "").toLowerCase();
+  if (orderStatus === "cancelled" && paymentStatus === "paid") return "pending";
+  if (orderStatus === "cancelled") return "not required";
+  return "none";
+};
+
 function StoreOrderDetailsModal({ group, onClose }) {
   if (!group) return null;
 
@@ -98,6 +115,12 @@ function StoreOrderDetailsModal({ group, onClose }) {
                   <p className="text-[11px] font-semibold text-slate-500">Payment</p>
                   <p className="text-[11px] font-bold text-slate-900 uppercase tracking-wide">
                     {group.paymentMethod || "online"} • <span className={group.paymentStatus === 'PAID' ? 'text-emerald-600' : 'text-amber-500'}>{group.paymentStatus || "pending"}</span>
+                  </p>
+                </div>
+                <div className="mt-1.5 flex items-center justify-between">
+                  <p className="text-[11px] font-semibold text-slate-500">Refund</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-700">
+                    {getRefundStatusLabel(group)}
                   </p>
                 </div>
               </div>
@@ -207,6 +230,7 @@ export default function StoreOrders() {
         deliveryPartner: order?.deliveryPartnerId,
         paymentMethod: order?.paymentMethod,
         paymentStatus: order?.paymentStatus,
+        refundStatus: order?.refundStatus || "none",
       });
     });
 
@@ -335,6 +359,9 @@ export default function StoreOrders() {
                   Payment
                 </TableHead>
                 <TableHead className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Refund
+                </TableHead>
+                <TableHead className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                   Date
                 </TableHead>
                 <TableHead className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 text-center">
@@ -395,6 +422,12 @@ export default function StoreOrders() {
                     </div>
                   </TableCell>
 
+                  <TableCell className="px-4 py-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                      {getRefundStatusLabel(group)}
+                    </p>
+                  </TableCell>
+
                   <TableCell className="whitespace-normal px-4 py-2">
                     <p className="text-[12px] font-semibold text-slate-700">
                       {group.createdAt ? new Date(group.createdAt).toLocaleDateString("en-IN", { day: '2-digit', month: 'short' }) : "-"}
@@ -441,5 +474,3 @@ export default function StoreOrders() {
     </div>
   );
 }
-
-

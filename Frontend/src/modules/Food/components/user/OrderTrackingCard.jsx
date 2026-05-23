@@ -36,6 +36,8 @@ const CookingAnimation = memo(() => (
 import { useOrders } from "@food/context/OrdersContext";
 import { orderAPI } from "@food/api";
 
+const RATING_CARD_DISMISS_STORAGE_KEY = "food_user_dismissed_rating_cards_v1";
+
 const getOrderKey = (order) => order?.orderId || order?._id || order?.id || null;
 const getOrderRouteId = (order) => order?.mongoId || order?._id || order?.id || order?.orderId || null;
 const getCustomerToken = () =>
@@ -167,6 +169,16 @@ function OrderTrackingCardInner({ hasBottomNav = true, otpOnly = false, showOtpB
   const activeOrderSnapshotRef = useRef(null);
   const [invalidOrderIds, setInvalidOrderIds] = useState(new Set());
   const [dismissedOtpKey, setDismissedOtpKey] = useState(null);
+  const [dismissedRatingKeys, setDismissedRatingKeys] = useState(() => {
+    try {
+      const raw = localStorage.getItem(RATING_CARD_DISMISS_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(parsed)) return new Set();
+      return new Set(parsed.map((value) => String(value)));
+    } catch {
+      return new Set();
+    }
+  });
 
   const fetchOrders = useCallback(async () => {
     if (!getCustomerToken()) {
@@ -377,6 +389,21 @@ function OrderTrackingCardInner({ hasBottomNav = true, otpOnly = false, showOtpB
   }, [activeOrder, apiOrders, invalidOrderIds, hasCustomerAuth]);
 
   const [dismissedKey, setDismissedKey] = useState(null);
+  const dismissRatingCardPermanently = useCallback((orderKey) => {
+    if (!orderKey) return;
+    setDismissedRatingKeys((previous) => {
+      const normalizedKey = String(orderKey);
+      if (previous.has(normalizedKey)) return previous;
+      const next = new Set(previous);
+      next.add(normalizedKey);
+      try {
+        localStorage.setItem(RATING_CARD_DISMISS_STORAGE_KEY, JSON.stringify(Array.from(next)));
+      } catch {
+        // Ignore storage write failures; UI will still dismiss for current session.
+      }
+      return next;
+    });
+  }, []);
 
   if (!hasCustomerAuth) {
     return null;
@@ -397,9 +424,12 @@ function OrderTrackingCardInner({ hasBottomNav = true, otpOnly = false, showOtpB
     return null;
   }
 
+  const isDeliveredCard = isDeliveredLikeOrder(displayOrder);
   const orderStatus = getOrderStatus(displayOrder) || "preparing";
   const orderPhase = getOrderPhase(displayOrder);
-  const isDeliveredCard = isDeliveredLikeOrder(displayOrder);
+  if (isDeliveredCard && dismissedRatingKeys.has(String(currentOrderKey || ""))) {
+    return null;
+  }
   const deliveryOtpCode = String(
     displayOrder?.deliveryVerification?.dropOtp?.code ||
       displayOrder?.deliveryVerification?.code ||
@@ -516,7 +546,14 @@ function OrderTrackingCardInner({ hasBottomNav = true, otpOnly = false, showOtpB
           <div className="absolute inset-0 bg-gradient-to-r from-brand-50/60 via-white/50 to-white/85 dark:from-brand-900/20 dark:via-transparent dark:to-transparent opacity-70 pointer-events-none rounded-[20px]" />
           
           <button
-             onClick={(e) => { e.stopPropagation(); setDismissedKey(currentOrderKey); }}
+             onClick={(e) => {
+               e.stopPropagation();
+               if (isDeliveredCard) {
+                 dismissRatingCardPermanently(currentOrderKey);
+                 return;
+               }
+               setDismissedKey(currentOrderKey);
+             }}
              className="absolute top-3 right-3 p-1.5 rounded-full bg-slate-100/90 dark:bg-white/10 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/80 dark:hover:bg-white/20 transition-colors z-20"
           >
             <X className="w-3.5 h-3.5 pointer-events-none" />

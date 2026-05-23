@@ -577,11 +577,11 @@ function getRefundDisplayInfo(orderLike) {
   const amount = Number(refund.amount || orderLike.refundAmount || orderLike.payment?.amountDue || orderLike.payableAmount || orderLike.totalAmount || 0)
 
   const label =
-    status === "processed" ? "Refund processed" :
+    status === "processed" ? "Refund credited successfully" :
     status === "failed" ? "Refund failed" :
     "Refund in process"
   const description =
-    status === "processed" ? "Amount will be credited to the original payment method as per bank timelines." :
+    status === "processed" ? "Amount has been credited to the original payment method." :
     status === "failed" ? "Refund could not be completed automatically. Support will review it." :
     "Refund applies because this was an online payment."
 

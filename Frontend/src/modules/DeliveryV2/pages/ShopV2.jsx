@@ -82,6 +82,23 @@ const getStatusClasses = (status) => {
   return statusMap[normalizedStatus] || 'bg-slate-100 text-slate-600';
 };
 
+const getRefundStatusLabel = (orderGroup) => {
+  const explicit = String(orderGroup?.refundStatus || '').trim().toLowerCase();
+  const refundLabelMap = {
+    initiated: 'refund initiated',
+    processed: 'refunded successful',
+    failed: 'refund failed',
+    not_required: 'not required',
+  };
+  if (explicit && explicit !== 'none') return refundLabelMap[explicit] || explicit.replace(/_/g, ' ');
+
+  const orderStatus = String(orderGroup?.orderStatus || '').toLowerCase();
+  const paymentStatus = String(orderGroup?.orders?.[0]?.paymentStatus || '').toLowerCase();
+  if (orderStatus === 'cancelled' && paymentStatus === 'paid') return 'pending';
+  if (orderStatus === 'cancelled') return 'not required';
+  return '';
+};
+
 const getProductPrice = (product) => {
   if (Array.isArray(product?.variants) && product.variants.length > 0) {
     const firstValidVariant = product.variants.find((variant) => Number(variant?.price) > 0);
@@ -812,6 +829,11 @@ function OrderDetailsModal({ orderGroup, onClose, products, onViewInvoice }) {
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Order Date</p>
                 <p className="mt-0.5 text-xs font-semibold text-slate-900">{formatInvoiceDate(orderGroup.createdAt)}</p>
+                {getRefundStatusLabel(orderGroup) ? (
+                  <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Refund: {getRefundStatusLabel(orderGroup)}
+                  </p>
+                ) : null}
               </div>
               <span className={`rounded-lg px-2 py-0.5 text-[9px] font-bold uppercase ${getStatusClasses(orderGroup.orderStatus)}`}>
                 {orderGroup.orderStatus}
@@ -905,6 +927,11 @@ function OrderHistoryItem({ orderGroup, onViewDetails }) {
                 <span className={`rounded-lg px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${getStatusClasses(orderGroup?.orderStatus)}`}>
                   {orderGroup?.orderStatus || 'pending'}
                 </span>
+                {getRefundStatusLabel(orderGroup) ? (
+                  <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-600">
+                    Refund {getRefundStatusLabel(orderGroup)}
+                  </span>
+                ) : null}
 
                 <div className="flex items-center gap-1 text-[10px] font-medium text-slate-400">
                   <span className="h-0.5 w-0.5 rounded-full bg-slate-300" />
@@ -1128,6 +1155,7 @@ export default function ShopV2() {
         itemCount: 1,
         createdAt: order?.createdAt,
         orderStatus: order?.orderStatus || 'pending',
+        refundStatus: order?.refundStatus || 'none',
       });
     });
 

@@ -697,6 +697,25 @@ const OrderDetailV2 = () => {
     setProofPhoto(file);
     setProofPhotoPreview(URL.createObjectURL(file));
   };
+  const applyProofPhotoFile = useCallback((file) => {
+    if (!file) return;
+    setProofPhoto(file);
+    setProofPhotoPreview(URL.createObjectURL(file));
+  }, []);
+
+  const handleOpenProofCamera = useCallback(() => {
+    openCamera({
+      onSelectFile: applyProofPhotoFile,
+      fileNamePrefix: 'delivery-attempt-proof',
+    });
+  }, [applyProofPhotoFile]);
+
+  const handleOpenProofGallery = useCallback(() => {
+    openGallery({
+      onSelectFile: applyProofPhotoFile,
+      fileNamePrefix: 'delivery-attempt-proof',
+    });
+  }, [applyProofPhotoFile]);
 
   const applyPickupPhotoFile = useCallback((file) => {
     if (!file) return;
@@ -1204,7 +1223,7 @@ const OrderDetailV2 = () => {
               <p className="mt-1 text-xs text-slate-500">
                 {getOrderEventDate(order) ? new Date(getOrderEventDate(order)).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}
               </p>
-              {(isReadyForPickup || remainingEtaMinutes !== null) && (
+              {!isClosedOrder && (isReadyForPickup || remainingEtaMinutes !== null) && (
                 <p className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold ${
                   isReadyForPickup
                     ? 'bg-emerald-50 text-emerald-700'
@@ -1419,7 +1438,6 @@ const OrderDetailV2 = () => {
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
-                    capture="environment"
                     className="hidden"
                     onChange={handleProofPhotoSelect}
                   />
@@ -1436,14 +1454,24 @@ const OrderDetailV2 = () => {
                       </button>
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 py-6 text-slate-500 hover:bg-slate-100 transition-colors"
-                    >
-                      <Camera className="h-5 w-5" />
-                      <span className="text-[13px] font-semibold">Take / Upload Proof Photo</span>
-                    </button>
+                    <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={handleOpenProofCamera}
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 py-4 text-slate-600 hover:bg-slate-100 transition-colors"
+                      >
+                        <Camera className="h-5 w-5" />
+                        <span className="text-[12px] font-semibold">Use Camera</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-white py-4 text-slate-600 hover:bg-slate-50 transition-colors"
+                      >
+                        <Package className="h-5 w-5" />
+                        <span className="text-[12px] font-semibold">Upload from Device</span>
+                      </button>
+                    </div>
                   )}
 
                   <div className="grid grid-cols-2 gap-2 mt-1">

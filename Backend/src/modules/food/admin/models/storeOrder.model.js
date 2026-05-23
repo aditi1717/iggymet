@@ -60,6 +60,19 @@ const storeOrderSchema = new mongoose.Schema(
             index: true
         },
 
+        // Refund info (for admin-cancelled paid store orders)
+        refundStatus: {
+            type: String,
+            enum: ['none', 'initiated', 'processed', 'failed', 'not_required'],
+            default: 'none',
+            index: true
+        },
+        refundAmount: { type: Number, default: 0, min: 0 },
+        refundId: { type: String, trim: true, default: '' },
+        refundReason: { type: String, trim: true, default: '' },
+        refundedAt: { type: Date, default: null },
+        refundMeta: { type: mongoose.Schema.Types.Mixed, default: null },
+
         // Notes
         notes: { type: String, trim: true, default: '' }
     },

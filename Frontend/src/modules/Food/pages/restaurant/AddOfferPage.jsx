@@ -40,6 +40,8 @@ export default function AddOfferPage() {
     return `${d.getFullYear()}-${m}-${day}`
   }, [])
 
+
+
   const selectedProducts = useMemo(
     () => products.filter((product) => form.productIds.includes(String(product.id))),
     [products, form.productIds]
@@ -153,17 +155,13 @@ export default function AddOfferPage() {
       if (!Number.isFinite(limit) || limit < 1) return setError("Per user redeem limit must be at least 1")
     }
     if (form.startDate && form.startDate < today) {
-      if (!isEditMode || form.startDate !== originalStartDate) {
-        return setError("Start date cannot be in the past")
-      }
+      return setError("Start date cannot be in the past")
     }
     if (form.endDate && form.endDate < today) {
-      if (!isEditMode || form.endDate !== originalEndDate) {
-        return setError("End date cannot be in the past")
-      }
+      return setError("End date cannot be in the past")
     }
     if (form.startDate && form.endDate && new Date(form.endDate) < new Date(form.startDate)) {
-      return setError("End date must be greater than or equal to start date")
+      return setError("End date cannot be less than start date")
     }
     try {
       setSaving(true)
@@ -350,7 +348,6 @@ export default function AddOfferPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Start Date (optional)</label>
                 <Input
                   type="date"
-                  min={form.startDate || today}
                   value={form.startDate}
                   onChange={(e) => updateField("startDate", e.target.value)}
                 />
@@ -359,7 +356,6 @@ export default function AddOfferPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">End Date (optional)</label>
                 <Input
                   type="date"
-                  min={form.endDate || form.startDate || today}
                   value={form.endDate}
                   onChange={(e) => updateField("endDate", e.target.value)}
                 />

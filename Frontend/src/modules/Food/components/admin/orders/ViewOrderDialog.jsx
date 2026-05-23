@@ -467,11 +467,11 @@ export default function ViewOrderDialog({
             </h3>
             {pickupProofImageUrl ? (
               <div className="space-y-3">
-                <div className="relative w-full max-w-2xl border-2 border-slate-300 rounded-xl overflow-hidden bg-white shadow-sm">
+                <div className="relative w-full max-w-md border-2 border-slate-300 rounded-xl overflow-hidden bg-white shadow-sm">
                   <img
                     src={pickupProofImageUrl}
                     alt="Pickup Proof"
-                    className="w-full h-auto object-contain max-h-[500px] mx-auto block"
+                    className="w-full h-auto object-contain max-h-[260px] mx-auto block"
                     loading="lazy"
                     onError={(e) => {
                       debugError('? Failed to load bill image:', e.target.src)
