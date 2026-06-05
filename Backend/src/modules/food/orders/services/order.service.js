@@ -2998,7 +2998,7 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
 
   // Guard: only dispatchable after restaurant accepted.
   if (
-    !["preparing", "ready_for_pickup", "picked_up"].includes(order.orderStatus)
+    !["confirmed", "preparing", "ready_for_pickup", "picked_up"].includes(order.orderStatus)
   ) {
     throw new ValidationError("Order not ready for delivery assignment");
   }

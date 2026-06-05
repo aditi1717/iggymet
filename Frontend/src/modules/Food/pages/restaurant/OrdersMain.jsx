@@ -36,6 +36,23 @@ const debugLog = (...args) => {};
 const debugWarn = (...args) => {};
 const debugError = (...args) => {};
 
+const isRestaurantLiveTraceEnabled = () => {
+  try {
+    if (typeof window === "undefined") return false;
+    return (
+      window.localStorage?.getItem("trace_restaurant_modal") === "1" ||
+      window.location?.search?.includes("traceRestaurantModal=1")
+    );
+  } catch {
+    return false;
+  }
+};
+
+const traceRestaurantLive = (...args) => {
+  if (!isRestaurantLiveTraceEnabled()) return;
+  console.log("[RestaurantLiveTrace]", ...args);
+};
+
 const STORAGE_KEY = "restaurant_online_status";
 
 // Top filter tabs
@@ -1617,9 +1634,29 @@ export default function OrdersMain() {
   const [ordersRefreshToken, setOrdersRefreshToken] = useState(0);
   const requestOrdersRefresh = () => setOrdersRefreshToken((t) => t + 1);
 
+  const closeActiveOrderPopup = () => {
+    traceRestaurantLive("popup:close", {
+      popupOrderId:
+        popupOrderRef.current?.orderId || popupOrderRef.current?.orderMongoId,
+      newOrderId: newOrderRef.current?.orderId || newOrderRef.current?.orderMongoId,
+    });
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setShowNewOrderPopup(false);
+    setPopupOrder(null);
+    clearNewOrder();
+  };
+
   useEffect(() => {
-    const handleRestaurantOrderStatusUpdated = (event) => {
+    const handleRestaurantOrderStatusUpdated = async (event) => {
       const payload = event?.detail || {};
+      traceRestaurantLive("event:restaurantOrderStatusUpdated", {
+        payload,
+        popupOrder: popupOrderRef.current,
+        newOrder: newOrderRef.current,
+      });
       const hasDispatchUpdate =
         payload?.dispatchStatus != null ||
         payload?.dispatch_status != null;
@@ -1633,8 +1670,7 @@ export default function OrdersMain() {
       const statusLower = String(
         payload?.orderStatus || payload?.status || "",
       ).toLowerCase();
-      const isPendingReviewStatus =
-        statusLower === "created" || statusLower === "confirmed";
+      const isPendingReviewStatus = statusLower === "created";
       if (!statusLower || isPendingReviewStatus || !showNewOrderPopupRef.current) {
         return;
       }
@@ -1659,16 +1695,49 @@ export default function OrdersMain() {
       const matchesPopupOrder =
         hasMatchingOrderKey(eventKeys, popupOrderRef.current) ||
         hasMatchingOrderKey(eventKeys, newOrderRef.current);
+      traceRestaurantLive("event:restaurantOrderStatusUpdated:match-check", {
+        eventKeys,
+        matchesPopupOrder,
+      });
 
-      if (!matchesPopupOrder) return;
-
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
+      if (matchesPopupOrder) {
+        closeActiveOrderPopup();
+        return;
       }
-      setShowNewOrderPopup(false);
-      setPopupOrder(null);
-      clearNewOrder();
+
+      const currentPopupOrder = popupOrderRef.current || newOrderRef.current;
+      const lookupId = String(
+        currentPopupOrder?.orderMongoId ||
+          currentPopupOrder?.mongoId ||
+          currentPopupOrder?.orderId ||
+          currentPopupOrder?.id ||
+          "",
+      ).trim();
+
+      if (!lookupId) return;
+
+      try {
+        const response = await restaurantAPI.getOrderById(lookupId);
+        const latestOrder =
+          response?.data?.data?.order ||
+          response?.data?.order ||
+          response?.data?.data ||
+          null;
+        const latestStatus = String(
+          latestOrder?.orderStatus || latestOrder?.status || "",
+        ).toLowerCase();
+        traceRestaurantLive("event:restaurantOrderStatusUpdated:fetched-latest", {
+          lookupId,
+          latestStatus,
+          latestOrder,
+        });
+
+        if (latestStatus && latestStatus !== "created") {
+          closeActiveOrderPopup();
+        }
+      } catch (error) {
+        debugWarn("Error validating popup order status:", error);
+      }
     };
 
     window.addEventListener(
@@ -1682,32 +1751,77 @@ export default function OrdersMain() {
         handleRestaurantOrderStatusUpdated,
       );
     };
-  }, []);
+  }, [clearNewOrder]);
 
   // Check for confirmed orders that haven't been shown in popup yet, or scheduled orders whose time has come
   useEffect(() => {
     const checkOrdersToPopup = async () => {
-      // Skip if popup is already showing or Socket.IO order exists
-      if (showNewOrderPopupRef.current || newOrderRef.current) return;
-
       try {
         const response = await restaurantAPI.getOrders();
         if (response.data?.success && response.data.data?.orders) {
           const now = Date.now();
+          const rows = response.data.data.orders || [];
+          const currentPopupOrder = popupOrderRef.current || newOrderRef.current;
+          traceRestaurantLive("poll:orders", {
+            count: rows.length,
+            currentPopupOrder,
+            showPopup: showNewOrderPopupRef.current,
+          });
+
+          if (currentPopupOrder) {
+            const currentOrderKeys = Array.from(
+              new Set(
+                [
+                  currentPopupOrder?.orderMongoId,
+                  currentPopupOrder?.orderId,
+                  currentPopupOrder?._id,
+                  currentPopupOrder?.id,
+                ]
+                  .filter(Boolean)
+                  .map((value) => String(value).trim())
+                  .filter(Boolean),
+              ),
+            );
+
+            const latestCurrentOrder = rows.find((order) =>
+              hasMatchingOrderKey(currentOrderKeys, order),
+            );
+            const latestStatus = String(
+              latestCurrentOrder?.status || latestCurrentOrder?.orderStatus || "",
+            ).toLowerCase();
+            traceRestaurantLive("poll:current-popup-status", {
+              currentOrderKeys,
+              latestStatus,
+              latestCurrentOrder,
+            });
+
+            if (!latestCurrentOrder || (latestStatus && latestStatus !== "created")) {
+              if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+              }
+              setShowNewOrderPopup(false);
+              setPopupOrder(null);
+              clearNewOrder();
+              return;
+            }
+          }
+
+          // Skip opening another popup while one is already showing or Socket.IO order exists
+          if (showNewOrderPopupRef.current || newOrderRef.current) return;
 
           // Find orders that should trigger the popup
-          const targetOrders = response.data.data.orders.filter((order) => {
+          const targetOrders = rows.filter((order) => {
             if (hasOrderBeenShown(order)) return false;
 
             const statusLower = String(order.status || "").toLowerCase();
-            const isPendingReview =
-              statusLower === "created" || statusLower === "confirmed";
+            const isPendingReview = statusLower === "created";
 
             if (isPendingReview && !order.scheduledAt) return true; // ordinary new-order fallback
 
             if (
               order.scheduledAt &&
-              (order.status === "created" || order.status === "confirmed")
+              order.status === "created"
             ) {
               const scheduledTime = new Date(order.scheduledAt).getTime();
               // Show popup if scheduled time is <= 30 mins from now
@@ -1724,6 +1838,11 @@ export default function OrdersMain() {
             !newOrderRef.current
           ) {
             const orderToPopup = targetOrders[0];
+            traceRestaurantLive("poll:open-popup", {
+              orderId: orderToPopup?.orderId,
+              orderMongoId: orderToPopup?._id,
+              status: orderToPopup?.status,
+            });
             const orderId = orderToPopup.orderId || orderToPopup._id;
 
             // Transform order to match newOrder format (include payment so COD shows correctly)
@@ -1771,7 +1890,7 @@ export default function OrdersMain() {
     const intervalId = setInterval(checkOrdersToPopup, 60000);
 
     return () => clearInterval(intervalId);
-  }, []);
+  }, [ordersRefreshToken, clearNewOrder]);
 
   // Play audio when popup opens
   useEffect(() => {

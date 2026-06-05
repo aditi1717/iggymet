@@ -9,6 +9,23 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
+const isRestaurantLiveTraceEnabled = () => {
+  try {
+    if (typeof window === 'undefined') return false;
+    return (
+      window.localStorage?.getItem('trace_restaurant_modal') === '1' ||
+      window.location?.search?.includes('traceRestaurantModal=1')
+    );
+  } catch {
+    return false;
+  }
+};
+
+const traceRestaurantLive = (...args) => {
+  if (!isRestaurantLiveTraceEnabled()) return;
+  console.log('[RestaurantLiveTrace]', ...args);
+};
+
 const storeRestaurantAdminNotification = (payload = {}) => {
   if (typeof window === 'undefined') return;
   const id = `admin-${payload?.ticketId || Date.now()}`;
@@ -192,7 +209,7 @@ export const useRestaurantNotifications = () => {
 
   const shouldProcessOrderAlert = (orderData = {}) => {
     const status = String(orderData?.orderStatus || orderData?.status || "").toLowerCase();
-    if (status && status !== "created" && status !== "confirmed") return false;
+    if (status && status !== "created") return false;
 
     const key = getOrderAlertKey(orderData);
     if (!key) return true;
@@ -308,7 +325,7 @@ export const useRestaurantNotifications = () => {
       const pendingReview = (rows || [])
         .filter((o) => {
           const status = String(o?.orderStatus || o?.status || "").toLowerCase();
-          return status === "created" || status === "confirmed";
+          return status === "created";
         })
         .sort((a, b) => {
           const at = a?.updatedAt || a?.createdAt || 0;
@@ -801,6 +818,11 @@ export const useRestaurantNotifications = () => {
     // Listen for new order notifications
     socketRef.current.on('new_order', (orderData) => {
       debugLog('?? New order received:', orderData);
+      traceRestaurantLive('socket:new_order', {
+        orderId: orderData?.orderId,
+        orderMongoId: orderData?.orderMongoId || orderData?._id,
+        status: orderData?.orderStatus || orderData?.status,
+      });
       setNewOrder(orderData);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
@@ -816,6 +838,10 @@ export const useRestaurantNotifications = () => {
     // Listen for sound notification event
     socketRef.current.on('play_notification_sound', (data) => {
       debugLog('?? Sound notification:', data);
+      traceRestaurantLive('socket:play_notification_sound', {
+        orderId: data?.orderId,
+        orderMongoId: data?.orderMongoId || data?._id,
+      });
       const normalizedData = {
         orderId: data?.orderId || data?.order_id,
         orderMongoId: data?.orderMongoId || data?.order_mongo_id,
@@ -844,6 +870,11 @@ export const useRestaurantNotifications = () => {
     // Listen for order status updates
     socketRef.current.on('order_status_update', (data) => {
       debugLog('?? Order status update:', data);
+      traceRestaurantLive('socket:order_status_update', {
+        orderId: data?.orderId,
+        orderMongoId: data?.orderMongoId || data?._id,
+        status: data?.orderStatus || data?.status,
+      });
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('restaurantOrderStatusUpdated', {
@@ -882,7 +913,12 @@ export const useRestaurantNotifications = () => {
 
       // If order is no longer waiting for restaurant review, immediately clear
       // the active new-order notification for the same order.
-      const isPendingReviewStatus = status === 'created' || status === 'confirmed';
+      const isPendingReviewStatus = status === 'created';
+      traceRestaurantLive('socket:order_status_update:pending-check', {
+        status,
+        isPendingReviewStatus,
+        eventOrderKeys,
+      });
       if (eventOrderKeys.length > 0 && status && !isPendingReviewStatus) {
         if (activeOrderRef.current) {
           const activeOrderKeys = getOrderKeys(activeOrderRef.current);
@@ -909,6 +945,11 @@ export const useRestaurantNotifications = () => {
     // Listen for specialized order cancellation events
     socketRef.current.on('order_cancelled', (data) => {
       debugLog('?? Order cancelled event received:', data);
+      traceRestaurantLive('socket:order_cancelled', {
+        orderId: data?.orderId,
+        orderMongoId: data?.orderMongoId || data?._id,
+        status: data?.orderStatus || data?.status,
+      });
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('restaurantOrderStatusUpdated', {
