@@ -35,7 +35,7 @@ import {
 } from '../helpers/razorpay.helper.js';
 import { getIO, rooms } from '../../../../config/socket.js';
 import { addOrderJob } from '../../../../queues/producers/order.producer.js';
-import { fetchPolyline } from '../utils/googleMaps.js';
+import { fetchPolyline, fetchRouteDistanceKm } from '../utils/googleMaps.js';
 import { getFirebaseDB } from '../../../../config/firebase.js';
 import * as foodTransactionService from './foodTransaction.service.js';
 
@@ -1053,17 +1053,17 @@ export async function calculateOrder(userId, dto) {
     .sort({ createdAt: -1 })
     .lean();
   const feeSettings = feeDoc || {
-    deliveryFee: 25,
+    deliveryFee: 0,
     deliveryFeeRanges: [],
-    freeDeliveryThreshold: 149,
-    platformFee: 5,
-    gstRate: 5,
+    freeDeliveryThreshold: 0,
+    platformFee: 0,
+    gstRate: 0,
   };
 
   if (orderType === "quick") {
     const packagingFee = 0;
     const platformFee = Number(feeSettings.platformFee || 0);
-    const deliveryFee = Number(feeSettings.deliveryFee || 25);
+    const deliveryFee = Number(feeSettings.deliveryFee !== undefined && feeSettings.deliveryFee !== null ? feeSettings.deliveryFee : 0);
     const gstRate = Number(feeSettings.gstRate || 0);
     const tax =
       Number.isFinite(gstRate) && gstRate > 0
@@ -1110,8 +1110,9 @@ export async function calculateOrder(userId, dto) {
   const platformFee = Number(feeSettings.platformFee || 0);
 
   const restaurantLatLng = extractLatLngFromLocation(restaurant?.location || {});
-  const customerLatLng = extractLatLngFromLocation(dto?.address?.location || dto?.address || {});
-  const distanceKm =
+  const addressPayload = dto?.address || dto?.deliveryAddress || {};
+  const customerLatLng = extractLatLngFromLocation(addressPayload?.location || addressPayload || {});
+  const straightLineDistanceKm =
     restaurantLatLng && customerLatLng
       ? haversineKm(
           restaurantLatLng.lat,
@@ -1119,6 +1120,10 @@ export async function calculateOrder(userId, dto) {
           customerLatLng.lat,
           customerLatLng.lng,
         )
+      : null;
+  const distanceKm =
+    restaurantLatLng && customerLatLng
+      ? (await fetchRouteDistanceKm(restaurantLatLng, customerLatLng)) ?? straightLineDistanceKm
       : null;
   const deliveryFee = resolveDeliveryFeeByDistance(distanceKm, feeSettings);
 
@@ -1494,16 +1499,22 @@ export async function createOrder(userId, dto) {
   };
 
   let distanceKm = null;
-  if (
-    orderType === "food" &&
-    restaurant?.location?.coordinates?.length === 2 &&
-    dto.address?.location?.coordinates?.length === 2
-  ) {
-    const [rLng, rLat] = restaurant.location.coordinates;
-    const [dLng, dLat] = dto.address.location.coordinates;
-    const d = haversineKm(rLat, rLng, dLat, dLng);
-    distanceKm = Number.isFinite(d) ? d : null;
-  } else {
+  if (orderType === "food") {
+    const restaurantLatLng = extractLatLngFromLocation(restaurant?.location || {});
+    const addressPayload = dto?.address || dto?.deliveryAddress || {};
+    const customerLatLng = extractLatLngFromLocation(addressPayload?.location || addressPayload || {});
+    if (restaurantLatLng && customerLatLng) {
+      const straightLineDistanceKm = haversineKm(
+        restaurantLatLng.lat,
+        restaurantLatLng.lng,
+        customerLatLng.lat,
+        customerLatLng.lng
+      );
+      distanceKm = (await fetchRouteDistanceKm(restaurantLatLng, customerLatLng)) ?? straightLineDistanceKm;
+    }
+  }
+
+  if (orderType === "food" && distanceKm === null) {
     console.warn(
       `Food order ${orderId}: distance not available, rider earning set to 0`,
     );

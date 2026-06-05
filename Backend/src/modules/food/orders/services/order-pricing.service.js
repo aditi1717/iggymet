@@ -7,6 +7,7 @@ import { FoodOfferUsage } from '../../admin/models/offerUsage.model.js';
 import { RestaurantOffer } from '../../restaurant/models/restaurantOffer.model.js';
 import { RestaurantOfferUsage } from '../../restaurant/models/restaurantOfferUsage.model.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
+import { fetchRouteDistanceKm } from '../utils/googleMaps.js';
 
 const getCartItemProductId = (item = {}) =>
   String(item?.itemId || item?.productId || item?.id || '').trim();
@@ -228,11 +229,11 @@ export async function calculateOrderPricing(userId, dto) {
     .sort({ createdAt: -1 })
     .lean();
   const feeSettings = feeDoc || {
-    deliveryFee: 25,
+    deliveryFee: 0,
     deliveryFeeRanges: [],
-    freeDeliveryThreshold: 149,
-    platformFee: 5,
-    gstRate: 5,
+    freeDeliveryThreshold: 0,
+    platformFee: 0,
+    gstRate: 0,
   };
 
   const packagingFee = 0;
@@ -240,7 +241,7 @@ export async function calculateOrderPricing(userId, dto) {
 
   const restaurantLatLng = extractLatLngFromLocation(restaurant?.location || {});
   const customerLatLng = extractLatLngFromLocation(dto?.address?.location || dto?.address || {});
-  const distanceKm =
+  const straightLineDistanceKm =
     restaurantLatLng && customerLatLng
       ? haversineKm(
         restaurantLatLng.lat,
@@ -248,6 +249,10 @@ export async function calculateOrderPricing(userId, dto) {
         customerLatLng.lat,
         customerLatLng.lng,
       )
+      : null;
+  const distanceKm =
+    restaurantLatLng && customerLatLng
+      ? (await fetchRouteDistanceKm(restaurantLatLng, customerLatLng)) ?? straightLineDistanceKm
       : null;
   const deliveryFee = resolveDeliveryFeeByDistance(distanceKm, feeSettings);
 

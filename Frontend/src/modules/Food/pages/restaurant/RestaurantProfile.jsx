@@ -359,7 +359,7 @@ const RestaurantProfile = () => {
         }))
 
         if (locationSearchInputRef.current) {
-          locationSearchInputRef.current.value = pincode || ""
+          locationSearchInputRef.current.value = formattedAddress || ""
         }
       })
     }

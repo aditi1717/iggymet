@@ -262,11 +262,11 @@ export default function Cart() {
 
   // Fee settings from database (used for platform fee and GST fallback only)
   const [feeSettings, setFeeSettings] = useState({
-    deliveryFee: 25,
+    deliveryFee: 0,
     deliveryFeeRanges: [],
-    freeDeliveryThreshold: 149,
-    platformFee: 5,
-    gstRate: 5,
+    freeDeliveryThreshold: 0,
+    platformFee: 0,
+    gstRate: 0,
   })
 
   const cartCount = getCartCount()
@@ -1013,11 +1013,11 @@ export default function Cart() {
         const response = await adminAPI.getPublicFeeSettings()
         if (response.data.success && response.data.data.feeSettings) {
           setFeeSettings({
-            deliveryFee: response.data.data.feeSettings.deliveryFee || 25,
+            deliveryFee: response.data.data.feeSettings.deliveryFee !== undefined && response.data.data.feeSettings.deliveryFee !== null ? response.data.data.feeSettings.deliveryFee : 25,
             deliveryFeeRanges: response.data.data.feeSettings.deliveryFeeRanges || [],
-            freeDeliveryThreshold: response.data.data.feeSettings.freeDeliveryThreshold || 149,
-            platformFee: response.data.data.feeSettings.platformFee || 5,
-            gstRate: response.data.data.feeSettings.gstRate || 5,
+            freeDeliveryThreshold: response.data.data.feeSettings.freeDeliveryThreshold !== undefined && response.data.data.feeSettings.freeDeliveryThreshold !== null ? response.data.data.feeSettings.freeDeliveryThreshold : 149,
+            platformFee: response.data.data.feeSettings.platformFee !== undefined && response.data.data.feeSettings.platformFee !== null ? response.data.data.feeSettings.platformFee : 5,
+            gstRate: response.data.data.feeSettings.gstRate !== undefined && response.data.data.feeSettings.gstRate !== null ? response.data.data.feeSettings.gstRate : 5,
           })
         }
       } catch (error) {
@@ -1047,32 +1047,9 @@ export default function Cart() {
       return 0
     }
 
-    const ranges = Array.isArray(feeSettings.deliveryFeeRanges) ? [...feeSettings.deliveryFeeRanges] : []
-    if (ranges.length > 0) {
-      const sortedRanges = ranges.sort((a, b) => Number(a.min) - Number(b.min))
-      for (let i = 0; i < sortedRanges.length; i += 1) {
-        const range = sortedRanges[i]
-        const min = Number(range.min)
-        const max = Number(range.max)
-        const fee = Number(range.fee)
-        const isLastRange = i === sortedRanges.length - 1
-        const inRange = isLastRange
-          ? subtotal >= min && subtotal <= max
-          : subtotal >= min && subtotal < max
-
-        if (inRange) return fee
-      }
-
-      return 0
-    }
-
-    if (subtotal >= feeSettings.freeDeliveryThreshold) {
-      return 0
-    }
-
-    return Number(feeSettings.deliveryFee || 0)
+    return Number(feeSettings.deliveryFee !== undefined && feeSettings.deliveryFee !== null ? feeSettings.deliveryFee : 0)
   })()
-  const deliveryFee = pricing?.deliveryFee || fallbackDeliveryFee
+  const deliveryFee = pricing?.deliveryFee !== undefined && pricing?.deliveryFee !== null ? pricing.deliveryFee : fallbackDeliveryFee
   const deliveryFeeBreakdown = pricing?.deliveryFeeBreakdown || null
   const hasDistanceDeliveryBreakdown =
     deliveryFeeBreakdown?.source === "distance" &&
@@ -2292,7 +2269,7 @@ export default function Cart() {
                 {deliveryFee === 0 && (
                   <div className="px-4 py-3 md:px-6 md:py-4 border-b border-dashed border-gray-200 dark:border-gray-800 flex items-center gap-3 bg-[#f4fcf7] dark:bg-green-900/10">
                     <CheckCircle2 className="h-5 w-5 text-green-600 fill-green-600/20" />
-                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">You saved {RUPEE_SYMBOL}{feeSettings.deliveryFee || 25} on delivery</span>
+                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">You saved {RUPEE_SYMBOL}{feeSettings.deliveryFee !== undefined && feeSettings.deliveryFee !== null ? feeSettings.deliveryFee : 25} on delivery</span>
                   </div>
                 )}
 

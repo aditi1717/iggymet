@@ -749,7 +749,7 @@ export default function RestaurantsList() {
       }))
 
       if (locationSearchInputRef.current) {
-        locationSearchInputRef.current.value = parsed.pincode || ""
+        locationSearchInputRef.current.value = parsed.formattedAddress || ""
       }
     })
 

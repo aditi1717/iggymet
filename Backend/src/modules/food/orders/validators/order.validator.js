@@ -69,6 +69,8 @@ export function validateCalculateOrderDto(body) {
         items: z.array(orderItemSchema).min(1, 'At least one item required'),
         restaurantId: z.string().optional(),
         deliveryAddressId: z.string().optional(),
+        address: addressSchema.nullable().optional(),
+        deliveryAddress: addressSchema.nullable().optional(),
         zoneId: z.string().optional(),
         couponCode: z.string().optional(),
         deliveryFleet: z.string().optional()

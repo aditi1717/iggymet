@@ -13,7 +13,6 @@ export default function FeeSettings() {
   const [feeSettings, setFeeSettings] = useState({
     deliveryFee: "",
     deliveryFeeRanges: [],
-    freeDeliveryThreshold: "",
     platformFee: "",
     gstRate: "",
   })
@@ -31,7 +30,6 @@ export default function FeeSettings() {
         setFeeSettings({
           deliveryFee: response.data.data.feeSettings.deliveryFee ?? "",
           deliveryFeeRanges: response.data.data.feeSettings.deliveryFeeRanges || [],
-          freeDeliveryThreshold: response.data.data.feeSettings.freeDeliveryThreshold ?? "",
           platformFee: response.data.data.feeSettings.platformFee ?? "",
           gstRate: response.data.data.feeSettings.gstRate ?? "",
         })
@@ -40,7 +38,6 @@ export default function FeeSettings() {
         setFeeSettings({
           deliveryFee: "",
           deliveryFeeRanges: [],
-          freeDeliveryThreshold: "",
           platformFee: "",
           gstRate: "",
         })
@@ -65,7 +62,6 @@ export default function FeeSettings() {
       const response = await adminAPI.createOrUpdateFeeSettings({
         deliveryFee: feeSettings.deliveryFee === "" ? undefined : Number(feeSettings.deliveryFee),
         deliveryFeeRanges: feeSettings.deliveryFeeRanges,
-        freeDeliveryThreshold: feeSettings.freeDeliveryThreshold === "" ? undefined : Number(feeSettings.freeDeliveryThreshold),
         platformFee: feeSettings.platformFee === "" ? undefined : Number(feeSettings.platformFee),
         gstRate: feeSettings.gstRate === "" ? undefined : Number(feeSettings.gstRate),
         isActive: true,
@@ -79,7 +75,6 @@ export default function FeeSettings() {
           setFeeSettings({
             deliveryFee: saved.deliveryFee ?? "",
             deliveryFeeRanges: saved.deliveryFeeRanges ?? [],
-            freeDeliveryThreshold: saved.freeDeliveryThreshold ?? "",
             platformFee: saved.platformFee ?? "",
             gstRate: saved.gstRate ?? "",
           })
@@ -452,25 +447,6 @@ export default function FeeSettings() {
                   />
                   <p className="text-xs text-slate-500">
                     Used only when no distance slab matches or location is unavailable
-                  </p>
-                </div>
-
-                {/* Free Delivery Threshold */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Free Delivery Threshold (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={feeSettings.freeDeliveryThreshold}
-                    onChange={(e) => setFeeSettings({ ...feeSettings, freeDeliveryThreshold: e.target.value })}
-                    min="0"
-                    step="1"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all"
-                    placeholder="149"
-                  />
-                  <p className="text-xs text-slate-500">
-                    Legacy field. Distance-based delivery flow does not use this for food orders.
                   </p>
                 </div>
 
