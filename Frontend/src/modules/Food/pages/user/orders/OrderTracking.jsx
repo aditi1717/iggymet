@@ -1607,15 +1607,15 @@ export default function OrderTracking() {
           transition={{ delay: 0.3 }}
         >
           <div className="flex items-center gap-4">
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm border border-gray-100 ${
-              currentStatus.iconType === 'rider' ? 'bg-brand-50' : 
-              currentStatus.iconType === 'cancelled' ? 'bg-red-50' : 
-              currentStatus.iconType === 'delivered' ? 'bg-green-50' : 
-              'bg-brand-50'
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm border ${
+              currentStatus.iconType === 'rider' ? 'bg-blue-50 border-blue-100 text-blue-600' : 
+              currentStatus.iconType === 'cancelled' ? 'bg-red-50 border-gray-100' : 
+              currentStatus.iconType === 'delivered' ? 'bg-green-50 border-gray-100' : 
+              'bg-blue-50 border-blue-100 text-blue-600'
             }`}>
               {currentStatus.iconType === 'rider' ? (
                 <div 
-                  dangerouslySetInnerHTML={{ __html: RIDER_BIKE_SVG.replace(/width="\d+"/, 'width="100%"').replace(/height="\d+"/, 'height="100%"') }} 
+                  dangerouslySetInnerHTML={{ __html: RIDER_BIKE_SVG.replaceAll('#ff8100', '#2563eb').replace(/width="\d+"/, 'width="100%"').replace(/height="\d+"/, 'height="100%"') }} 
                   className="w-full h-full" 
                 />
               ) : currentStatus.iconType === 'cancelled' ? (
@@ -1700,14 +1700,11 @@ export default function OrderTracking() {
             transition={{ delay: 0.55 }}
           >
             <div className="flex items-center gap-3 p-4 border-b border-dashed border-gray-200">
-              <div className="w-12 h-12 rounded-full bg-brand-50 overflow-hidden flex items-center justify-center flex-shrink-0 border border-brand-100 p-1">
+              <div className="w-12 h-12 rounded-full bg-blue-50 overflow-hidden flex items-center justify-center flex-shrink-0 border border-blue-200 p-1">
                 {order.deliveryPartner?.avatar ? (
-                  <img src={order.deliveryPartner.avatar} alt="Rider" className="w-full h-full object-cover" />
+                  <img src={order.deliveryPartner.avatar} alt="Rider" className="w-full h-full object-cover rounded-full" />
                 ) : (
-                  <div 
-                    dangerouslySetInnerHTML={{ __html: RIDER_BIKE_SVG.replace(/width="\d+"/, 'width="100%"').replace(/height="\d+"/, 'height="100%"') }} 
-                    className="w-full h-full p-1" 
-                  />
+                  <User className="w-6 h-6 text-blue-600" />
                 )}
               </div>
               <div className="flex-1">
@@ -1717,18 +1714,18 @@ export default function OrderTracking() {
                 </p>
               </div>
               <motion.button
-                className="w-10 h-10 rounded-full bg-brand-50 flex items-center justify-center"
+                className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center"
                 onClick={handleCallRider}
                 whileTap={{ scale: 0.9 }}
               >
-                <Phone className="w-5 h-5 text-brand-600" />
+                <Phone className="w-5 h-5 text-blue-600" />
               </motion.button>
             </div>
             {order?.note && (
-              <div className="bg-brand-50/50 p-3 mx-4 mb-4 rounded-lg flex items-start gap-2 border border-brand-100">
-                <MessageSquare className="w-4 h-4 text-brand-500 mt-0.5 flex-shrink-0" />
+              <div className="bg-blue-50/50 p-3 mx-4 mb-4 rounded-lg flex items-start gap-2 border border-blue-100">
+                <MessageSquare className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
-                  <p className="text-[10px] font-bold text-brand-600 uppercase tracking-wider mb-0.5">Instruction for Rider</p>
+                  <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-0.5">Instruction for Rider</p>
                   <p className="text-xs text-gray-700 leading-relaxed font-medium">"{order.note}"</p>
                 </div>
               </div>

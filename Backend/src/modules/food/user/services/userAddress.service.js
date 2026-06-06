@@ -19,6 +19,16 @@ const normalizeLabel = (label) => {
     return 'Other';
 };
 
+const sanitizeUserAddresses = (user) => {
+    if (user && Array.isArray(user.addresses)) {
+        user.addresses.forEach((addr) => {
+            if (addr) {
+                addr.label = normalizeLabel(addr.label);
+            }
+        });
+    }
+};
+
 export const listAddresses = async (userId) => {
     const user = await FoodUser.findById(userId).select('addresses').lean();
     return { addresses: user?.addresses || [] };
@@ -58,6 +68,7 @@ export const addAddress = async (userId, dto) => {
         existing.zipCode = address.zipCode;
         existing.phone = address.phone;
         if (address.location) existing.location = address.location;
+        sanitizeUserAddresses(user);
         await user.save();
         return { address: existing.toObject() };
     }
@@ -68,6 +79,7 @@ export const addAddress = async (userId, dto) => {
     }
 
     user.addresses.push(address);
+    sanitizeUserAddresses(user);
     await user.save();
     const saved = user.addresses[user.addresses.length - 1];
     return { address: saved.toObject() };
@@ -96,6 +108,7 @@ export const updateAddress = async (userId, addressId, dto) => {
     const location = toGeoPoint(dto);
     if (location) address.location = location;
 
+    sanitizeUserAddresses(user);
     await user.save();
     return { address: address.toObject() };
 };
@@ -124,6 +137,7 @@ export const deleteAddress = async (userId, addressId) => {
         }
     }
 
+    sanitizeUserAddresses(user);
     await user.save();
     return { success: true };
 };
@@ -141,6 +155,7 @@ export const setDefaultAddress = async (userId, addressId) => {
     user.addresses.forEach((a) => {
         a.isDefault = String(a._id) === String(addressId);
     });
+    sanitizeUserAddresses(user);
     await user.save();
 
     const updated = user.addresses.id(addressId);

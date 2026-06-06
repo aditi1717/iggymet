@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
-import { ChevronLeft, ChevronRight, Plus, MapPin, MoreHorizontal, Navigation, Home, Building2, Briefcase, Phone, X, Crosshair, Search } from "lucide-react"
+import { ChevronLeft, ChevronRight, Plus, MapPin, MoreHorizontal, Navigation, Home, Building2, Briefcase, Phone, X, Crosshair, Search, Trash2 } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import { Input } from "@food/components/ui/input"
 import { Label } from "@food/components/ui/label"
@@ -172,7 +172,7 @@ export default function AddressSelectorPage() {
   const navigate = useNavigate()
   const goBack = useAppBackNavigation()
   const { location, loading, requestLocation } = useGeoLocation()
-  const { addresses = [], addAddress, updateAddress, setDefaultAddress } = useProfile()
+  const { addresses = [], addAddress, updateAddress, setDefaultAddress, deleteAddress } = useProfile()
   const [showAddressForm, setShowAddressForm] = useState(false)
   const [editingAddressId, setEditingAddressId] = useState(null)
   const [mapPosition, setMapPosition] = useState([22.7196, 75.8577]) // Default Indore coordinates [lat, lng]
@@ -473,6 +473,24 @@ export default function AddressSelectorPage() {
     setCurrentAddress(composeAddressText(address))
     setAddressAutocompleteValue(String(address.formattedAddress || composeAddressText(address) || "").trim())
     setShowAddressForm(true)
+  }
+  
+  const handleDeleteAddress = async (address, e) => {
+    if (e && typeof e.stopPropagation === "function") {
+      e.stopPropagation()
+    }
+    const id = getAddressId(address)
+    if (!id) return
+
+    if (window.confirm(`Are you sure you want to delete the saved address "${address.label || 'Address'}"?`)) {
+      try {
+        toast.loading("Deleting address...", { id: "delete-addr" })
+        await deleteAddress(id)
+        toast.success("Address deleted successfully", { id: "delete-addr" })
+      } catch (error) {
+        toast.error("Failed to delete address", { id: "delete-addr" })
+      }
+    }
   }
 
   const handleCancelAddressForm = () => {
@@ -1097,6 +1115,16 @@ export default function AddressSelectorPage() {
                         aria-label={`Edit ${addr.label || "address"}`}
                       >
                         <MoreHorizontal className="h-4 w-4" style={{ color: BRAND_THEME.colors.brand.primary }} />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => handleDeleteAddress(addr, e)}
+                        className="h-9 w-9 rounded-full border border-red-200 bg-white dark:bg-gray-800 dark:border-red-900/30 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20"
+                        aria-label={`Delete ${addr.label || "address"}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
                       </Button>
                       <button
                         type="button"
