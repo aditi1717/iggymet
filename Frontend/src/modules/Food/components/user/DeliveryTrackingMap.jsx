@@ -91,45 +91,83 @@ const DeliveryTrackingMap = ({
     updateCountRef.current += 1;
   }, []);
 
-  // 1. Initial State from Order Payload (multiple fallbacks)
+  // Helper: parse GeoJSON Point or {lat,lng} objects
+  const parseLocation = useCallback((loc) => {
+    if (!loc) return null;
+    // GeoJSON: { type: 'Point', coordinates: [lng, lat] }
+    if (Array.isArray(loc.coordinates) && loc.coordinates.length >= 2) {
+      const lng = Number(loc.coordinates[0]);
+      const lat = Number(loc.coordinates[1]);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng, heading: Number(loc.heading || loc.bearing || 0) };
+    }
+    // Direct: { lat, lng }
+    const lat = Number(loc.lat ?? loc.latitude);
+    const lng = Number(loc.lng ?? loc.longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng, heading: Number(loc.heading || loc.bearing || 0) };
+    return null;
+  }, []);
+
+  // 1. Initial State from Order Payload (exhaustive fallback chain)
   useEffect(() => {
     if (riderLocation) return; // Already have location
     
-    // Try deliveryState.currentLocation
-    const loc = order?.deliveryState?.currentLocation;
-    if (loc) {
-      const lat = typeof loc.lat === 'number' ? loc.lat : (Array.isArray(loc.coordinates) ? Number(loc.coordinates[1]) : null);
-      const lng = typeof loc.lng === 'number' ? loc.lng : (Array.isArray(loc.coordinates) ? Number(loc.coordinates[0]) : null);
-      if (Number.isFinite(lat) && Number.isFinite(lng)) {
-        debugLog('📍 Initial rider location from deliveryState.currentLocation');
-        triggerSmoothMove({ lat, lng, heading: loc.bearing || loc.heading || 0 });
-        return;
-      }
+    // A. lastRiderLocation (GeoJSON Point — primary field in order schema)
+    const lastLoc = parseLocation(order?.lastRiderLocation);
+    if (lastLoc) {
+      debugLog('📍 Initial rider location from lastRiderLocation');
+      triggerSmoothMove(lastLoc);
+      return;
     }
     
-    // Try lastRiderLocation
-    const lastLoc = order?.lastRiderLocation;
-    if (lastLoc) {
-      const lat = typeof lastLoc.lat === 'number' ? lastLoc.lat : (Array.isArray(lastLoc.coordinates) ? Number(lastLoc.coordinates[1]) : null);
-      const lng = typeof lastLoc.lng === 'number' ? lastLoc.lng : (Array.isArray(lastLoc.coordinates) ? Number(lastLoc.coordinates[0]) : null);
-      if (Number.isFinite(lat) && Number.isFinite(lng)) {
-        debugLog('📍 Initial rider location from lastRiderLocation');
-        triggerSmoothMove({ lat, lng, heading: lastLoc.bearing || lastLoc.heading || 0 });
-        return;
-      }
+    // B. deliveryState.currentLocation (if ever populated)
+    const curLoc = parseLocation(order?.deliveryState?.currentLocation);
+    if (curLoc) {
+      debugLog('📍 Initial rider location from deliveryState.currentLocation');
+      triggerSmoothMove(curLoc);
+      return;
     }
 
-    // Try deliveryState.boyLocation
-    const boyLoc = order?.deliveryState?.boyLocation;
-    if (boyLoc) {
-      const lat = Number(boyLoc.lat ?? boyLoc.boy_lat);
-      const lng = Number(boyLoc.lng ?? boyLoc.boy_lng);
-      if (Number.isFinite(lat) && Number.isFinite(lng)) {
-        debugLog('📍 Initial rider location from deliveryState.boyLocation');
-        triggerSmoothMove({ lat, lng, heading: Number(boyLoc.heading || 0) });
+    // C. Delivery partner's live location (from populated deliveryPartnerId)
+    const partnerLoc = parseLocation(order?.deliveryPartnerId?.location || order?.deliveryPartner?.location);
+    if (partnerLoc) {
+      debugLog('📍 Initial rider location from delivery partner profile');
+      triggerSmoothMove(partnerLoc);
+      return;
+    }
+
+    // D. STATUS-BASED FALLBACK — position rider at logical location based on order phase
+    //    This guarantees the icon is ALWAYS visible on the map
+    if (order && (order.deliveryPartnerId || order.dispatch?.deliveryPartnerId)) {
+      const phase = order?.deliveryState?.currentPhase || '';
+      const status = (order?.orderStatus || order?.status || '').toLowerCase();
+      
+      if (['at_drop', 'delivered', 'completed'].includes(phase) || 
+          ['reached_drop', 'out_for_delivery', 'delivered'].includes(status)) {
+        // Rider is at/near customer
+        if (customerCoords) {
+          debugLog('📍 Fallback: Rider at customer location (status:', phase || status, ')');
+          triggerSmoothMove({ ...customerCoords, heading: 0 });
+          return;
+        }
+      }
+      
+      if (['at_pickup', 'en_route_to_pickup'].includes(phase) || 
+          ['assigned', 'accepted', 'preparing', 'ready'].includes(status)) {
+        // Rider is at/near restaurant
+        if (restaurantCoords) {
+          debugLog('📍 Fallback: Rider at restaurant location (status:', phase || status, ')');
+          triggerSmoothMove({ ...restaurantCoords, heading: 0 });
+          return;
+        }
+      }
+
+      // E. Last resort — show rider at restaurant (most common starting point)
+      if (restaurantCoords) {
+        debugLog('📍 Last resort fallback: Rider at restaurant');
+        triggerSmoothMove({ ...restaurantCoords, heading: 0 });
       }
     }
-  }, [order, riderLocation, triggerSmoothMove]);
+  }, [order, riderLocation, triggerSmoothMove, parseLocation, restaurantCoords, customerCoords]);
 
   // 2. Core Data Sync (Socket + Firebase) — ALL updates go through triggerSmoothMove
   useEffect(() => {

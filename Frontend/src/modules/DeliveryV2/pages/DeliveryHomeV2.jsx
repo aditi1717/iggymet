@@ -30,7 +30,7 @@ import { DEFAULT_USER_AVATAR, resolveProfileAvatar } from '@food/utils/profileAv
 import {
   HelpCircle, AlertTriangle,
   Wallet, History, User as UserIcon, LayoutGrid,
-  Plus, Minus, Navigation2, Target, Play, Clock,
+  Plus, Minus, Navigation2, Target, Play, Pause, Clock,
   Contact, Package, RefreshCcw, Bell,
   Ambulance, Shield, ShieldCheck, ArrowRight
 } from 'lucide-react';
@@ -842,6 +842,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
 
   const [zoom, setZoom] = useState(14);
   const [isSimMode, setIsSimMode] = useState(false);
+  const [isSimPlaying, setIsSimPlaying] = useState(false);
   const [simPath, setSimPath] = useState([]);
   const [simIndex, setSimIndex] = useState(0);
   const [simProgress, setSimProgress] = useState(0); // 0 to 1 between points
@@ -1039,7 +1040,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const lastSimUpdateSentAt = useRef(0);
   useEffect(() => {
     let interval;
-    if (isSimMode && simPath.length > 1 && simIndex < simPath.length - 1) {
+    if (isSimMode && isSimPlaying && simPath.length > 1 && simIndex < simPath.length - 1) {
       console.log('[SimAuto] Glide Active √');
 
       interval = setInterval(() => {
@@ -1047,6 +1048,12 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
           const nextProgress = prev + 0.08; // 8% movement per tick
 
           if (nextProgress >= 1) {
+            if (simIndex + 1 >= simPath.length - 1) {
+              setIsSimPlaying(false);
+              setIsSimMode(false);
+              toast.success('Simulation completed!');
+              return 0;
+            }
             setSimIndex(idx => idx + 1);
             return 0; // Move to next segment
           }
@@ -1114,7 +1121,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
       }, 50); // 20 FPS movement
     }
     return () => clearInterval(interval);
-  }, [isSimMode, simPath, simIndex, activeOrder, emitLocation, activePolyline, eta, tripStatus]);
+  }, [isSimMode, isSimPlaying, simPath, simIndex, activeOrder, emitLocation, activePolyline, eta, tripStatus]);
 
   // Fetch profile data for header
   useEffect(() => {
@@ -1838,17 +1845,46 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
 
             {/* SIMULATION INDICATOR */}
             {isSimMode && (
-              <div className="absolute top-[180px] left-4 right-4 z-[100] bg-[#2979fb]/70 backdrop-blur-md rounded-xl p-4 border border-white/20 flex items-center justify-between shadow-2xl">
+              <div className="absolute top-[180px] left-4 right-4 z-[100] bg-[#2979fb]/80 backdrop-blur-md rounded-xl p-4 border border-white/20 flex items-center justify-between shadow-2xl">
                 <div className="flex items-center gap-4">
-                  <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center animate-pulse">
-                    <Play className="w-4 h-4 text-white fill-current" />
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isSimPlaying ? 'bg-orange-500 animate-pulse' : 'bg-yellow-500'}`}>
+                    {isSimPlaying ? (
+                      <Play className="w-4 h-4 text-white fill-current" />
+                    ) : (
+                      <Pause className="w-4 h-4 text-white" />
+                    )}
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-orange-500 text-[10px] font-bold uppercase tracking-widest">Auto Navigation Active</span>
-                    <span className="text-white text-[11px] font-medium">Following actual road path...</span>
+                    <span className="text-orange-400 text-[10px] font-bold uppercase tracking-widest">
+                      {isSimPlaying ? 'Auto Navigation Active' : 'Auto Navigation Paused'}
+                    </span>
+                    <span className="text-white text-[11px] font-medium">
+                      {isSimPlaying ? 'Following actual road path...' : 'Simulation paused at current point'}
+                    </span>
                   </div>
                 </div>
-                <button onClick={() => setIsSimMode(false)} className="bg-white/10 text-white/50 hover:text-white px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-white/10">Stop</button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const nextPlaying = !isSimPlaying;
+                      setIsSimPlaying(nextPlaying);
+                      toast.info(nextPlaying ? 'Simulation Resumed' : 'Simulation Paused');
+                    }}
+                    className="bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-white/10 transition-all active:scale-95"
+                  >
+                    {isSimPlaying ? 'Pause' : 'Resume'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsSimMode(false);
+                      setIsSimPlaying(false);
+                      toast.success('Simulation Stopped');
+                    }}
+                    className="bg-red-500/25 hover:bg-red-600 text-red-200 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-red-500/30 transition-all active:scale-95"
+                  >
+                    Stop
+                  </button>
+                </div>
               </div>
             )}
 
@@ -1859,10 +1895,11 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
               </div>
               <button
                 onClick={() => {
-                  const nextSimState = !isSimMode;
-                  setIsSimMode(nextSimState);
-
-                  if (nextSimState) {
+                  if (!isSimMode) {
+                    setIsSimMode(true);
+                    setIsSimPlaying(true);
+                    setSimIndex(0);
+                    setSimProgress(0);
                     toast.warning('Simulation Mode Active');
                     // Initialize position if null
                     if (!useDeliveryStore.getState().riderLocation && activeOrder) {
@@ -1875,12 +1912,21 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                         });
                       }
                     }
+                  } else {
+                    // Toggle play/pause
+                    const nextPlaying = !isSimPlaying;
+                    setIsSimPlaying(nextPlaying);
+                    toast.info(nextPlaying ? 'Simulation Resumed' : 'Simulation Paused');
                   }
                 }}
-                className={`w-14 h-14 rounded-full shadow-2xl flex items-center justify-center border border-gray-100 transition-all ${isSimMode ? 'bg-orange-500 text-white' : 'bg-white text-green-500'}`}
+                className={`w-14 h-14 rounded-full shadow-2xl flex items-center justify-center border border-gray-100 transition-all ${isSimMode ? (isSimPlaying ? 'bg-orange-500 text-white' : 'bg-yellow-500 text-white') : 'bg-white text-green-500'}`}
               >
                 <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${isSimMode ? 'border-white' : 'border-green-500'}`}>
-                  <Play className={`w-4 h-4 fill-current ml-0.5 ${isSimMode ? 'animate-pulse' : ''}`} />
+                  {isSimMode && isSimPlaying ? (
+                    <Pause className="w-4 h-4 fill-current" />
+                  ) : (
+                    <Play className={`w-4 h-4 fill-current ${!isSimMode ? 'ml-0.5' : 'ml-0.5 animate-pulse'}`} />
+                  )}
                 </div>
               </button>
               <button
