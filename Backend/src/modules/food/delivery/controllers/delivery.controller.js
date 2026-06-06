@@ -284,7 +284,8 @@ export const getEmergencyHelpController = async (req, res, next) => {
 
 export const getCashLimitController = async (req, res, next) => {
     try {
-        const data = await getDeliveryCashLimitSettings();
+        const deliveryPartnerId = req.user?.userId;
+        const data = await getDeliveryCashLimitSettings({ deliveryPartnerId });
         return sendResponse(res, 200, 'Cash limit fetched successfully', data);
     } catch (error) {
         next(error);

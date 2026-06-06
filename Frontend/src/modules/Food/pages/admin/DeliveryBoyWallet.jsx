@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect } from "react"
 import { Search, PiggyBank, Loader2, Package, RefreshCw, HandCoins, Download } from "lucide-react"
+import { useNavigate } from "react-router-dom"
 import { adminAPI } from "@food/api"
 import { toast } from "sonner"
 import BRAND_THEME from "@/config/brandTheme"
@@ -49,6 +50,7 @@ const normalizeWalletRow = (row = {}) => {
     ...row,
     name: row.name || row.deliveryPartnerName || row.deliveryBoyName || row.userName || "â€”",
     deliveryIdString: row.deliveryIdString || row.deliveryId || row.deliveryPartnerId || row.partnerId || "â€”",
+    phone: row.phone || row.deliveryPhone || "",
     pocketBalance: toNumber(row.pocketBalance, row.totalBalance),
     cashCollected: toNumber(row.cashCollected, row.totalCashCollected, row.collectedCash),
     cashInHand,
@@ -93,6 +95,7 @@ const getUnpaidAmount = (wallet = {}) =>
   )
 
 export default function DeliveryBoyWallet() {
+  const navigate = useNavigate()
   const todayDate = new Date().toISOString().split("T")[0]
   const [wallets, setWallets] = useState([])
   const [summary, setSummary] = useState({
@@ -579,6 +582,14 @@ export default function DeliveryBoyWallet() {
   const isQuickTimeActive = filters.time !== "All Time"
   const isDateRangeActive = Boolean(filters.fromDate || filters.toDate)
 
+  const openCashSettlementHistory = (wallet, status) => {
+    const searchValue = String(wallet?.phone || wallet?.deliveryIdString || wallet?.name || "").trim()
+    const params = new URLSearchParams()
+    if (searchValue) params.set("search", searchValue)
+    if (status) params.set("status", status)
+    navigate(`/admin/food/cash-limit-settlement?${params.toString()}`)
+  }
+
   const handleDownloadExcel = () => {
     if (!wallets.length) {
       toast.error("No rows to export")
@@ -828,8 +839,26 @@ export default function DeliveryBoyWallet() {
                         <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{Number(w.totalCashOrders || 0).toLocaleString("en-IN")}</td>
                         <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{Number(w.totalOnlineOrders || 0).toLocaleString("en-IN")}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(getTotalCashAmount(w))}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(w.cashInHand)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(w.cashSubmittedToAdmin)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">
+                          <button
+                            type="button"
+                            onClick={() => openCashSettlementHistory(w, "pending")}
+                            className="rounded-md px-2 py-1 text-left text-amber-700 underline decoration-dotted underline-offset-4 hover:bg-amber-50"
+                            title="Open unpaid COD to admin history"
+                          >
+                            {formatCurrency(w.cashInHand)}
+                          </button>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">
+                          <button
+                            type="button"
+                            onClick={() => openCashSettlementHistory(w, "completed")}
+                            className="rounded-md px-2 py-1 text-left text-emerald-700 underline decoration-dotted underline-offset-4 hover:bg-emerald-50"
+                            title="Open paid COD to admin history"
+                          >
+                            {formatCurrency(w.cashSubmittedToAdmin)}
+                          </button>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(w.totalEarning)}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(getPaidAmount(w))}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(getUnpaidAmount(w))}</td>

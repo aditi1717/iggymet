@@ -53,6 +53,30 @@ const getOrderUserZoneId = (order) =>
   normalizeId(order?.originalOrder?.deliveryAddress?.zoneId) ||
   normalizeId(order?.userZoneId)
 
+const getOrderPaymentMethod = (order) =>
+  String(
+    order?.originalOrder?.payment?.method ||
+    order?.payment?.method ||
+    order?.paymentMethod ||
+    "",
+  ).trim().toLowerCase()
+
+const getOrderCodAmount = (order) =>
+  Math.max(
+    0,
+    Number(
+      order?.originalOrder?.pricing?.total ??
+      order?.originalOrder?.totalAmount ??
+      order?.originalOrder?.grandTotal ??
+      order?.pricing?.total ??
+      order?.totalAmount ??
+      0,
+    ) || 0,
+  )
+
+const isCodOrder = (order) =>
+  ["cash", "cod", "cash_on_delivery", "razorpay_qr"].includes(getOrderPaymentMethod(order))
+
 export default function AssignDeliveryPartnerDialog({
   isOpen,
   onOpenChange,
@@ -60,6 +84,7 @@ export default function AssignDeliveryPartnerDialog({
   onAssigned,
 }) {
   const [deliveryPartners, setDeliveryPartners] = useState([])
+  const [blockedByCashLimitCount, setBlockedByCashLimitCount] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedPartnerId, setSelectedPartnerId] = useState("")
   const [isAssigning, setIsAssigning] = useState(false)
@@ -74,10 +99,13 @@ export default function AssignDeliveryPartnerDialog({
   const userZoneId = getOrderUserZoneId(order)
   const hasZoneMismatch = Boolean(restaurantZoneId && userZoneId && restaurantZoneId !== userZoneId)
   const resolvedZoneId = restaurantZoneId || userZoneId || orderZoneId
+  const orderIsCod = isCodOrder(order)
+  const orderCodAmount = orderIsCod ? getOrderCodAmount(order) : 0
 
   useEffect(() => {
     if (!isOpen) {
       setDeliveryPartners([])
+      setBlockedByCashLimitCount(0)
       setSelectedPartnerId("")
       setIsLoading(false)
       setIsAssigning(false)
@@ -86,6 +114,7 @@ export default function AssignDeliveryPartnerDialog({
 
     if (!resolvedZoneId || hasZoneMismatch) {
       setDeliveryPartners([])
+      setBlockedByCashLimitCount(0)
       return
     }
 
@@ -106,17 +135,32 @@ export default function AssignDeliveryPartnerDialog({
         const strictOnlineZonePartners = strictZonePartners.filter((partner) =>
           isPartnerOnline(partner),
         )
-        setDeliveryPartners(strictOnlineZonePartners)
+        const wouldExceedCashLimit = (partner) => {
+          if (!orderIsCod) return false
+          const currentCashInHand = Math.max(0, Number(partner?.cashInHand) || 0)
+          const effectiveCashLimit = Math.max(0, Number(partner?.effectiveCashLimit) || 0)
+          const projectedCashInHand = currentCashInHand + orderCodAmount
+
+          return effectiveCashLimit <= 0
+            ? projectedCashInHand > 0
+            : projectedCashInHand >= effectiveCashLimit
+        }
+        const cashEligiblePartners = strictOnlineZonePartners.filter(
+          (partner) => !wouldExceedCashLimit(partner),
+        )
+        setBlockedByCashLimitCount(strictOnlineZonePartners.length - cashEligiblePartners.length)
+        setDeliveryPartners(cashEligiblePartners)
       } catch (error) {
         toast.error(error?.response?.data?.message || "Failed to load delivery partners")
         setDeliveryPartners([])
+        setBlockedByCashLimitCount(0)
       } finally {
         setIsLoading(false)
       }
     }
 
     loadPartners()
-  }, [isOpen, resolvedZoneId, hasZoneMismatch])
+  }, [isOpen, resolvedZoneId, hasZoneMismatch, orderCodAmount, orderIsCod])
 
   const handleAssign = async () => {
     if (!order?.orderMongoId || !selectedPartnerId) return
@@ -163,12 +207,17 @@ export default function AssignDeliveryPartnerDialog({
             </div>
           ) : sortedPartners.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-600">
-              No online delivery partners were found in this zone.
+              {blockedByCashLimitCount > 0
+                ? orderIsCod
+                  ? "All online delivery partners in this zone would cross their cash-in-hand limit with this COD order."
+                  : "All online delivery partners in this zone have reached their cash-in-hand limit."
+                : "No online delivery partners were found in this zone."}
             </div>
           ) : (
             <div className="space-y-3">
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
                 Showing <span className="font-semibold text-slate-800">{sortedPartners.length}</span> online partners in this zone
+                {blockedByCashLimitCount > 0 ? ` (${blockedByCashLimitCount} hidden due to cash limit)` : ""}
               </div>
               <div className="max-h-[380px] space-y-3 overflow-y-auto pr-1">
                 {sortedPartners.map((partner) => {

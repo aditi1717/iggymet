@@ -52,7 +52,8 @@ const resolveDeliveryBackPath = ({ pathname, state }) => {
   if (
     normalizedPath === "/pocket/payout" ||
     normalizedPath === "/pocket/statement" ||
-    normalizedPath === "/pocket/details"
+    normalizedPath === "/pocket/details" ||
+    normalizedPath === "/pocket/cash-history"
   ) {
     return explicitBackPath || "/food/delivery/pocket"
   }

@@ -10,6 +10,7 @@ import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
 import BRAND_THEME from '@/config/brandTheme';
 import { formatCurrency } from '@food/utils/currency';
+import { initRazorpayPayment } from '@food/utils/razorpay';
 
 const toNumber = (...values) => {
   for (const value of values) {
@@ -32,45 +33,58 @@ export const PocketV2 = () => {
     cashInHand: 0,
     cashSubmittedToAdmin: 0,
   });
+  const [profileState, setProfileState] = useState({ name: '', phone: '', email: '' });
+  const [depositAmount, setDepositAmount] = useState('');
+  const [showDepositForm, setShowDepositForm] = useState(false);
+  const [isPreparingDeposit, setIsPreparingDeposit] = useState(false);
+  const [isVerifyingDeposit, setIsVerifyingDeposit] = useState(false);
+
+  const loadPocketData = async () => {
+    const [profileRes, earningsRes, walletRes] = await Promise.all([
+      deliveryAPI.getProfile(),
+      deliveryAPI.getEarnings({ period: 'week' }),
+      deliveryAPI.getWallet(),
+    ]);
+
+    const profile = profileRes?.data?.data?.profile || {};
+    const summary = earningsRes?.data?.data?.summary || {};
+    const wallet = walletRes?.data?.data?.wallet || {};
+    const bankDetails = profile?.documents?.bankDetails;
+    const isFilled = !!bankDetails?.accountNumber;
+
+    const totalEarned = toNumber(wallet.totalEarned, wallet.totalEarning, wallet.totalBalance);
+    const totalBonus = toNumber(wallet.totalBonus);
+    const totalWithdrawn = toNumber(wallet.totalWithdrawn, wallet.paidAmount);
+    const grossBalance = toNumber(wallet.totalBalance, totalEarned + totalBonus);
+    const cashInHand = toNumber(wallet.cashInHand);
+    const cashSubmittedToAdmin = toNumber(
+      wallet.cashSubmittedToAdmin,
+      wallet.totalSubmittedToAdmin,
+      0,
+    );
+
+    setProfileState({
+      name: profile?.name || '',
+      phone: profile?.phone || '',
+      email: profile?.email || '',
+    });
+    setWalletState({
+      weeklyEarnings: Number(summary.totalEarnings) || 0,
+      weeklyOrders: Number(summary.totalOrders) || 0,
+      bankDetailsFilled: isFilled,
+      totalEarning: totalEarned,
+      adminPaid: totalWithdrawn,
+      adminDue: Math.max(0, grossBalance - totalWithdrawn),
+      cashInHand,
+      cashSubmittedToAdmin,
+    });
+  };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [profileRes, earningsRes, walletRes] = await Promise.all([
-          deliveryAPI.getProfile(),
-          deliveryAPI.getEarnings({ period: 'week' }),
-          deliveryAPI.getWallet(),
-        ]);
-
-        const profile = profileRes?.data?.data?.profile || {};
-        const summary = earningsRes?.data?.data?.summary || {};
-        const wallet = walletRes?.data?.data?.wallet || {};
-
-        const bankDetails = profile?.documents?.bankDetails;
-        const isFilled = !!bankDetails?.accountNumber;
-
-        const totalEarned = toNumber(wallet.totalEarned, wallet.totalEarning, wallet.totalBalance);
-        const totalBonus = toNumber(wallet.totalBonus);
-        const totalWithdrawn = toNumber(wallet.totalWithdrawn, wallet.paidAmount);
-        const grossBalance = toNumber(wallet.totalBalance, totalEarned + totalBonus);
-        const cashInHand = toNumber(wallet.cashInHand);
-        const cashSubmittedToAdmin = toNumber(
-          wallet.cashSubmittedToAdmin,
-          wallet.totalSubmittedToAdmin,
-          0,
-        );
-
-        setWalletState({
-          weeklyEarnings: Number(summary.totalEarnings) || 0,
-          weeklyOrders: Number(summary.totalOrders) || 0,
-          bankDetailsFilled: isFilled,
-          totalEarning: totalEarned,
-          adminPaid: totalWithdrawn,
-          adminDue: Math.max(0, grossBalance - totalWithdrawn),
-          cashInHand,
-          cashSubmittedToAdmin,
-        });
+        await loadPocketData();
       } catch (err) {
         toast.error('Failed to load wallet data');
       } finally {
@@ -80,6 +94,67 @@ export const PocketV2 = () => {
 
     fetchData();
   }, []);
+
+  const handlePayToAdmin = async () => {
+    const amount = Math.max(0, Number(depositAmount) || 0);
+    if (!Number.isFinite(amount) || amount < 1) {
+      toast.error('Enter a valid amount');
+      return;
+    }
+    if (amount > walletState.cashInHand) {
+      toast.error('Amount cannot exceed cash in hand');
+      return;
+    }
+
+    try {
+      setIsPreparingDeposit(true);
+      const orderRes = await deliveryAPI.createDepositOrder(amount);
+      const razorpay = orderRes?.data?.data?.razorpay || {};
+      if (!razorpay?.orderId || !razorpay?.key) {
+        throw new Error('Failed to initialize Razorpay payment');
+      }
+
+      await initRazorpayPayment({
+        key: razorpay.key,
+        amount: razorpay.amount,
+        currency: razorpay.currency || 'INR',
+        order_id: razorpay.orderId,
+        name: 'IggymetFood',
+        description: `Pay to Admin - ${formatCurrency(amount)}`,
+        prefill: {
+          name: profileState.name,
+          email: profileState.email,
+          contact: profileState.phone,
+        },
+        handler: async (response) => {
+          try {
+            setIsVerifyingDeposit(true);
+            await deliveryAPI.verifyDepositPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              amount,
+            });
+            toast.success('Cash in hand paid to admin successfully');
+            setDepositAmount('');
+            setShowDepositForm(false);
+            await loadPocketData();
+          } catch (error) {
+            toast.error(error?.response?.data?.message || error?.message || 'Failed to verify payment');
+          } finally {
+            setIsVerifyingDeposit(false);
+          }
+        },
+        onError: (error) => {
+          toast.error(error?.description || error?.message || 'Payment failed');
+        },
+      });
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error?.message || 'Failed to start payment');
+    } finally {
+      setIsPreparingDeposit(false);
+    }
+  };
 
   const InfoCard = ({ label, value, className = '' }) => (
     <div className={`rounded-xl border border-gray-200 bg-white p-4 ${className}`}>
@@ -132,6 +207,67 @@ export const PocketV2 = () => {
           <div className="grid grid-cols-2 gap-3">
             <InfoCard label="Cash In Hand" value={formatCurrency(walletState.cashInHand)} />
             <InfoCard label="Cash Submitted To Admin" value={formatCurrency(walletState.cashSubmittedToAdmin)} />
+          </div>
+          <div className="mt-3 space-y-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDepositForm((prev) => !prev)}
+                className="rounded-xl px-4 py-2.5 text-xs font-bold text-white"
+                style={{ background: BRAND_THEME.colors.brand.primary }}
+              >
+                Pay To Admin
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/food/delivery/pocket/cash-history')}
+                className="rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-xs font-bold text-emerald-700"
+              >
+                View Cash History
+              </button>
+            </div>
+
+            {showDepositForm && (
+              <div className="rounded-xl border border-emerald-200 bg-white p-3 space-y-3">
+                <div>
+                  <p className="text-xs font-bold text-slate-800">Pay cash in hand to admin via Razorpay</p>
+                  <p className="text-[11px] text-slate-500">Enter the amount you are handing over to admin.</p>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    max={Math.max(0, Math.floor(walletState.cashInHand))}
+                    value={depositAmount}
+                    onChange={(e) => {
+                      const rawValue = e.target.value;
+                      if (rawValue === '') {
+                        setDepositAmount('');
+                        return;
+                      }
+                      const numericValue = Math.max(0, Number(rawValue) || 0);
+                      const cappedValue = Math.min(numericValue, Math.max(0, walletState.cashInHand));
+                      setDepositAmount(String(cappedValue));
+                    }}
+                    placeholder="Enter amount"
+                    className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-800"
+                    disabled={isPreparingDeposit || isVerifyingDeposit}
+                  />
+                  <button
+                    type="button"
+                    onClick={handlePayToAdmin}
+                    disabled={isPreparingDeposit || isVerifyingDeposit}
+                    className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+                  >
+                    {isPreparingDeposit || isVerifyingDeposit ? 'Processing...' : 'Pay'}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Amount cannot be greater than cash in hand: {formatCurrency(walletState.cashInHand)}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

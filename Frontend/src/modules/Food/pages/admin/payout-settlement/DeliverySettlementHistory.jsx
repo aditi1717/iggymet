@@ -141,8 +141,6 @@ export default function DeliverySettlementHistory() {
                   <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Window</th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Partners</th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Orders</th>
-                  <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">COD Orders</th>
-                  <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">COD Amount</th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Total Paid</th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Paid By</th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Action</th>
@@ -151,7 +149,7 @@ export default function DeliverySettlementHistory() {
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={9} className="px-6 py-14 text-center text-sm text-slate-500">
+                    <td colSpan={7} className="px-6 py-14 text-center text-sm text-slate-500">
                       <span className="inline-flex items-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Loading settlement history...
@@ -160,7 +158,7 @@ export default function DeliverySettlementHistory() {
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-6 py-14 text-center text-sm text-slate-500">
+                    <td colSpan={7} className="px-6 py-14 text-center text-sm text-slate-500">
                       No settlement history found.
                     </td>
                   </tr>
@@ -181,10 +179,6 @@ export default function DeliverySettlementHistory() {
                         </div>
                       </td>
                       <td className="px-5 py-4 text-sm text-slate-700">{Number(row.totalOrders || 0)}</td>
-                      <td className="px-5 py-4 text-sm text-slate-700">{Number(row.totalCodOrders || 0)}</td>
-                      <td className="px-5 py-4 text-sm text-slate-700">
-                        {Number(row.totalCodOrders || 0) > 0 ? toCurrency(row.totalCodAmount) : "NIL"}
-                      </td>
                       <td className="px-5 py-4 text-sm font-semibold text-emerald-700">{toCurrency(row.totalPaidAmount)}</td>
                       <td className="px-5 py-4 text-sm text-slate-700">{row.paidByAdminName || "-"}</td>
                       <td className="px-5 py-4">
@@ -221,8 +215,6 @@ export default function DeliverySettlementHistory() {
                   <tr>
                     <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Delivery Partner</th>
                     <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Orders</th>
-                    <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">COD Orders</th>
-                    <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">COD Amount</th>
                     <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Gross</th>
                     <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Paid</th>
                     <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Note</th>
@@ -231,7 +223,7 @@ export default function DeliverySettlementHistory() {
                 <tbody className="divide-y divide-slate-100">
                   {detailsLoading ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-14 text-center text-sm text-slate-500">
+                      <td colSpan={5} className="px-6 py-14 text-center text-sm text-slate-500">
                         <span className="inline-flex items-center gap-2">
                           <Loader2 className="w-4 h-4 animate-spin" />
                           Loading batch details...
@@ -240,7 +232,7 @@ export default function DeliverySettlementHistory() {
                     </tr>
                   ) : !details?.rows?.length ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-14 text-center text-sm text-slate-500">
+                      <td colSpan={5} className="px-6 py-14 text-center text-sm text-slate-500">
                         No paid rows found for this batch.
                       </td>
                     </tr>
@@ -252,10 +244,6 @@ export default function DeliverySettlementHistory() {
                           <p className="text-xs text-slate-500">{row.beneficiaryId}</p>
                         </td>
                         <td className="px-5 py-4 text-sm text-slate-700">{Number(row.ordersCount || 0)}</td>
-                        <td className="px-5 py-4 text-sm text-slate-700">{Number(row.codOrdersCount || 0)}</td>
-                        <td className="px-5 py-4 text-sm text-slate-700">
-                          {Number(row.codOrdersCount || 0) > 0 ? toCurrency(row.codAmount) : "NIL"}
-                        </td>
                         <td className="px-5 py-4 text-sm text-slate-700">{toCurrency(row.grossAmount)}</td>
                         <td className="px-5 py-4 text-sm font-semibold text-emerald-700">{toCurrency(row.paidAmount)}</td>
                         <td className="px-5 py-4 text-sm text-slate-700">{row.note || "-"}</td>

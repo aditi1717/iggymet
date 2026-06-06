@@ -121,12 +121,17 @@ export async function createInitialTransaction(order) {
     // Do not add restaurant-funded discounts to admin/platform earning.
     const couponByAdmin = Number(order.pricing?.couponByAdmin || 0);
     const tax = Number(order.pricing?.tax || 0);
-    const platformNetProfit = (Number(order.pricing?.platformFee || 0) || 0)
-        + (Number(order.pricing?.deliveryFee || 0) || 0)
-        + tax
-        + restaurantCommission
-        - riderShare
-        - couponByAdmin;
+    const storedPlatformProfit = Number(order.platformProfit);
+    const basePlatformProfit = Number.isFinite(storedPlatformProfit)
+        ? storedPlatformProfit
+        : (Number(order.pricing?.platformFee || 0) || 0)
+            + (Number(order.pricing?.deliveryFee || 0) || 0)
+            + restaurantCommission
+            - riderShare;
+    // Keep the ledger aligned with the order model's non-negative platform profit.
+    // Tax can increase the platform's retained amount, while admin-funded discounts
+    // reduce it, but we never persist a negative value in this schema.
+    const platformNetProfit = Math.max(0, basePlatformProfit + tax - couponByAdmin);
 
     const transaction = new FoodTransaction({
         orderId: order._id,

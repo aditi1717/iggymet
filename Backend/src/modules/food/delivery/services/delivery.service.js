@@ -469,10 +469,6 @@ export const getDeliveryPartnerWallet = async (deliveryPartnerId) => {
         throw new ValidationError('Delivery partner not found');
     }
 
-    const cashLimitSettings = await getDeliveryCashLimitSettings();
-    const totalCashLimit = Number(cashLimitSettings.deliveryCashLimit) || 0;
-    const deliveryWithdrawalLimit = Number(cashLimitSettings.deliveryWithdrawalLimit) || 100;
-
     const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
 
     // Earnings paid to rider through completed deliveries
@@ -511,6 +507,14 @@ export const getDeliveryPartnerWallet = async (deliveryPartnerId) => {
 
     const totalEarned = Number(earningsAgg?.[0]?.totalEarned) || 0;
     const cashInHand = Number(cashAgg?.[0]?.cashInHand) || 0;
+    const cashLimitSettings = await getDeliveryCashLimitSettings({
+        zoneId: partner?.zoneId,
+        deliveryPartnerId,
+    });
+    const totalCashLimit = Number(
+        cashLimitSettings.effectiveDeliveryCashLimit ?? cashLimitSettings.deliveryCashLimit,
+    ) || 0;
+    const deliveryWithdrawalLimit = 0;
 
     // Admin-set delivery bonuses / earning addons
     const bonusAgg = await DeliveryBonusTransaction.aggregate([
@@ -577,6 +581,7 @@ export const getDeliveryPartnerWallet = async (deliveryPartnerId) => {
         totalCashLimit,
         availableCashLimit,
         deliveryWithdrawalLimit,
+        cashLimitZoneId: String(cashLimitSettings.zoneId || partner?.zoneId || ''),
         transactions: [...paymentTransactions, ...bonusTransactions].sort((a, b) => {
             const ad = a?.date ? new Date(a.date).getTime() : 0;
             const bd = b?.date ? new Date(b.date).getTime() : 0;

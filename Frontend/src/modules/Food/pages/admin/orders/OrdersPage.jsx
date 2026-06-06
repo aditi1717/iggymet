@@ -823,7 +823,7 @@ export default function OrdersPage({ statusKey = "all" }) {
       const response = await adminAPI.acceptOrder(orderIdToUse)
       if (response.data?.success) {
         stopOrderAlertSound()
-        toast.success(response.data?.message || `Order ${order.orderId} accepted`)
+        toast.success(response.data?.message || `Order ${order.orderId} moved to processing`)
         await fetchOrders({ silent: true, withRingCheck: false })
       } else {
         toast.error(response.data?.message || "Failed to accept order")

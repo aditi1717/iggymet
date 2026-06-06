@@ -45,12 +45,9 @@ export default function DeliveryPayoutSettlement() {
         acc.totalEarning += Number(row.totalEarning || 0)
         acc.totalPaid += Number(row.alreadyPaid || 0)
         acc.totalPending += Number(row.payableNow || 0)
-        acc.totalCodAmount += Number(row.codAmount || 0)
-        acc.totalCodPaid += Number(row.codPaid || 0)
-        acc.totalCodPending += Number(row.codPending || 0)
         return acc
       },
-      { totalEarning: 0, totalPaid: 0, totalPending: 0, totalCodAmount: 0, totalCodPaid: 0, totalCodPending: 0 },
+      { totalEarning: 0, totalPaid: 0, totalPending: 0 },
     )
   }, [rows])
 
@@ -110,16 +107,16 @@ export default function DeliveryPayoutSettlement() {
       toast.error("Settlement window is not ready yet")
       return
     }
-    if (Number(summary.totalPending || 0) <= 0 && Number(summary.totalCodPending || 0) <= 0) {
-      toast.info("No pending earning or COD amount in current list")
+    if (Number(summary.totalPending || 0) <= 0) {
+      toast.info("No pending earning in current list")
       return
     }
 
     const beneficiaryIds = rows
-      .filter((row) => Number(row.payableNow || 0) > 0 || Number(row.codPending || 0) > 0)
+      .filter((row) => Number(row.payableNow || 0) > 0)
       .map((row) => row.beneficiaryId)
 
-    const confirmText = `Mark all as paid for ${beneficiaryIds.length} delivery partners (Earning: ${toCurrency(summary.totalPending)}, COD: ${toCurrency(summary.totalCodPending)}) for ${fromDate} to ${toDate}?`
+    const confirmText = `Mark all as paid for ${beneficiaryIds.length} delivery partners (Earning: ${toCurrency(summary.totalPending)}) for ${fromDate} to ${toDate}?`
     if (!window.confirm(confirmText)) return
 
     try {
@@ -130,7 +127,6 @@ export default function DeliveryPayoutSettlement() {
         toDate,
         fromTime,
         toTime,
-        settleCodToAdmin: true,
         beneficiaryIds,
         payoutMethod: "manual",
         note: `Batch settlement from ${fromDate} ${fromTime} to ${toDate} ${toTime}`,
@@ -160,7 +156,6 @@ export default function DeliveryPayoutSettlement() {
     }
 
     const totalOrders = rows.reduce((sum, row) => sum + Number(row.ordersCount || 0), 0)
-    const totalCodOrders = rows.reduce((sum, row) => sum + Number(row.codOrdersCount || 0), 0)
 
     const bodyRowsHtml = rows
       .map(
@@ -172,11 +167,6 @@ export default function DeliveryPayoutSettlement() {
             <td class="num">${htmlEscape(Number(row.totalEarning || 0).toFixed(2))}</td>
             <td class="num">${htmlEscape(Number(row.alreadyPaid || 0).toFixed(2))}</td>
             <td class="num">${htmlEscape(Number(row.payableNow || 0).toFixed(2))}</td>
-            <td class="num">${htmlEscape(Number(row.codOrdersCount || 0).toFixed(0))}</td>
-            <td class="num">${htmlEscape(Number(row.codAmount || 0).toFixed(2))}</td>
-            <td class="num">${htmlEscape(Number(row.codPaid || 0).toFixed(2))}</td>
-            <td class="num">${htmlEscape(Number(row.codPending || 0).toFixed(2))}</td>
-            <td>${htmlEscape(Number(row.codOrdersCount || 0) > 0 ? String(row.codStatus || "unpaid").replaceAll("_", " ") : "NIL")}</td>
             <td>${htmlEscape(toDisplayDate(row.lastSettledToDate))}</td>
           </tr>
         `,
@@ -205,11 +195,6 @@ export default function DeliveryPayoutSettlement() {
                 <th>Total Earning</th>
                 <th>Paid</th>
                 <th>Unpaid</th>
-                <th>COD Orders</th>
-                <th>COD Amount</th>
-                <th>COD Paid</th>
-                <th>COD Pending</th>
-                <th>COD Status</th>
                 <th>Last Settled</th>
               </tr>
             </thead>
@@ -222,11 +207,6 @@ export default function DeliveryPayoutSettlement() {
                 <td class="num">${htmlEscape(Number(summary.totalEarning || 0).toFixed(2))}</td>
                 <td class="num">${htmlEscape(Number(summary.totalPaid || 0).toFixed(2))}</td>
                 <td class="num">${htmlEscape(Number(summary.totalPending || 0).toFixed(2))}</td>
-                <td class="num">${htmlEscape(totalCodOrders.toFixed(0))}</td>
-                <td class="num">${htmlEscape(Number(summary.totalCodAmount || 0).toFixed(2))}</td>
-                <td class="num">${htmlEscape(Number(summary.totalCodPaid || 0).toFixed(2))}</td>
-                <td class="num">${htmlEscape(Number(summary.totalCodPending || 0).toFixed(2))}</td>
-                <td></td>
                 <td></td>
               </tr>
             </tbody>
@@ -257,7 +237,7 @@ export default function DeliveryPayoutSettlement() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Delivery Settlement</h1>
-              <p className="text-sm text-slate-600 mt-1">Settle delivery earnings and COD cash handover partner-wise for selected window.</p>
+              <p className="text-sm text-slate-600 mt-1">Settle delivery earnings partner-wise for selected window.</p>
             </div>
           </div>
         </div>
@@ -298,7 +278,7 @@ export default function DeliveryPayoutSettlement() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
             <div className="flex items-center gap-2 text-slate-600">
               <CircleDollarSign className="w-4 h-4" />
@@ -320,27 +300,6 @@ export default function DeliveryPayoutSettlement() {
             </div>
             <p className="mt-2 text-2xl font-bold text-amber-700">{toCurrency(summary.totalPending)}</p>
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-            <div className="flex items-center gap-2 text-slate-600">
-              <CircleDollarSign className="w-4 h-4" />
-              <p className="text-sm font-medium">Total COD</p>
-            </div>
-            <p className="mt-2 text-2xl font-bold text-slate-900">{toCurrency(summary.totalCodAmount)}</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-            <div className="flex items-center gap-2 text-emerald-700">
-              <CheckCircle2 className="w-4 h-4" />
-              <p className="text-sm font-medium">COD Paid</p>
-            </div>
-            <p className="mt-2 text-2xl font-bold text-emerald-700">{toCurrency(summary.totalCodPaid)}</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-            <div className="flex items-center gap-2 text-amber-700">
-              <CalendarRange className="w-4 h-4" />
-              <p className="text-sm font-medium">COD Pending</p>
-            </div>
-            <p className="mt-2 text-2xl font-bold text-amber-700">{toCurrency(summary.totalCodPending)}</p>
-          </div>
         </div>
         <div className="flex justify-end gap-2 mb-4">
           <button
@@ -355,11 +314,11 @@ export default function DeliveryPayoutSettlement() {
           <button
             type="button"
             onClick={handleMarkAllPaid}
-            disabled={loading || saving || (Number(summary.totalPending || 0) <= 0 && Number(summary.totalCodPending || 0) <= 0)}
+            disabled={loading || saving || Number(summary.totalPending || 0) <= 0}
             className="px-4 py-2.5 text-sm font-semibold rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            Mark All Paid (Earning + COD)
+            Mark All Paid
           </button>
         </div>
 
@@ -373,18 +332,13 @@ export default function DeliveryPayoutSettlement() {
                   <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Total Earning</th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Paid</th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Unpaid</th>
-                  <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">COD Orders</th>
-                  <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">COD Amount</th>
-                  <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">COD Paid</th>
-                  <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">COD Pending</th>
-                  <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">COD Status</th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Last Settled</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={11} className="px-6 py-14 text-center text-sm text-slate-500">
+                    <td colSpan={6} className="px-6 py-14 text-center text-sm text-slate-500">
                       <span className="inline-flex items-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Loading settlement preview...
@@ -393,7 +347,7 @@ export default function DeliveryPayoutSettlement() {
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-6 py-14 text-center text-sm text-slate-500">
+                    <td colSpan={6} className="px-6 py-14 text-center text-sm text-slate-500">
                       No delivery partner found for current filters.
                     </td>
                   </tr>
@@ -408,19 +362,6 @@ export default function DeliveryPayoutSettlement() {
                       <td className="px-5 py-4 text-sm font-semibold text-slate-900">{toCurrency(row.totalEarning)}</td>
                       <td className="px-5 py-4 text-sm font-semibold text-emerald-700">{toCurrency(row.alreadyPaid)}</td>
                       <td className="px-5 py-4 text-sm font-semibold text-amber-700">{toCurrency(row.payableNow)}</td>
-                      <td className="px-5 py-4 text-sm text-slate-700">{Number(row.codOrdersCount || 0)}</td>
-                      <td className="px-5 py-4 text-sm font-semibold text-slate-900">
-                        {Number(row.codOrdersCount || 0) > 0 ? toCurrency(row.codAmount) : "NIL"}
-                      </td>
-                      <td className="px-5 py-4 text-sm font-semibold text-emerald-700">
-                        {Number(row.codOrdersCount || 0) > 0 ? toCurrency(row.codPaid) : "NIL"}
-                      </td>
-                      <td className="px-5 py-4 text-sm font-semibold text-amber-700">
-                        {Number(row.codOrdersCount || 0) > 0 ? toCurrency(row.codPending) : "NIL"}
-                      </td>
-                      <td className="px-5 py-4 text-sm text-slate-700 uppercase">
-                        {Number(row.codOrdersCount || 0) > 0 ? String(row.codStatus || "unpaid").replaceAll("_", " ") : "NIL"}
-                      </td>
                       <td className="px-5 py-4 text-sm text-slate-700">{toDisplayDate(row.lastSettledToDate)}</td>
                     </tr>
                   ))

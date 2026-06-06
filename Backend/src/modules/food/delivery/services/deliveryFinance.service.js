@@ -30,8 +30,8 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
     const partner = await FoodDeliveryPartner.findById(partnerId).lean();
     if (!partner) throw new ValidationError('Delivery partner not found');
 
-    const [cashLimitSettings, earningsAgg, cashCollectedAgg, bonusAgg, withdrawalAgg, payoutAgg, withdrawalsList, depositList] = await Promise.all([
-        getDeliveryCashLimitSettings(),
+    const [cashLimitSettings, earningsAgg, cashCollectedAgg, bonusAgg, withdrawalAgg, payoutAgg, depositAgg, withdrawalsList, depositList] = await Promise.all([
+        getDeliveryCashLimitSettings({ zoneId: partner?.zoneId, deliveryPartnerId }),
         // 1. Total Earnings from Delivered Orders
         FoodOrder.aggregate([
             { $match: { 'dispatch.deliveryPartnerId': partnerId, orderStatus: { $in: PAYABLE_DELIVERY_STATUSES } } },
@@ -86,6 +86,20 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
                 }
             }
         ]),
+        FoodDeliveryCashDeposit.aggregate([
+            {
+                $match: {
+                    deliveryPartnerId: partnerId,
+                    status: 'Completed'
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    depositedCash: { $sum: { $ifNull: ['$amount', 0] } }
+                }
+            }
+        ]),
         // 6. Recent Withdrawals for History
         FoodDeliveryWithdrawal.find({ deliveryPartnerId: partnerId })
             .sort({ createdAt: -1 })
@@ -117,7 +131,9 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
             { $group: { _id: null, depositedCash: { $sum: { $ifNull: ['$codPaidAmount', 0] } } } }
         ])
         : [];
-    const rawDepositedCash = Number(cashSettledAgg?.[0]?.depositedCash) || 0;
+    const rawPayoutDepositedCash = Number(cashSettledAgg?.[0]?.depositedCash) || 0;
+    const rawDirectDepositedCash = Number(depositAgg?.[0]?.depositedCash) || 0;
+    const rawDepositedCash = rawPayoutDepositedCash + rawDirectDepositedCash;
     const totalDepositedCash = Math.max(0, Math.min(rawDepositedCash, grossCashCollected));
     const cashInHand = Math.max(0, grossCashCollected - totalDepositedCash);
     const totalBonus = Number(bonusAgg?.[0]?.total) || 0;
@@ -127,8 +143,10 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
     const totalWithdrawn = settlementPaid > 0 ? settlementPaid : legacyApprovedWithdrawn;
     const pendingWithdrawals = Number(withdrawalAgg?.[0]?.pendingWithdrawals) || 0;
 
-    const totalCashLimit = Number(cashLimitSettings.deliveryCashLimit) || 0;
-    const deliveryWithdrawalLimit = Number(cashLimitSettings.deliveryWithdrawalLimit) || 100;
+    const totalCashLimit = Number(
+        cashLimitSettings.effectiveDeliveryCashLimit ?? cashLimitSettings.deliveryCashLimit,
+    ) || 0;
+    const deliveryWithdrawalLimit = 0;
 
     // Pocket Balance = (Earnings + Bonus) - Total Withdrawn (approved) - Pending Withdrawals
     // Wait, usually pocket balance subtracts pending too so user knows how much is "left" to request.
@@ -187,6 +205,7 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
         totalBonus,
         totalCashLimit,
         availableCashLimit: Math.max(0, totalCashLimit - cashInHand),
+        cashLimitZoneId: String(cashLimitSettings.zoneId || partner?.zoneId || ''),
         deliveryWithdrawalLimit,
         transactions: transactions.slice(0, 50)
     };

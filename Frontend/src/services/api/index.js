@@ -556,8 +556,9 @@ export const adminAPI = {
     apiClient.patch(`/food/admin/orders/${String(orderId)}/status`, body ?? {}, {
       contextModule: "admin",
     }),
+  /** Keep admin accept aligned with restaurant accept so orders move into processing immediately. */
   acceptOrder: (orderId) =>
-    adminAPI.updateOrderStatus(orderId, { orderStatus: "confirmed" }),
+    adminAPI.updateOrderStatus(orderId, { orderStatus: "preparing" }),
   rejectOrder: (orderId, reason = "") =>
     adminAPI.updateOrderStatus(orderId, {
       orderStatus: "cancelled_by_admin",

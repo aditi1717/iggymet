@@ -2822,39 +2822,99 @@ export async function getContactMessages(query = {}) {
 }
 
 // ----- Delivery Cash Limit (admin) -----
-export async function getDeliveryCashLimitSettings() {
+const normalizeDeliveryCashLimitZoneOverrides = (rawZoneLimits = []) => {
+    if (!Array.isArray(rawZoneLimits)) return [];
+
+    const normalized = new Map();
+    for (const entry of rawZoneLimits) {
+        const zoneId = String(entry?.zoneId?._id || entry?.zoneId || '').trim();
+        if (!mongoose.Types.ObjectId.isValid(zoneId)) continue;
+
+        const limitValue = Number(entry?.deliveryCashLimit);
+        if (!Number.isFinite(limitValue) || limitValue < 0) continue;
+
+        normalized.set(zoneId, {
+            zoneId,
+            deliveryCashLimit: Math.max(0, limitValue),
+        });
+    }
+
+    return Array.from(normalized.values());
+};
+
+export function getEffectiveDeliveryCashLimitValue(settings = {}, zoneIdRaw = '') {
+    const globalLimit = Math.max(0, Number(settings?.deliveryCashLimit) || 0);
+    const zoneId = String(zoneIdRaw || '').trim();
+    if (!mongoose.Types.ObjectId.isValid(zoneId)) return globalLimit;
+
+    const zoneOverride = normalizeDeliveryCashLimitZoneOverrides(settings?.zoneLimits).find(
+        (entry) => entry.zoneId === zoneId,
+    );
+
+    return zoneOverride
+        ? Math.max(0, Number(zoneOverride.deliveryCashLimit) || 0)
+        : globalLimit;
+}
+
+export async function getDeliveryCashLimitSettings(context = {}) {
     const doc = await FoodDeliveryCashLimit.findOne({ isActive: true }).sort({ createdAt: -1 }).lean();
-    const settings = doc || { deliveryCashLimit: 0, deliveryWithdrawalLimit: 100, isActive: true };
+    const settings = doc || { deliveryCashLimit: 0, deliveryWithdrawalLimit: 0, isActive: true };
+    const zoneLimits = normalizeDeliveryCashLimitZoneOverrides(settings.zoneLimits);
+    let resolvedZoneId = String(context?.zoneId || '').trim();
+
+    if (!mongoose.Types.ObjectId.isValid(resolvedZoneId)) {
+        const deliveryPartnerId = String(context?.deliveryPartnerId || '').trim();
+        if (mongoose.Types.ObjectId.isValid(deliveryPartnerId)) {
+            const partner = await FoodDeliveryPartner.findById(deliveryPartnerId).select('zoneId').lean();
+            resolvedZoneId = String(partner?.zoneId || '').trim();
+        } else {
+            resolvedZoneId = '';
+        }
+    }
+
     return {
         deliveryCashLimit: Number(settings.deliveryCashLimit) || 0,
-        deliveryWithdrawalLimit: Number(settings.deliveryWithdrawalLimit) || 100
+        deliveryWithdrawalLimit: 0,
+        zoneLimits,
+        effectiveDeliveryCashLimit: getEffectiveDeliveryCashLimitValue(
+            {
+                deliveryCashLimit: Number(settings.deliveryCashLimit) || 0,
+                zoneLimits,
+            },
+            resolvedZoneId,
+        ),
+        zoneId: mongoose.Types.ObjectId.isValid(resolvedZoneId) ? resolvedZoneId : '',
     };
 }
 
 export async function upsertDeliveryCashLimitSettings(body = {}) {
     const existing = await FoodDeliveryCashLimit.findOne({ isActive: true }).sort({ createdAt: -1 });
     const nextCashLimit = body.deliveryCashLimit;
-    const nextWithdrawalLimit = body.deliveryWithdrawalLimit;
+    const nextZoneLimits = body.zoneLimits;
 
     if (existing) {
         if (nextCashLimit !== undefined) existing.deliveryCashLimit = Math.max(0, Number(nextCashLimit) || 0);
-        if (nextWithdrawalLimit !== undefined) existing.deliveryWithdrawalLimit = Math.max(0, Number(nextWithdrawalLimit) || 0);
+        existing.deliveryWithdrawalLimit = 0;
+        if (nextZoneLimits !== undefined) existing.zoneLimits = normalizeDeliveryCashLimitZoneOverrides(nextZoneLimits);
         await existing.save();
         return {
             deliveryCashLimit: existing.deliveryCashLimit,
-            deliveryWithdrawalLimit: existing.deliveryWithdrawalLimit
+            deliveryWithdrawalLimit: 0,
+            zoneLimits: normalizeDeliveryCashLimitZoneOverrides(existing.zoneLimits),
         };
     }
 
     const created = await FoodDeliveryCashLimit.create({
         deliveryCashLimit: nextCashLimit !== undefined ? Math.max(0, Number(nextCashLimit) || 0) : 0,
-        deliveryWithdrawalLimit: nextWithdrawalLimit !== undefined ? Math.max(0, Number(nextWithdrawalLimit) || 0) : 100,
+        deliveryWithdrawalLimit: 0,
+        zoneLimits: normalizeDeliveryCashLimitZoneOverrides(nextZoneLimits),
         isActive: true
     });
 
     return {
         deliveryCashLimit: created.deliveryCashLimit,
-        deliveryWithdrawalLimit: created.deliveryWithdrawalLimit
+        deliveryWithdrawalLimit: 0,
+        zoneLimits: normalizeDeliveryCashLimitZoneOverrides(created.zoneLimits),
     };
 }
 
@@ -4961,7 +5021,100 @@ export async function getDeliveryPartners(query, adminScope = {}) {
         FoodDeliveryPartner.countDocuments(filter)
     ]);
 
+    const partnerIds = list
+        .map((doc) => doc?._id)
+        .filter((id) => mongoose.Types.ObjectId.isValid(String(id)))
+        .map((id) => new mongoose.Types.ObjectId(String(id)));
+    const [cashLimitSettings, grossCashCollectedAgg, depositedCashAgg, directDepositedCashAgg] = await Promise.all([
+        getDeliveryCashLimitSettings(),
+        partnerIds.length
+            ? FoodOrder.aggregate([
+                {
+                    $match: {
+                        'dispatch.deliveryPartnerId': { $in: partnerIds },
+                        orderStatus: 'delivered',
+                        'payment.method': { $in: COD_PAYMENT_METHODS },
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$dispatch.deliveryPartnerId',
+                        grossCashCollected: { $sum: { $ifNull: ['$pricing.total', 0] } },
+                    }
+                }
+            ])
+            : [],
+        partnerIds.length
+            ? FoodPayoutSettlement.aggregate([
+                {
+                    $match: {
+                        beneficiaryType: 'delivery',
+                        beneficiaryId: { $in: partnerIds },
+                        status: 'paid',
+                        codPaidAmount: { $gt: 0 },
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$beneficiaryId',
+                        depositedCash: { $sum: { $ifNull: ['$codPaidAmount', 0] } },
+                    }
+                }
+            ])
+            : [],
+        partnerIds.length
+            ? FoodDeliveryCashDeposit.aggregate([
+                {
+                    $match: {
+                        deliveryPartnerId: { $in: partnerIds },
+                        status: 'Completed',
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$deliveryPartnerId',
+                        depositedCash: { $sum: { $ifNull: ['$amount', 0] } },
+                    }
+                }
+            ])
+            : [],
+    ]);
+    const grossCashCollectedByPartnerId = new Map(
+        (grossCashCollectedAgg || []).map((entry) => [String(entry._id), Number(entry.grossCashCollected) || 0]),
+    );
+    const depositedCashByPartnerId = new Map(
+        (depositedCashAgg || []).map((entry) => [String(entry._id), Number(entry.depositedCash) || 0]),
+    );
+    const directDepositedCashByPartnerId = new Map(
+        (directDepositedCashAgg || []).map((entry) => [String(entry._id), Number(entry.depositedCash) || 0]),
+    );
+
     const deliveryPartners = list.map((doc, index) => ({
+        ...(function buildWalletFields() {
+            const partnerId = String(doc._id || '');
+            const grossCashCollected = Math.max(0, grossCashCollectedByPartnerId.get(partnerId) || 0);
+            const depositedCash = Math.max(
+                0,
+                (depositedCashByPartnerId.get(partnerId) || 0) +
+                (directDepositedCashByPartnerId.get(partnerId) || 0),
+            );
+            const cashInHand = Math.max(0, grossCashCollected - Math.min(depositedCash, grossCashCollected));
+            const effectiveCashLimit = getEffectiveDeliveryCashLimitValue(
+                cashLimitSettings,
+                doc.zoneId?._id || doc.zoneId || '',
+            );
+            const availableCashLimit = Math.max(0, effectiveCashLimit - cashInHand);
+            const isCashLimitReached = effectiveCashLimit <= 0
+                ? cashInHand > 0
+                : cashInHand >= effectiveCashLimit;
+
+            return {
+                cashInHand,
+                effectiveCashLimit,
+                availableCashLimit,
+                isCashLimitReached,
+            };
+        })(),
         _id: doc._id,
         sl: skip + index + 1,
         name: doc.name || '',
@@ -6501,12 +6654,31 @@ export async function getDeliveryWallets(query = {}) {
             }
         ])
         : [];
+    const directDepositsAgg = partnerIds.length
+        ? await FoodDeliveryCashDeposit.aggregate([
+            {
+                $match: {
+                    deliveryPartnerId: { $in: partnerIds },
+                    status: 'Completed'
+                }
+            },
+            {
+                $group: {
+                    _id: '$deliveryPartnerId',
+                    totalSubmittedToAdmin: { $sum: { $ifNull: ['$amount', 0] } }
+                }
+            }
+        ])
+        : [];
 
     const cashCollectedMap = new Map(
         (cashCollectedAgg || []).map((entry) => [String(entry?._id), Number(entry?.grossCashCollected || 0)])
     );
     const cashSubmittedMap = new Map(
         (cashSettledAgg || []).map((entry) => [String(entry?._id), Number(entry?.totalSubmittedToAdmin || 0)])
+    );
+    const directDepositsMap = new Map(
+        (directDepositsAgg || []).map((entry) => [String(entry?._id), Number(entry?.totalSubmittedToAdmin || 0)])
     );
     const payoutPaidMap = new Map(
         (payoutSettlementsAgg || []).map((entry) => [String(entry?._id), Number(entry?.totalPaidAmount || 0)])
@@ -6517,7 +6689,7 @@ export async function getDeliveryWallets(query = {}) {
         const key = String(p._id);
 
         const grossCashCollected = Number(cashCollectedMap.get(key) || 0);
-        const rawSubmittedToAdmin = Number(cashSubmittedMap.get(key) || 0);
+        const rawSubmittedToAdmin = Number(cashSubmittedMap.get(key) || 0) + Number(directDepositsMap.get(key) || 0);
         const totalSubmittedToAdmin = Math.max(0, Math.min(rawSubmittedToAdmin, grossCashCollected));
         const settlementPaidAmount = Number(payoutPaidMap.get(key) || 0);
         const cashInHand = Math.max(0, grossCashCollected - totalSubmittedToAdmin);
@@ -6563,6 +6735,7 @@ export async function getCashLimitSettlements(query = {}) {
     const limit = parseInt(query.limit, 10) || 20;
     const page = parseInt(query.page, 10) || 1;
     const skip = (page - 1) * limit;
+    const zoneId = String(query.zoneId || '').trim();
 
     const AUTO_COD_SETTLEMENT_NOTE_REGEX = /^COD(?:\s+handover)?\s+settled via payout batch/i;
     const filter = {
@@ -6572,10 +6745,57 @@ export async function getCashLimitSettlements(query = {}) {
             { adminNote: { $not: AUTO_COD_SETTLEMENT_NOTE_REGEX } }
         ]
     };
+    if (query.status) {
+        const normalizedStatus = String(query.status || '').trim().toLowerCase();
+        if (normalizedStatus === 'completed' || normalizedStatus === 'pending' || normalizedStatus === 'failed') {
+            filter.status = normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1);
+        }
+    }
+    if (zoneId) {
+        if (!mongoose.Types.ObjectId.isValid(zoneId)) {
+            throw new ValidationError('Invalid zoneId');
+        }
+        const zonePartnerIds = await FoodDeliveryPartner.find({ zoneId: new mongoose.Types.ObjectId(zoneId) })
+            .select('_id')
+            .limit(5000)
+            .lean();
+        const normalizedZonePartnerIds = zonePartnerIds
+            .map((partner) => partner?._id)
+            .filter((id) => mongoose.Types.ObjectId.isValid(String(id)));
+        filter.deliveryPartnerId = {
+            $in: normalizedZonePartnerIds
+        };
+    }
     if (query.search) {
         // Search by razorpay ID or find partner IDs to search by partner
         if (query.search.startsWith('pay_')) {
             filter.razorpayPaymentId = query.search;
+        } else {
+            const term = String(query.search || '').trim();
+            const partners = await FoodDeliveryPartner.find({
+                $or: [
+                    { name: { $regex: term, $options: 'i' } },
+                    { phone: { $regex: term, $options: 'i' } }
+                ]
+            })
+                .select('_id')
+                .limit(100)
+                .lean();
+            const partnerIds = partners
+                .map((partner) => partner?._id)
+                .filter((id) => mongoose.Types.ObjectId.isValid(String(id)));
+            if (partnerIds.length) {
+                if (filter.deliveryPartnerId?.$in) {
+                    const allowedIds = new Set(filter.deliveryPartnerId.$in.map((id) => String(id)));
+                    filter.deliveryPartnerId = {
+                        $in: partnerIds.filter((id) => allowedIds.has(String(id)))
+                    };
+                } else {
+                    filter.deliveryPartnerId = { $in: partnerIds };
+                }
+            } else {
+                filter.deliveryPartnerId = { $in: [] };
+            }
         }
     }
 
@@ -6584,7 +6804,14 @@ export async function getCashLimitSettlements(query = {}) {
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
-            .populate('deliveryPartnerId', 'name phone')
+            .populate({
+                path: 'deliveryPartnerId',
+                select: 'name phone zoneId',
+                populate: {
+                    path: 'zoneId',
+                    select: 'name zoneName serviceLocation'
+                }
+            })
             .lean(),
         FoodDeliveryCashDeposit.countDocuments(filter)
     ]);
@@ -6595,8 +6822,11 @@ export async function getCashLimitSettlements(query = {}) {
         deliveryId: d.deliveryPartnerId?._id,
         deliveryName: d.deliveryPartnerId?.name || 'N/A',
         deliveryIdString: d.deliveryPartnerId?.phone || 'N/A',
+        deliveryPhone: d.deliveryPartnerId?.phone || 'N/A',
+        zoneName: d.deliveryPartnerId?.zoneId?.name || d.deliveryPartnerId?.zoneId?.zoneName || d.deliveryPartnerId?.zoneId?.serviceLocation || 'N/A',
         amount: Number(d.amount || 0),
         status: d.status,
+        paymentMethod: d.paymentMethod || 'cash',
         razorpayPaymentId: d.razorpayPaymentId || '-'
     }));
 
@@ -7341,9 +7571,6 @@ export async function getDeliveryPayoutSettlementPreview(query = {}, adminScope 
                 totalEarning: 0,
                 totalPaid: 0,
                 totalPending: 0,
-                totalCodAmount: 0,
-                totalCodPaid: 0,
-                totalCodPending: 0,
                 rowsCount: 0
             },
             pagination: { total: 0, page, limit, pages: 1 },
@@ -7351,7 +7578,7 @@ export async function getDeliveryPayoutSettlementPreview(query = {}, adminScope 
         };
     }
 
-    const { payoutSettledOrderIds, codSettledOrderIds } = await getSettledDeliveryOrderIdBuckets(
+    const { payoutSettledOrderIds } = await getSettledDeliveryOrderIdBuckets(
         Array.isArray(scopedPartnerIds) ? scopedPartnerIds : null
     );
 
@@ -7377,18 +7604,11 @@ export async function getDeliveryPayoutSettlementPreview(query = {}, adminScope 
         },
         {
             $addFields: {
-                payoutPending: { $not: [{ $in: ['$_id', payoutSettledOrderIds] }] },
-                codPending: {
-                    $and: [
-                        { $in: ['$paymentMethodLower', COD_PAYMENT_METHODS] },
-                        { $eq: ['$orderStatus', 'delivered'] },
-                        { $not: [{ $in: ['$_id', codSettledOrderIds] }] }
-                    ]
-                }
+                payoutPending: { $not: [{ $in: ['$_id', payoutSettledOrderIds] }] }
             }
         },
         { $match: match },
-        { $match: { $or: [{ payoutPending: true }, { codPending: true }] } },
+        { $match: { payoutPending: true } },
         {
             $group: {
                 _id: '$dispatch.deliveryPartnerId',
@@ -7405,14 +7625,6 @@ export async function getDeliveryPayoutSettlementPreview(query = {}, adminScope 
                             },
                             0
                         ]
-                    }
-                },
-                codOrdersCount: {
-                    $sum: { $cond: ['$codPending', 1, 0] }
-                },
-                codAmount: {
-                    $sum: {
-                        $cond: ['$codPending', { $ifNull: ['$pricing.total', 0] }, 0]
                     }
                 }
             }
@@ -7437,9 +7649,7 @@ export async function getDeliveryPayoutSettlementPreview(query = {}, adminScope 
                 beneficiaryId: '$_id',
                 beneficiaryName: { $ifNull: ['$partner.name', 'Unknown Delivery Partner'] },
                 ordersCount: 1,
-                totalEarning: 1,
-                codOrdersCount: 1,
-                codAmount: 1
+                totalEarning: 1
             }
         },
         { $sort: { totalEarning: -1, beneficiaryName: 1 } }
@@ -7483,23 +7693,20 @@ export async function getDeliveryPayoutSettlementPreview(query = {}, adminScope 
     const rowsWithSettlement = rowsFiltered.map((row) => {
         const id = String(row.beneficiaryId);
         const totalEarning = Number(row.totalEarning || 0);
-        const codAmount = Number(row.codAmount || 0);
         const alreadyPaid = 0;
-        const codPaid = 0;
         const payableNow = Math.max(0, totalEarning);
-        const codPending = Math.max(0, codAmount);
-        const codOrdersCount = Number(row.codOrdersCount || 0);
-        const codStatus = codOrdersCount <= 0 ? 'nil' : 'unpaid';
 
         return {
             ...row,
             beneficiaryId: id,
             alreadyPaid,
             payableNow,
-            codPaid,
-            codPending,
-            codStatus,
-            status: payableNow <= 0 && codPending <= 0 ? 'paid' : 'pending',
+            codOrdersCount: 0,
+            codAmount: 0,
+            codPaid: 0,
+            codPending: 0,
+            codStatus: 'nil',
+            status: payableNow <= 0 ? 'paid' : 'pending',
             lastSettledToDate: lastSettledByPartner.get(id) || null
         };
     });
@@ -7509,9 +7716,6 @@ export async function getDeliveryPayoutSettlementPreview(query = {}, adminScope 
             acc.totalEarning += Number(row.totalEarning || 0);
             acc.totalPaid += Number(row.alreadyPaid || 0);
             acc.totalPending += Number(row.payableNow || 0);
-            acc.totalCodAmount += Number(row.codAmount || 0);
-            acc.totalCodPaid += Number(row.codPaid || 0);
-            acc.totalCodPending += Number(row.codPending || 0);
             acc.rowsCount += 1;
             return acc;
         },
@@ -7519,9 +7723,6 @@ export async function getDeliveryPayoutSettlementPreview(query = {}, adminScope 
             totalEarning: 0,
             totalPaid: 0,
             totalPending: 0,
-            totalCodAmount: 0,
-            totalCodPaid: 0,
-            totalCodPending: 0,
             rowsCount: 0
         }
     );
@@ -7848,7 +8049,6 @@ export async function markAllDeliveryPayoutSettled(payload = {}, adminScope = {}
         ? normalizeDateRangeOrThrow(payload.fromDate, payload.toDate, payload.fromTime, payload.toTime)
         : await resolveDeliveryAutoDateRange();
     const payoutMethod = normalizePayoutMethod(payload.payoutMethod || 'manual');
-    const settleCodToAdmin = payload?.settleCodToAdmin === true;
     const note = String(payload.note || '').trim();
     const referenceNumber = String(payload.referenceNumber || '').trim();
     const now = new Date();
@@ -7879,7 +8079,7 @@ export async function markAllDeliveryPayoutSettled(payload = {}, adminScope = {}
         return { updatedTransactions: 0, settlementsCreated: 0, totalPaidAmount: 0, totalCodSettledAmount: 0 };
     }
 
-    const { payoutSettledOrderIds, codSettledOrderIds } = await getSettledDeliveryOrderIdBuckets(
+    const { payoutSettledOrderIds } = await getSettledDeliveryOrderIdBuckets(
         Array.isArray(candidatePartnerIds) ? candidatePartnerIds : null
     );
 
@@ -7911,33 +8111,17 @@ export async function markAllDeliveryPayoutSettled(payload = {}, adminScope = {}
         },
         {
             $addFields: {
-                payoutPending: { $not: [{ $in: ['$_id', payoutSettledOrderIds] }] },
-                codPending: {
-                    $and: [
-                        { $in: ['$paymentMethodLower', COD_PAYMENT_METHODS] },
-                        { $eq: ['$orderStatus', 'delivered'] },
-                        { $not: [{ $in: ['$_id', codSettledOrderIds] }] }
-                    ]
-                }
+                payoutPending: { $not: [{ $in: ['$_id', payoutSettledOrderIds] }] }
             }
         },
         { $match: orderMatch },
-        { $match: { $or: [{ payoutPending: true }, { codPending: true }] } },
+        { $match: { payoutPending: true } },
         {
             $group: {
                 _id: '$dispatch.deliveryPartnerId',
                 payoutOrderIds: { $push: { $cond: ['$payoutPending', '$_id', null] } },
-                codOrderIds: { $push: { $cond: ['$codPending', '$_id', null] } },
                 ordersCount: { $sum: { $cond: ['$payoutPending', 1, 0] } },
-                totalEarning: { $sum: { $cond: ['$payoutPending', '$payoutAmount', 0] } },
-                codOrdersCount: {
-                    $sum: { $cond: ['$codPending', 1, 0] }
-                },
-                codAmount: {
-                    $sum: {
-                        $cond: ['$codPending', { $ifNull: ['$pricing.total', 0] }, 0]
-                    }
-                }
+                totalEarning: { $sum: { $cond: ['$payoutPending', '$payoutAmount', 0] } }
             }
         }
     ]);
@@ -7951,32 +8135,23 @@ export async function markAllDeliveryPayoutSettled(payload = {}, adminScope = {}
         : null;
     const settlementBatchId = new mongoose.Types.ObjectId();
     const settlementDocs = [];
-    const depositDocs = [];
     let updatedTransactions = 0;
 
     for (const entry of groupedOrders) {
         const beneficiaryId = entry?._id;
 
         const totalEarning = Number(entry.totalEarning || 0);
-        const totalCodAmount = Number(entry.codAmount || 0);
         const payableNow = Math.max(0, totalEarning);
-        const codPayableNow = Math.max(0, totalCodAmount);
-        const codSettledNow = settleCodToAdmin ? codPayableNow : 0;
 
-        if (payableNow <= 0 && codSettledNow <= 0) {
+        if (payableNow <= 0) {
             continue;
         }
 
         const payoutOrderIds = (entry.payoutOrderIds || [])
             .filter((id) => id && mongoose.Types.ObjectId.isValid(String(id)));
-        const codOrderIds = (entry.codOrderIds || [])
-            .filter((id) => id && mongoose.Types.ObjectId.isValid(String(id)));
-        const settlementOrderIdMap = new Map();
-        for (const id of payoutOrderIds) settlementOrderIdMap.set(String(id), id);
-        if (settleCodToAdmin) {
-            for (const id of codOrderIds) settlementOrderIdMap.set(String(id), id);
-        }
-        const settlementOrderIds = Array.from(settlementOrderIdMap.values());
+        const settlementOrderIds = Array.from(new Map(
+            payoutOrderIds.map((id) => [String(id), id])
+        ).values());
 
         updatedTransactions += settlementOrderIds.length;
         settlementDocs.push({
@@ -7989,10 +8164,10 @@ export async function markAllDeliveryPayoutSettled(payload = {}, adminScope = {}
             toAt: end,
             transactionIds: settlementOrderIds,
             ordersCount: Number(entry.ordersCount || 0),
-            codOrdersCount: Number(entry.codOrdersCount || 0),
+            codOrdersCount: 0,
             grossAmount: totalEarning,
-            codAmount: totalCodAmount,
-            codPaidAmount: codSettledNow,
+            codAmount: 0,
+            codPaidAmount: 0,
             paidAmount: payableNow,
             adjustmentAmount: 0,
             status: 'paid',
@@ -8002,17 +8177,6 @@ export async function markAllDeliveryPayoutSettled(payload = {}, adminScope = {}
             paidAt: now,
             paidByAdminId
         });
-
-        if (codSettledNow > 0) {
-            depositDocs.push({
-                deliveryPartnerId: beneficiaryId,
-                amount: codSettledNow,
-                paymentMethod: 'cash',
-                status: 'Completed',
-                adminId: paidByAdminId || null,
-                adminNote: `COD settled via payout batch ${String(settlementBatchId)}`
-            });
-        }
     }
 
     if (!settlementDocs.length) {
@@ -8020,32 +8184,12 @@ export async function markAllDeliveryPayoutSettled(payload = {}, adminScope = {}
     }
 
     await FoodPayoutSettlement.insertMany(settlementDocs);
-    if (depositDocs.length) {
-        await FoodDeliveryCashDeposit.insertMany(depositDocs);
-    }
-
-    const codByPartner = new Map();
-    for (const doc of settlementDocs) {
-        const key = String(doc.beneficiaryId);
-        codByPartner.set(key, Number(codByPartner.get(key) || 0) + Number(doc.codPaidAmount || 0));
-    }
-    if (codByPartner.size) {
-        await Promise.all(
-            Array.from(codByPartner.entries()).map(async ([partnerId, codPaidAmount]) => {
-                if (!mongoose.Types.ObjectId.isValid(partnerId) || codPaidAmount <= 0) return;
-                const wallet = await FoodDeliveryWallet.findOne({ deliveryPartnerId: new mongoose.Types.ObjectId(partnerId) });
-                if (!wallet) return;
-                wallet.cashInHand = Math.max(0, Number(wallet.cashInHand || 0) - Number(codPaidAmount || 0));
-                await wallet.save();
-            })
-        );
-    }
 
     return {
         updatedTransactions,
         settlementsCreated: settlementDocs.length,
         totalPaidAmount: settlementDocs.reduce((sum, item) => sum + Number(item.paidAmount || 0), 0),
-        totalCodSettledAmount: settlementDocs.reduce((sum, item) => sum + Number(item.codPaidAmount || 0), 0),
+        totalCodSettledAmount: 0,
         fromDate: fromRaw,
         toDate: toRaw,
         fromTime: fromTimeRaw,

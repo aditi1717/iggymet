@@ -1,8 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Loader2, Download } from 'lucide-react';
+import { ArrowLeft, Loader2, Download, Receipt } from 'lucide-react';
 import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
 import useDeliveryBackNavigation from '../../hooks/useDeliveryBackNavigation';
+import { useNavigate } from 'react-router-dom';
+import { formatCurrency } from '@food/utils/currency';
+import { initRazorpayPayment } from '@food/utils/razorpay';
+import BRAND_THEME from '@/config/brandTheme';
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 
@@ -172,14 +176,38 @@ const formatUiDate = (value) =>
 
 export const PocketDetailsV2 = () => {
   const goBack = useDeliveryBackNavigation();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [trips, setTrips] = useState([]);
+  const [profileState, setProfileState] = useState({ name: '', phone: '', email: '' });
+  const [cashSummary, setCashSummary] = useState({ cashInHand: 0, cashSubmittedToAdmin: 0 });
+  const [depositAmount, setDepositAmount] = useState('');
+  const [isPreparingDeposit, setIsPreparingDeposit] = useState(false);
+  const [isVerifyingDeposit, setIsVerifyingDeposit] = useState(false);
   const [filterMode, setFilterMode] = useState('one_day');
   const [selectedDate, setSelectedDate] = useState(toInputDate(new Date()));
   const [selectedWeekDate, setSelectedWeekDate] = useState(toInputDate(new Date()));
   const [rangeStart, setRangeStart] = useState(toInputDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
   const [rangeEnd, setRangeEnd] = useState(toInputDate(new Date()));
   const [paymentFilter, setPaymentFilter] = useState('all');
+
+  const loadCashData = async () => {
+    const [profileRes, walletRes] = await Promise.all([
+      deliveryAPI.getProfile(),
+      deliveryAPI.getWallet(),
+    ]);
+    const profile = profileRes?.data?.data?.profile || {};
+    const wallet = walletRes?.data?.data?.wallet || {};
+    setProfileState({
+      name: profile?.name || '',
+      phone: profile?.phone || '',
+      email: profile?.email || '',
+    });
+    setCashSummary({
+      cashInHand: Number(wallet?.cashInHand) || 0,
+      cashSubmittedToAdmin: Number(wallet?.cashSubmittedToAdmin ?? wallet?.totalSubmittedToAdmin) || 0,
+    });
+  };
 
   useEffect(() => {
     const fetchDeliveredTrips = async () => {
@@ -219,6 +247,7 @@ export const PocketDetailsV2 = () => {
         }
 
         setTrips(Array.from(uniqueById.values()));
+        await loadCashData();
       } catch (error) {
         setTrips([]);
         toast.error('Failed to load delivered payout data');
@@ -229,6 +258,66 @@ export const PocketDetailsV2 = () => {
 
     fetchDeliveredTrips();
   }, []);
+
+  const handlePayToAdmin = async () => {
+    const amount = Math.max(0, Number(depositAmount) || 0);
+    if (!Number.isFinite(amount) || amount < 1) {
+      toast.error('Enter a valid amount');
+      return;
+    }
+    if (amount > cashSummary.cashInHand) {
+      toast.error('Amount cannot exceed cash in hand');
+      return;
+    }
+
+    try {
+      setIsPreparingDeposit(true);
+      const orderRes = await deliveryAPI.createDepositOrder(amount);
+      const razorpay = orderRes?.data?.data?.razorpay || {};
+      if (!razorpay?.orderId || !razorpay?.key) {
+        throw new Error('Failed to initialize Razorpay payment');
+      }
+
+      await initRazorpayPayment({
+        key: razorpay.key,
+        amount: razorpay.amount,
+        currency: razorpay.currency || 'INR',
+        order_id: razorpay.orderId,
+        name: 'IggymetFood',
+        description: `Pay to Admin - ${formatCurrency(amount)}`,
+        prefill: {
+          name: profileState.name,
+          email: profileState.email,
+          contact: profileState.phone,
+        },
+        handler: async (response) => {
+          try {
+            setIsVerifyingDeposit(true);
+            await deliveryAPI.verifyDepositPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              amount,
+            });
+            toast.success('Cash in hand paid to admin successfully');
+            setDepositAmount('');
+            await loadCashData();
+          } catch (error) {
+            toast.error(error?.response?.data?.message || error?.message || 'Failed to verify payment');
+          } finally {
+            setIsVerifyingDeposit(false);
+          }
+        },
+        onError: (error) => {
+          toast.error(error?.description || error?.message || 'Payment failed');
+        },
+      });
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error?.message || 'Failed to start payment');
+    } finally {
+      setIsPreparingDeposit(false);
+    }
+  };
 
   const rows = useMemo(
     () =>
@@ -415,6 +504,66 @@ export const PocketDetailsV2 = () => {
       </div>
 
       <div className="px-4 py-4 space-y-4">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <Receipt className="w-4 h-4" style={{ color: BRAND_THEME.colors.brand.primary }} />
+            <p className="text-sm font-bold text-gray-900">Cash To Admin</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Cash In Hand</p>
+              <p className="mt-2 text-lg font-bold text-gray-900">{formatCurrency(cashSummary.cashInHand)}</p>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Paid To Admin</p>
+              <p className="mt-2 text-lg font-bold text-gray-900">{formatCurrency(cashSummary.cashSubmittedToAdmin)}</p>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min="1"
+              step="1"
+              max={Math.max(0, Math.floor(cashSummary.cashInHand))}
+              value={depositAmount}
+              onChange={(e) => {
+                const rawValue = e.target.value;
+                if (rawValue === '') {
+                  setDepositAmount('');
+                  return;
+                }
+                const numericValue = Math.max(0, Number(rawValue) || 0);
+                const cappedValue = Math.min(numericValue, Math.max(0, cashSummary.cashInHand));
+                setDepositAmount(String(cappedValue));
+              }}
+              placeholder="Enter amount to pay admin"
+              className="flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-800"
+              disabled={isPreparingDeposit || isVerifyingDeposit}
+            />
+            <button
+              type="button"
+              onClick={handlePayToAdmin}
+              disabled={isPreparingDeposit || isVerifyingDeposit}
+              className="rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+              style={{ background: BRAND_THEME.colors.brand.primary }}
+            >
+              {isPreparingDeposit || isVerifyingDeposit ? 'Processing...' : 'Pay To Admin'}
+            </button>
+          </div>
+          <p className="text-[11px] text-gray-500">
+            Amount cannot be greater than cash in hand: {formatCurrency(cashSummary.cashInHand)}
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/food/delivery/pocket/cash-history')}
+            className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700"
+          >
+            Open Cash Payout History
+          </button>
+        </div>
+
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-4">
           <div className="grid grid-cols-3 gap-2 rounded-xl bg-gray-100 p-1">
             <button

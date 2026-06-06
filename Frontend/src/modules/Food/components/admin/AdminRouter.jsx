@@ -58,6 +58,8 @@ const LoyaltyPointReport = lazy(() => import("@food/pages/admin/loyalty-point/Re
 const SubscribedMailList = lazy(() => import("@food/pages/admin/SubscribedMailList"));
 // Deliveryman Management
 const DeliveryBoyCommission = lazy(() => import("@food/pages/admin/DeliveryBoyCommission"));
+const DeliveryCashLimit = lazy(() => import("@food/pages/admin/DeliveryCashLimit"));
+const CashLimitSettlement = lazy(() => import("@food/pages/admin/CashLimitSettlement"));
 const DeliveryBoyWallet = lazy(() => import("@food/pages/admin/DeliveryBoyWallet"));
 const DeliveryEmergencyHelp = lazy(() => import("@food/pages/admin/DeliveryEmergencyHelp"));
 const DeliverySupportTickets = lazy(() => import("@food/pages/admin/DeliverySupportTickets"));
@@ -208,6 +210,8 @@ export default function AdminRouter() {
 
             {/* PROMOTIONS, CUSTOMERS, DELIVERYMEN, etc. */}
             <Route path="campaigns/basic" element={<BasicCampaign />} />
+            <Route path="delivery-cash-limit" element={<DeliveryCashLimit />} />
+            <Route path="cash-limit-settlement" element={<CashLimitSettlement />} />
             <Route path="campaigns/food" element={<FoodCampaign />} />
             <Route path="coupons" element={<Coupons />} />
             <Route path="cashback" element={<Cashback />} />
@@ -237,6 +241,7 @@ export default function AdminRouter() {
             <Route path="delivery-partners/join-request" element={<JoinRequest />} />
             <Route path="delivery-partners/reviews" element={<DeliverymanReviews />} />
             <Route path="delivery-partners/earnings" element={<DeliveryEarnings />} />
+            <Route path="delivery-partners/cash-settlement-history" element={<CashLimitSettlement />} />
             <Route path="payout-settlement/delivery" element={<DeliveryPayoutSettlement />} />
             <Route path="delivery-partners/payout-settlement" element={<DeliveryPayoutSettlement />} />
             <Route path="delivery-report" element={<DeliveryBoyWallet />} />

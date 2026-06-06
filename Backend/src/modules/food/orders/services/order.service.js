@@ -6,8 +6,10 @@ import { logger } from '../../../../utils/logger.js';
 import { FoodUser } from '../../../../core/users/user.model.js';
 import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
 import { FoodDeliveryPartner } from '../../delivery/models/deliveryPartner.model.js';
+import { FoodDeliveryCashDeposit } from '../../delivery/models/foodDeliveryCashDeposit.model.js';
 import { FoodZone } from '../../admin/models/zone.model.js';
 import { FoodFeeSettings } from '../../admin/models/feeSettings.model.js';
+import { getDeliveryCashLimitSettings } from '../../admin/services/admin.service.js';
 import { ValidationError, ForbiddenError, NotFoundError } from '../../../../core/auth/errors.js';
 import { buildPaginationOptions, buildPaginatedResult } from '../../../../utils/helpers.js';
 import { FoodOffer } from '../../admin/models/offer.model.js';
@@ -41,6 +43,7 @@ import * as foodTransactionService from './foodTransaction.service.js';
 
 const ORDER_ID_PREFIX = "FOD-";
 const ORDER_ID_LENGTH = 6;
+const COD_PAYMENT_METHODS = ['cash', 'cod', 'cash_on_delivery', 'razorpay_qr'];
 
 const getCartItemProductId = (item = {}) =>
   String(item?.itemId || item?.productId || item?.id || '').trim();
@@ -4082,6 +4085,76 @@ export async function assignDeliveryPartnerAdmin(
   }
   if (String(partner.zoneId) !== String(order.zoneId || "")) {
     throw new ValidationError("Delivery partner does not belong to this order zone");
+  }
+  const [cashLimitSettings, grossCashCollectedAgg, depositedCashAgg, directDepositedCashAgg] = await Promise.all([
+    getDeliveryCashLimitSettings({ zoneId: partner.zoneId }),
+    FoodOrder.aggregate([
+      {
+        $match: {
+          'dispatch.deliveryPartnerId': partner._id,
+          orderStatus: 'delivered',
+          'payment.method': { $in: ['cash', 'cod', 'cash_on_delivery', 'razorpay_qr'] },
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          grossCashCollected: { $sum: { $ifNull: ['$pricing.total', 0] } },
+        }
+      }
+    ]),
+    FoodPayoutSettlement.aggregate([
+      {
+        $match: {
+          beneficiaryType: 'delivery',
+          beneficiaryId: partner._id,
+          status: 'paid',
+          codPaidAmount: { $gt: 0 },
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          depositedCash: { $sum: { $ifNull: ['$codPaidAmount', 0] } },
+        }
+      }
+    ]),
+    FoodDeliveryCashDeposit.aggregate([
+      {
+        $match: {
+          deliveryPartnerId: partner._id,
+          status: 'Completed',
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          depositedCash: { $sum: { $ifNull: ['$amount', 0] } },
+        }
+      }
+    ]),
+  ]);
+  const grossCashCollected = Math.max(0, Number(grossCashCollectedAgg?.[0]?.grossCashCollected) || 0);
+  const depositedCash = Math.max(
+    0,
+    (Number(depositedCashAgg?.[0]?.depositedCash) || 0) +
+    (Number(directDepositedCashAgg?.[0]?.depositedCash) || 0),
+  );
+  const cashInHand = Math.max(0, grossCashCollected - Math.min(depositedCash, grossCashCollected));
+  const currentOrderPaymentMethod = String(order?.payment?.method || '').trim().toLowerCase();
+  const currentOrderCodAmount = Math.max(0, Number(order?.pricing?.total) || 0);
+  if (COD_PAYMENT_METHODS.includes(currentOrderPaymentMethod)) {
+    const projectedCashInHand = cashInHand + currentOrderCodAmount;
+    const effectiveCashLimit = Math.max(
+      0,
+      Number(cashLimitSettings?.effectiveDeliveryCashLimit ?? cashLimitSettings?.deliveryCashLimit) || 0,
+    );
+    const isCashLimitReached = effectiveCashLimit <= 0
+      ? projectedCashInHand > 0
+      : projectedCashInHand >= effectiveCashLimit;
+    if (isCashLimitReached) {
+      throw new ValidationError("Delivery partner has reached the cash-in-hand limit for this zone");
+    }
   }
 
   const from = order.dispatch?.status || 'unassigned';
