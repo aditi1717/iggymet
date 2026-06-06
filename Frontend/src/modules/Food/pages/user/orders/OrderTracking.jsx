@@ -1357,11 +1357,11 @@ export default function OrderTracking() {
       : null
 
   const trackingIds = useMemo(() => {
-    const ids = [orderId, resolvedLookupId, order?.orderId, order?.mongoId, order?.id]
+    const ids = [orderId, resolvedLookupId, order?.orderId, order?.mongoId, order?._id, order?.id]
       .map((value) => String(value || "").trim())
       .filter(Boolean)
     return [...new Set(ids)]
-  }, [orderId, resolvedLookupId, order?.orderId, order?.mongoId, order?.id])
+  }, [orderId, resolvedLookupId, order?.orderId, order?.mongoId, order?._id, order?.id])
 
   const deliveryOtpCode = useMemo(() => {
     const code = order?.deliveryVerification?.dropOtp?.code

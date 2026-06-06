@@ -1070,11 +1070,14 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
             const now = Date.now();
             if (now - lastSimUpdateSentAt.current >= 2000) { // Reduced to 2s to match backend throttle
               lastSimUpdateSentAt.current = now;
+              const primaryId = activeOrder?.orderId || activeOrder?._id;
+              const secondaryId = activeOrder?._id && String(activeOrder._id) !== String(primaryId) ? String(activeOrder._id) : null;
+
               const payload = {
                 lat,
                 lng,
                 heading,
-                orderId: activeOrder?.orderId || activeOrder?._id,
+                orderId: primaryId,
                 status: 'on_the_way',
                 polyline: activePolyline // Include polyline in every stream update for resilience
               };
@@ -1082,18 +1085,27 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
               deliveryAPI.updateLocation(lat, lng, true, { heading }).catch(() => { });
 
               // B. SOCKET LIVE (SILKY SMOOTH)
-              if (payload.orderId) emitLocation(payload);
+              if (payload.orderId) {
+                emitLocation(payload);
+                if (secondaryId) {
+                  emitLocation({ ...payload, orderId: secondaryId });
+                }
+              }
 
               // C. FIREBASE REALTIME DB (Persistent Route for Customer Map)
               if (payload.orderId) {
-                writeOrderTracking(payload.orderId, {
+                const fbPayload = {
                   lat,
                   lng,
                   heading,
                   polyline: activePolyline,
                   status: tripStatus,
                   eta: eta // Publish live ETA to Firebase
-                }).catch(() => { });
+                };
+                writeOrderTracking(payload.orderId, fbPayload).catch(() => { });
+                if (secondaryId) {
+                  writeOrderTracking(secondaryId, fbPayload).catch(() => { });
+                }
               }
             }
           }
@@ -1235,13 +1247,16 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
         lastLocationSentAt.current = now;
         lastCoordRef.current = { lat, lng };
 
+        const primaryId = activeOrder?.orderId || activeOrder?._id;
+        const secondaryId = activeOrder?._id && String(activeOrder._id) !== String(primaryId) ? String(activeOrder._id) : null;
+
         const payload = {
           lat,
           lng,
           heading: heading || 0,
           speed: speed || 0,
           accuracy: pos.coords.accuracy,
-          orderId: activeOrder?.orderId || activeOrder?._id,
+          orderId: primaryId,
           status: 'on_the_way',
           polyline: activePolyline
         };
@@ -1254,18 +1269,27 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
         }).catch(() => { });
 
         // B. SOCKET LIVE (SILKY SMOOTH)
-        if (payload.orderId) emitLocation(payload);
+        if (payload.orderId) {
+          emitLocation(payload);
+          if (secondaryId) {
+            emitLocation({ ...payload, orderId: secondaryId });
+          }
+        }
 
         // C. FIREBASE REALTIME DB (Persistent)
         if (payload.orderId) {
-          writeOrderTracking(payload.orderId, {
+          const fbPayload = {
             lat,
             lng,
             heading: heading || 0,
             polyline: activePolyline,
             status: tripStatus,
             eta: eta // Publish live ETA to Firebase for customer
-          }).catch(() => { });
+          };
+          writeOrderTracking(payload.orderId, fbPayload).catch(() => { });
+          if (secondaryId) {
+            writeOrderTracking(secondaryId, fbPayload).catch(() => { });
+          }
         }
       }
     }, () => toast.error('GPS Needed!'), {
@@ -1799,9 +1823,14 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
               onPolylineReceived={(poly) => {
                 setActivePolyline(poly);
                 // If we have an order, push the INITIAL polyline to Firebase immediately for the customer
-                const orderId = activeOrder?.orderId || activeOrder?._id;
-                if (orderId && poly) {
-                  writeOrderTracking(orderId, { polyline: poly, status: tripStatus, eta: eta }).catch(() => { });
+                const primaryId = activeOrder?.orderId || activeOrder?._id;
+                const secondaryId = activeOrder?._id && String(activeOrder._id) !== String(primaryId) ? String(activeOrder._id) : null;
+                if (primaryId && poly) {
+                  const fbPayload = { polyline: poly, status: tripStatus, eta: eta };
+                  writeOrderTracking(primaryId, fbPayload).catch(() => { });
+                  if (secondaryId) {
+                    writeOrderTracking(secondaryId, fbPayload).catch(() => { });
+                  }
                 }
               }}
               zoom={zoom}
