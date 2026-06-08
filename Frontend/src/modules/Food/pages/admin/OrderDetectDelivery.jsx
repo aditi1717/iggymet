@@ -421,7 +421,12 @@ export default function OrderDetectDelivery() {
       const response = await adminAPI.getOrders(params)
 
       if (response.data?.success && response.data?.data?.orders) {
-        const transformedOrders = response.data.data.orders.map((order, index) =>
+        const acceptedStatuses = ['confirmed', 'preparing', 'ready_for_pickup', 'ready', 'picked_up', 'out_for_delivery', 'user_unavailable_review'];
+        const acceptedOrders = response.data.data.orders.filter((order) => {
+          const status = String(order?.orderStatus || order?.status || '').toLowerCase();
+          return acceptedStatuses.includes(status);
+        });
+        const transformedOrders = acceptedOrders.map((order, index) =>
           transformOrder(order, index)
         )
         setOrders(transformedOrders)

@@ -1082,6 +1082,38 @@ export const useDeliveryNotifications = () => {
     setOrderStatusUpdate(null);
   };
 
+  const joinTrackingRooms = useCallback((orderIds) => {
+    if (!socketRef.current?.connected) return false;
+
+    const ids = (Array.isArray(orderIds) ? orderIds : [orderIds])
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+
+    if (!ids.length) return false;
+
+    ids.forEach((orderId) => {
+      socketRef.current.emit('join-tracking', orderId);
+    });
+
+    return true;
+  }, []);
+
+  const leaveTrackingRooms = useCallback((orderIds) => {
+    if (!socketRef.current) return false;
+
+    const ids = (Array.isArray(orderIds) ? orderIds : [orderIds])
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+
+    if (!ids.length) return false;
+
+    ids.forEach((orderId) => {
+      socketRef.current.emit('leave-tracking', orderId);
+    });
+
+    return true;
+  }, []);
+
   const emitLocation = useCallback((data) => {
     if (socketRef.current && socketRef.current.connected) {
       // debugLog('? Emitting location via socket:', data);
@@ -1100,7 +1132,9 @@ export const useDeliveryNotifications = () => {
     clearOrderStatusUpdate,
     isConnected,
     playNotificationSound,
-    emitLocation
+    emitLocation,
+    joinTrackingRooms,
+    leaveTrackingRooms,
   };
 };
 

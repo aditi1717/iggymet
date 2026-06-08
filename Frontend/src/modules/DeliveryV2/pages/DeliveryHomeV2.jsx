@@ -41,6 +41,8 @@ const ORDER_FOCUS_STORAGE_KEY = 'delivery_v2_order_focus';
 const PASSED_ORDER_STORAGE_KEY = 'delivery_v2_last_passed_order_id';
 const ORDER_SYNC_POLL_CONNECTED_MS = 12000;
 const ORDER_SYNC_POLL_DISCONNECTED_MS = 8000;
+const LIVE_LOCATION_MIN_MOVE_METERS = 8;
+const LIVE_LOCATION_MAX_INTERVAL_MS = 2500;
 
 const getOrderIdentity = (orderLike) =>
   String(
@@ -711,7 +713,17 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const { isOnline, toggleOnline, activeOrder, tripStatus, setRiderLocation, setActiveOrder, updateTripStatus, clearActiveOrder } = useDeliveryStore();
   const { distanceToTarget } = useProximityCheck();
   const { acceptOrder, rejectOrder, resetTrip } = useOrderManager();
-  const { newOrder, clearNewOrder, orderStatusUpdate, clearOrderStatusUpdate, isConnected: isSocketConnected, emitLocation, playNotificationSound } = useDeliveryNotifications();
+  const {
+    newOrder,
+    clearNewOrder,
+    orderStatusUpdate,
+    clearOrderStatusUpdate,
+    isConnected: isSocketConnected,
+    emitLocation,
+    playNotificationSound,
+    joinTrackingRooms,
+    leaveTrackingRooms,
+  } = useDeliveryNotifications();
   const companyName = useCompanyName();
   const { unreadCount: notificationUnreadCount } = useNotificationInbox('delivery', { limit: 10, pollMs: 30000 });
 
@@ -834,6 +846,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   }, []);
 
   const [profileImage, setProfileImage] = useState(null);
+  const joinedTrackingRoomIdsRef = useRef([]);
 
   const [eta, setEta] = useState(null);
   const lastLocationSentAt = useRef(0);
@@ -857,6 +870,19 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const handleOrdersRefresh = useCallback(() => {
     setOrdersRefreshTick((prev) => prev + 1);
   }, []);
+
+  const activeTrackingRoomIds = useMemo(() => {
+    const ids = [
+      activeOrder?.orderId,
+      activeOrder?._id,
+      activeOrder?.id,
+      activeOrder?.orderMongoId,
+    ]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+
+    return [...new Set(ids)];
+  }, [activeOrder?._id, activeOrder?.id, activeOrder?.orderId, activeOrder?.orderMongoId]);
 
   const persistIncomingOrder = useCallback((orderLike) => {
     const orderId = getOrderIdentity(orderLike);
@@ -1079,12 +1105,24 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
               lastSimUpdateSentAt.current = now;
               const primaryId = activeOrder?.orderId || activeOrder?._id;
               const secondaryId = activeOrder?._id && String(activeOrder._id) !== String(primaryId) ? String(activeOrder._id) : null;
+              const restaurantId =
+                activeOrder?.restaurantId?._id ||
+                activeOrder?.restaurantId?.id ||
+                activeOrder?.restaurantId ||
+                null;
+              const userId =
+                activeOrder?.userId?._id ||
+                activeOrder?.userId?.id ||
+                activeOrder?.userId ||
+                null;
 
               const payload = {
                 lat,
                 lng,
                 heading,
                 orderId: primaryId,
+                userId,
+                restaurantId,
                 status: 'on_the_way',
                 polyline: activePolyline // Include polyline in every stream update for resilience
               };
@@ -1169,6 +1207,26 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
     syncWithServer();
   }, []); // Only on mount to stabilize state
 
+  useEffect(() => {
+    const previousIds = joinedTrackingRoomIdsRef.current;
+    if (previousIds.length > 0) {
+      leaveTrackingRooms(previousIds);
+    }
+
+    if (!isSocketConnected || !activeTrackingRoomIds.length) {
+      joinedTrackingRoomIdsRef.current = [];
+      return undefined;
+    }
+
+    joinTrackingRooms(activeTrackingRoomIds);
+    joinedTrackingRoomIdsRef.current = activeTrackingRoomIds;
+
+    return () => {
+      leaveTrackingRooms(activeTrackingRoomIds);
+      joinedTrackingRoomIdsRef.current = [];
+    };
+  }, [activeTrackingRoomIds, isSocketConnected, joinTrackingRooms, leaveTrackingRooms]);
+
   // If a specific order was opened from detail page, force map context to that order.
   useEffect(() => {
     const targetOrderId = String(focusedOrderId || '').trim();
@@ -1250,12 +1308,22 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
         ? getHaversineDistance(lat, lng, lastCoordRef.current.lat, lastCoordRef.current.lng)
         : 1000; // assume huge distance if first update
 
-      if (distMoved >= 25 || (now - lastLocationSentAt.current >= 7000)) {
+      if (distMoved >= LIVE_LOCATION_MIN_MOVE_METERS || (now - lastLocationSentAt.current >= LIVE_LOCATION_MAX_INTERVAL_MS)) {
         lastLocationSentAt.current = now;
         lastCoordRef.current = { lat, lng };
 
         const primaryId = activeOrder?.orderId || activeOrder?._id;
         const secondaryId = activeOrder?._id && String(activeOrder._id) !== String(primaryId) ? String(activeOrder._id) : null;
+        const restaurantId =
+          activeOrder?.restaurantId?._id ||
+          activeOrder?.restaurantId?.id ||
+          activeOrder?.restaurantId ||
+          null;
+        const userId =
+          activeOrder?.userId?._id ||
+          activeOrder?.userId?.id ||
+          activeOrder?.userId ||
+          null;
 
         const payload = {
           lat,
@@ -1264,6 +1332,8 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
           speed: speed || 0,
           accuracy: pos.coords.accuracy,
           orderId: primaryId,
+          userId,
+          restaurantId,
           status: 'on_the_way',
           polyline: activePolyline
         };

@@ -202,11 +202,13 @@ const DeliveryTrackingMap = ({
     // B. SOCKET.IO REALTIME (low-latency live stream)
     const token = localStorage.getItem('user_accessToken') || localStorage.getItem('accessToken') || '';
     socketRef.current = io(backendUrl, {
-      transports: ['websocket'],
+      path: '/socket.io/',
+      transports: ['polling', 'websocket'],
       auth: { token },
       reconnection: true,
       reconnectionAttempts: 20,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
 
     socketRef.current.on('connect', () => {
