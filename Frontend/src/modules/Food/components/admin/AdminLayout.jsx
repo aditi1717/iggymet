@@ -1,17 +1,17 @@
 import { useState, useEffect } from "react"
-import { Outlet } from "react-router-dom"
+import { Outlet, useNavigate } from "react-router-dom"
 import AdminSidebar from "./AdminSidebar"
 import AdminNavbar from "./AdminNavbar"
 import AdminNewOrderPopup from "./AdminNewOrderPopup"
 import { API_BASE_URL } from "@food/api/config"
-const debugLog = (...args) => {}
-const debugWarn = (...args) => {}
-const debugError = (...args) => {}
+import { toast } from "sonner"
 
+const debugError = (...args) => {}
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const navigate = useNavigate();
 
   // Get initial collapsed state from localStorage to set initial margin
   useEffect(() => {
@@ -27,6 +27,20 @@ export default function AdminLayout() {
       debugError('Error loading sidebar collapsed state:', e)
     }
   }, [])
+
+  // Listen to token expiration failure and force logout / redirect
+  useEffect(() => {
+    const handleAuthFailure = (event) => {
+      const { module } = event.detail || {};
+      if (module === "admin") {
+        toast.error("Session expired. Please log in again.");
+        navigate("/admin/login", { replace: true });
+      }
+    };
+
+    window.addEventListener("authRefreshFailed", handleAuthFailure);
+    return () => window.removeEventListener("authRefreshFailed", handleAuthFailure);
+  }, [navigate]);
 
   const handleCollapseChange = (collapsed) => {
     setIsSidebarCollapsed(collapsed)
@@ -73,4 +87,3 @@ export default function AdminLayout() {
     </div>
   );
 }
-
