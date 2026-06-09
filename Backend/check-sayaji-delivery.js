@@ -62,21 +62,38 @@ const run = async () => {
       process.exit(0);
     }
 
-    let earning = Number(baseRule.basePayout || 0);
-    console.log(`Base Payout (minDistance 0): ₹${earning}`);
+    const basePayout = Number(baseRule.basePayout || 0);
+    const baseKm = Number(baseRule.maxDistance || 0);
+    console.log(`Base Payout (0 to ${baseKm} km): ₹${basePayout}`);
 
-    for (const r of sorted) {
-      const perKm = Number(r.commissionPerKm || 0);
-      if (!Number.isFinite(perKm) || perKm <= 0) continue;
-      const min = Number(r.minDistance || 0);
-      const max = r.maxDistance == null ? null : Number(r.maxDistance);
-      if (d <= min) continue;
-      const upper = max == null ? d : Math.min(d, max);
-      const kmInSlab = Math.max(0, upper - min);
-      if (kmInSlab > 0) {
-        const slabEarning = kmInSlab * perKm;
-        earning += slabEarning;
-        console.log(`Slab [${min} to ${max || 'infinity'} km]: ${kmInSlab.toFixed(2)} km * ₹${perKm}/km = ₹${slabEarning.toFixed(2)}`);
+    if (d <= baseKm) {
+      console.log(`Distance is <= baseKm (${d.toFixed(2)} <= ${baseKm}). Final calculated earning: ₹${Math.round(basePayout)}`);
+      process.exit(0);
+    }
+
+    let earning = basePayout;
+
+    if (sorted.length === 1) {
+      const perKm = Number(baseRule.commissionPerKm || 0);
+      const extraKm = d - baseKm;
+      const extraEarning = extraKm * perKm;
+      earning += extraEarning;
+      console.log(`Single rule setup: Extra distance: ${extraKm.toFixed(2)} km * ₹${perKm}/km = ₹${extraEarning.toFixed(2)}`);
+    } else {
+      for (const r of sorted) {
+        if (r === baseRule) continue;
+        const perKm = Number(r.commissionPerKm || 0);
+        if (!Number.isFinite(perKm) || perKm <= 0) continue;
+        const min = Number(r.minDistance || 0);
+        const max = r.maxDistance == null ? null : Number(r.maxDistance);
+        if (d <= min) continue;
+        const upper = max == null ? d : Math.min(d, max);
+        const kmInSlab = Math.max(0, upper - min);
+        if (kmInSlab > 0) {
+          const slabEarning = kmInSlab * perKm;
+          earning += slabEarning;
+          console.log(`Slab [${min} to ${max || 'infinity'} km]: ${kmInSlab.toFixed(2)} km * ₹${perKm}/km = ₹${slabEarning.toFixed(2)}`);
+        }
       }
     }
 

@@ -790,7 +790,6 @@ async function getActiveCommissionRules() {
 
 // 🗑️ Moved to foodTransaction.service.js to centralize finance logic.
 
-
 async function getRiderEarning(distanceKm) {
   const d = Number(distanceKm);
   if (!Number.isFinite(d) || d <= 0) return 0;
@@ -803,18 +802,31 @@ async function getRiderEarning(distanceKm) {
   const baseRule = sorted.find((r) => Number(r.minDistance || 0) === 0) || null;
   if (!baseRule) return 0;
 
-  let earning = Number(baseRule.basePayout || 0);
+  const basePayout = Number(baseRule.basePayout || 0);
+  const baseKm = Number(baseRule.maxDistance || 0);
 
-  for (const r of sorted) {
-    const perKm = Number(r.commissionPerKm || 0);
-    if (!Number.isFinite(perKm) || perKm <= 0) continue;
-    const min = Number(r.minDistance || 0);
-    const max = r.maxDistance == null ? null : Number(r.maxDistance);
-    if (d <= min) continue;
-    const upper = max == null ? d : Math.min(d, max);
-    const kmInSlab = Math.max(0, upper - min);
-    if (kmInSlab > 0) {
-      earning += kmInSlab * perKm;
+  if (d <= baseKm) {
+    return Math.round(basePayout);
+  }
+
+  let earning = basePayout;
+
+  if (sorted.length === 1) {
+    const perKm = Number(baseRule.commissionPerKm || 0);
+    earning += (d - baseKm) * perKm;
+  } else {
+    for (const r of sorted) {
+      if (r === baseRule) continue;
+      const perKm = Number(r.commissionPerKm || 0);
+      if (!Number.isFinite(perKm) || perKm <= 0) continue;
+      const min = Number(r.minDistance || 0);
+      const max = r.maxDistance == null ? null : Number(r.maxDistance);
+      if (d <= min) continue;
+      const upper = max == null ? d : Math.min(d, max);
+      const kmInSlab = Math.max(0, upper - min);
+      if (kmInSlab > 0) {
+        earning += kmInSlab * perKm;
+      }
     }
   }
 
