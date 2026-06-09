@@ -3,7 +3,8 @@ import { Link, useNavigate } from "react-router-dom"
 import { ArrowLeft, Star, Clock } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import { Card, CardContent } from "@food/components/ui/card"
-import { restaurantAPI } from "@food/api"
+import api, { restaurantAPI } from "@food/api"
+import { API_BASE_URL } from "@food/api/config"
 import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
 import { toast } from "sonner"
 import { RestaurantGridSkeleton } from "@food/components/ui/loading-skeletons"
@@ -25,6 +26,34 @@ export default function Offers() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const showOffersSkeleton = useDelayedLoading(loading)
+  const [bannerUrl, setBannerUrl] = useState("")
+
+  const backendOrigin = (API_BASE_URL || "").replace(/\/api\/v1\/?$/, "")
+
+  const resolveImageUrl = (url) => {
+    if (typeof url !== "string") return ""
+    const trimmed = url.trim()
+    if (!trimmed) return ""
+    if (/^(https?:|\/\/|data:|blob:)/i.test(trimmed)) return trimmed
+    if (!backendOrigin) return trimmed
+    return `${backendOrigin.replace(/\/$/, "")}${trimmed.startsWith("/") ? trimmed : `/${trimmed}`}`
+  }
+
+  // Fetch Offers banner URL
+  useEffect(() => {
+    const fetchBanner = async () => {
+      try {
+        const response = await api.get('/food/landing/settings/public')
+        const data = response?.data?.data || response?.data
+        if (data?.offersBannerUrl) {
+          setBannerUrl(data.offersBannerUrl)
+        }
+      } catch (err) {
+        debugError('Error fetching Offers page banner settings:', err)
+      }
+    }
+    fetchBanner()
+  }, [])
 
   // Fetch offers from API
   useEffect(() => {
@@ -56,7 +85,7 @@ export default function Offers() {
   return (
     <div className={`min-h-screen ${BRAND_THEME.tokens.homepage.shared.pageBackground}`}>
       {/* Banner Section */}
-      <div className="relative w-full overflow-hidden min-h-[25vh] md:min-h-[30vh]">
+      <div className="relative w-full overflow-hidden">
         {/* Back Button */}
         <button 
           onClick={goBack}
@@ -66,13 +95,11 @@ export default function Offers() {
         </button>
         
         {/* Banner Image */}
-        <div className="absolute inset-0 z-0">
-          <img 
-            src={offerBanner} 
-            alt="Great Offers" 
-            className="w-full h-full object-cover"
-          />
-        </div>
+        <img 
+          src={resolveImageUrl(bannerUrl) || offerBanner} 
+          alt="Great Offers" 
+          className="w-full h-auto block"
+        />
       </div>
 
       {/* Content */}

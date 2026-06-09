@@ -29,6 +29,7 @@ export default function Gourmet() {
   const [error, setError] = useState(null)
   const { location } = useLocation()
   const showGourmetSkeleton = useDelayedLoading(loading)
+  const [bannerUrl, setBannerUrl] = useState("")
 
   const backendOrigin = (API_BASE_URL || "").replace(/\/api\/v1\/?$/, "")
 
@@ -40,6 +41,22 @@ export default function Gourmet() {
     if (!backendOrigin) return trimmed
     return `${backendOrigin.replace(/\/$/, "")}${trimmed.startsWith("/") ? trimmed : `/${trimmed}`}`
   }
+
+  // Fetch Gourmet banner URL
+  useEffect(() => {
+    const fetchBanner = async () => {
+      try {
+        const response = await api.get('/food/landing/settings/public')
+        const data = response?.data?.data || response?.data
+        if (data?.gourmetBannerUrl) {
+          setBannerUrl(data.gourmetBannerUrl)
+        }
+      } catch (err) {
+        debugError('Error fetching Gourmet page banner settings:', err)
+      }
+    }
+    fetchBanner()
+  }, [])
 
   // Fetch Gourmet restaurants from public API
   useEffect(() => {
@@ -80,7 +97,7 @@ export default function Gourmet() {
   return (
     <div className={`min-h-screen ${BRAND_THEME.tokens.homepage.shared.pageBackground}`}>
       {/* Banner Section */}
-      <div className="relative w-full overflow-hidden min-h-[25vh] md:min-h-[30vh]">
+      <div className="relative w-full overflow-hidden">
         {/* Back Button */}
         <button
           onClick={goBack}
@@ -90,13 +107,11 @@ export default function Gourmet() {
         </button>
 
         {/* Banner Image */}
-        <div className="absolute inset-0 z-0">
-          <img
-            src={gourmetBanner}
-            alt="Gourmet"
-            className="w-full h-full object-cover"
-          />
-        </div>
+        <img
+          src={resolveImageUrl(bannerUrl) || gourmetBanner}
+          alt="Gourmet"
+          className="w-full h-auto block"
+        />
       </div>
 
       {/* Content */}

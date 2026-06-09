@@ -18,7 +18,11 @@ import {
     getAdminLandingSettingsController,
     updateAdminLandingSettingsController,
     uploadAdminLandingHeaderVideoController,
-    deleteAdminLandingHeaderVideoController
+    deleteAdminLandingHeaderVideoController,
+    uploadAdminGourmetBannerController,
+    deleteAdminGourmetBannerController,
+    uploadAdminOffersBannerController,
+    deleteAdminOffersBannerController
 } from '../controllers/landingSettings.controller.js';
 import {
     listExploreMoreController,
@@ -114,6 +118,10 @@ router.get('/hero-banners/landing/settings', getAdminLandingSettingsController);
 router.patch('/hero-banners/landing/settings', updateAdminLandingSettingsController);
 router.post('/hero-banners/landing/settings/header-video', upload.single('video'), uploadAdminLandingHeaderVideoController);
 router.delete('/hero-banners/landing/settings/header-video', deleteAdminLandingHeaderVideoController);
+router.post('/hero-banners/landing/settings/gourmet-banner', upload.single('image'), uploadAdminGourmetBannerController);
+router.delete('/hero-banners/landing/settings/gourmet-banner', deleteAdminGourmetBannerController);
+router.post('/hero-banners/landing/settings/offers-banner', upload.single('image'), uploadAdminOffersBannerController);
+router.delete('/hero-banners/landing/settings/offers-banner', deleteAdminOffersBannerController);
 
 export default router;
 

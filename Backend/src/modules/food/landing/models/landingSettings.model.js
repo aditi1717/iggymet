@@ -43,6 +43,22 @@ const foodLandingSettingsSchema = new mongoose.Schema(
             type: Number,
             default: 250,
             min: 1
+        },
+        gourmetBannerUrl: {
+            type: String,
+            default: ''
+        },
+        gourmetBannerPublicId: {
+            type: String,
+            default: ''
+        },
+        offersBannerUrl: {
+            type: String,
+            default: ''
+        },
+        offersBannerPublicId: {
+            type: String,
+            default: ''
         }
     },
     {

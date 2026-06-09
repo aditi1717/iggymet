@@ -56,3 +56,79 @@ export const deleteLandingHeaderVideo = async () => {
     });
 };
 
+export const uploadGourmetBanner = async (file) => {
+    if (!file?.buffer) {
+        throw new Error('Image file is required');
+    }
+
+    const existing = await getLandingSettings();
+    const uploaded = await uploadBufferDetailed(file.buffer, {
+        folder: 'food/landing/gourmet-banner',
+        resourceType: 'image'
+    });
+
+    if (existing?.gourmetBannerPublicId) {
+        await cloudinary.uploader
+            .destroy(existing.gourmetBannerPublicId)
+            .catch(() => {});
+    }
+
+    return updateLandingSettings({
+        gourmetBannerUrl: uploaded?.secure_url || '',
+        gourmetBannerPublicId: uploaded?.public_id || ''
+    });
+};
+
+export const deleteGourmetBanner = async () => {
+    const existing = await getLandingSettings();
+
+    if (existing?.gourmetBannerPublicId) {
+        await cloudinary.uploader
+            .destroy(existing.gourmetBannerPublicId)
+            .catch(() => {});
+    }
+
+    return updateLandingSettings({
+        gourmetBannerUrl: '',
+        gourmetBannerPublicId: ''
+    });
+};
+
+export const uploadOffersBanner = async (file) => {
+    if (!file?.buffer) {
+        throw new Error('Image file is required');
+    }
+
+    const existing = await getLandingSettings();
+    const uploaded = await uploadBufferDetailed(file.buffer, {
+        folder: 'food/landing/offers-banner',
+        resourceType: 'image'
+    });
+
+    if (existing?.offersBannerPublicId) {
+        await cloudinary.uploader
+            .destroy(existing.offersBannerPublicId)
+            .catch(() => {});
+    }
+
+    return updateLandingSettings({
+        offersBannerUrl: uploaded?.secure_url || '',
+        offersBannerPublicId: uploaded?.public_id || ''
+    });
+};
+
+export const deleteOffersBanner = async () => {
+    const existing = await getLandingSettings();
+
+    if (existing?.offersBannerPublicId) {
+        await cloudinary.uploader
+            .destroy(existing.offersBannerPublicId)
+            .catch(() => {});
+    }
+
+    return updateLandingSettings({
+        offersBannerUrl: '',
+        offersBannerPublicId: ''
+    });
+};
+

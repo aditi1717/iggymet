@@ -59,13 +59,21 @@ export default function LandingPageManagement() {
   const under250BannersFileInputRef = useRef(null)
 
   // Settings
-  const [settings, setSettings] = useState({ exploreMoreHeading: "Explore More", recommendedRestaurantIds: [], headerVideoUrl: "", defaultUnderPriceLimit: DEFAULT_PRICE_LIMIT })
+  const [settings, setSettings] = useState({ exploreMoreHeading: "Explore More", recommendedRestaurantIds: [], headerVideoUrl: "", gourmetBannerUrl: "", offersBannerUrl: "", defaultUnderPriceLimit: DEFAULT_PRICE_LIMIT })
   const [settingsLoading, setSettingsLoading] = useState(true)
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [headerVideoUploading, setHeaderVideoUploading] = useState(false)
   const [headerVideoRemoving, setHeaderVideoRemoving] = useState(false)
   const [recommendedSearchQuery, setRecommendedSearchQuery] = useState("")
   const headerVideoInputRef = useRef(null)
+
+  // Gourmet & Offers Banners
+  const [showBannerManageModal, setShowBannerManageModal] = useState(false)
+  const [bannerManageType, setBannerManageType] = useState(null)
+  const [bannerUploading, setBannerUploading] = useState(false)
+  const [bannerRemoving, setBannerRemoving] = useState(false)
+  const [modalError, setModalError] = useState(null)
+  const pageBannerInputRef = useRef(null)
 
   const [allRestaurants, setAllRestaurants] = useState([])
   const [restaurantsLoading, setRestaurantsLoading] = useState(false)
@@ -158,6 +166,13 @@ export default function LandingPageManagement() {
       }
     }
   }, [activeTab, exploreMoreSubTab])
+
+  // Reset modal error on open/close
+  useEffect(() => {
+    if (!showBannerManageModal) {
+      setModalError(null)
+    }
+  }, [showBannerManageModal])
 
   // ==================== HERO BANNERS ====================
   const fetchBanners = async () => {
@@ -915,6 +930,8 @@ export default function LandingPageManagement() {
           exploreMoreHeading: nextSettings.exploreMoreHeading || "Explore More",
           recommendedRestaurantIds: Array.isArray(nextSettings.recommendedRestaurantIds) ? nextSettings.recommendedRestaurantIds : [],
           headerVideoUrl: nextSettings.headerVideoUrl || "",
+          gourmetBannerUrl: nextSettings.gourmetBannerUrl || "",
+          offersBannerUrl: nextSettings.offersBannerUrl || "",
           defaultUnderPriceLimit: normalizePriceLimit(nextSettings.defaultUnderPriceLimit, DEFAULT_PRICE_LIMIT),
         })
         setUnder250UploadPriceLimit(String(normalizePriceLimit(nextSettings.defaultUnderPriceLimit, DEFAULT_PRICE_LIMIT)))
@@ -922,7 +939,7 @@ export default function LandingPageManagement() {
     } catch (err) {
       // Silently handle 401/404 errors - endpoints may not exist yet, use default settings
       if (err.response?.status === 401 || err.response?.status === 404) {
-        setSettings({ exploreMoreHeading: "Explore More", recommendedRestaurantIds: [], headerVideoUrl: "", defaultUnderPriceLimit: DEFAULT_PRICE_LIMIT }) // Use default settings
+        setSettings({ exploreMoreHeading: "Explore More", recommendedRestaurantIds: [], headerVideoUrl: "", gourmetBannerUrl: "", offersBannerUrl: "", defaultUnderPriceLimit: DEFAULT_PRICE_LIMIT }) // Use default settings
         setError(null) // Clear any previous error
       } else {
         // Filter out token-related errors
@@ -1040,6 +1057,76 @@ export default function LandingPageManagement() {
       setErrorSafely(err.response?.data?.message || 'Failed to remove header video.')
     } finally {
       setHeaderVideoRemoving(false)
+    }
+  }
+
+  const handlePageBannerFileSelect = async (e, type) => {
+    const file = e.target?.files?.[0]
+    if (!file) return
+
+    if (!file.type?.startsWith('image/')) {
+      setModalError('Please select a valid image file (PNG, JPG, WEBP).')
+      e.target.value = ''
+      return
+    }
+
+    try {
+      setBannerUploading(true)
+      setModalError(null)
+      setSuccess(null)
+
+      const formData = new FormData()
+      formData.append('image', file)
+
+      const endpoint = type === 'gourmet' 
+        ? '/food/hero-banners/landing/settings/gourmet-banner' 
+        : '/food/hero-banners/landing/settings/offers-banner'
+
+      const response = await api.post(endpoint, formData, getAuthConfig())
+      if (response.data.success) {
+        const savedSettings = response.data.data?.settings || response.data.data || {}
+        setSettings((prev) => ({
+          ...prev,
+          gourmetBannerUrl: savedSettings.gourmetBannerUrl || "",
+          offersBannerUrl: savedSettings.offersBannerUrl || ""
+        }))
+        setSuccess(`${type === 'gourmet' ? 'Gourmet' : 'Offers'} page banner uploaded successfully!`)
+        setTimeout(() => setSuccess(null), 3000)
+      }
+    } catch (err) {
+      const errMsg = err.response?.data?.message || err.message || `Failed to upload ${type} banner.`
+      setModalError(errMsg)
+    } finally {
+      if (e.target) e.target.value = ''
+      setBannerUploading(false)
+    }
+  }
+
+  const handleRemovePageBanner = async (type) => {
+    if (!window.confirm(`Remove the current ${type === 'gourmet' ? 'Gourmet' : 'Offers'} page banner?`)) return
+
+    try {
+      setBannerRemoving(true)
+      setModalError(null)
+      setSuccess(null)
+      const endpoint = type === 'gourmet' 
+        ? '/food/hero-banners/landing/settings/gourmet-banner' 
+        : '/food/hero-banners/landing/settings/offers-banner'
+
+      const response = await api.delete(endpoint, getAuthConfig())
+      if (response.data.success) {
+        setSettings((prev) => ({
+          ...prev,
+          [type === 'gourmet' ? 'gourmetBannerUrl' : 'offersBannerUrl']: ""
+        }))
+        setSuccess(`${type === 'gourmet' ? 'Gourmet' : 'Offers'} page banner removed successfully!`)
+        setTimeout(() => setSuccess(null), 3000)
+      }
+    } catch (err) {
+      const errMsg = err.response?.data?.message || err.message || `Failed to remove ${type} banner.`
+      setModalError(errMsg)
+    } finally {
+      setBannerRemoving(false)
     }
   }
 
@@ -1778,6 +1865,19 @@ export default function LandingPageManagement() {
                             <Upload className="w-3 h-3" />
                             {dbItem ? 'Change Icon' : 'Upload Icon'}
                           </label>
+                          {(item.id === 'offers' || item.id === 'gourmet') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBannerManageType(item.id)
+                                setShowBannerManageModal(true)
+                              }}
+                              className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                            >
+                              <Tag className="w-3 h-3" />
+                              Manage Banner
+                            </button>
+                          )}
                         </div>
                       </div>
                     )
@@ -2064,6 +2164,104 @@ export default function LandingPageManagement() {
                   </Button>
                 </div>
               </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Page Banner Management Modal */}
+        <Dialog open={showBannerManageModal} onOpenChange={setShowBannerManageModal}>
+          <DialogContent className="max-w-xl max-h-[85vh] overflow-hidden flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-200">
+              <DialogTitle className="text-2xl font-bold text-slate-900">
+                Manage {bannerManageType === 'gourmet' ? 'Gourmet' : 'Offers'} Page Banner
+              </DialogTitle>
+              <DialogDescription className="text-slate-600 mt-2">
+                Upload or change the banner image displayed at the top of the public {bannerManageType === 'gourmet' ? 'Gourmet' : 'Offers'} page.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex-1 overflow-y-auto p-6 bg-white space-y-6">
+              {modalError && (
+                <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                  <span className="text-sm">{modalError}</span>
+                </div>
+              )}
+              <input
+                ref={pageBannerInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handlePageBannerFileSelect(e, bannerManageType)}
+              />
+
+              {/* Current Banner Preview */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-slate-700">Current Banner</Label>
+                <div className="relative aspect-[3/1] md:aspect-[4/1] rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center">
+                  {bannerManageType === 'gourmet' ? (
+                    settings.gourmetBannerUrl ? (
+                      <img src={settings.gourmetBannerUrl} alt="Gourmet Banner" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-center p-4">
+                        <ImageIcon className="w-8 h-8 text-slate-400 mx-auto mb-1" />
+                        <span className="text-xs text-slate-500">Using default static Gourmet banner</span>
+                      </div>
+                    )
+                  ) : (
+                    settings.offersBannerUrl ? (
+                      <img src={settings.offersBannerUrl} alt="Offers Banner" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-center p-4">
+                        <ImageIcon className="w-8 h-8 text-slate-400 mx-auto mb-1" />
+                        <span className="text-xs text-slate-500">Using default static Offers banner</span>
+                      </div>
+                    )
+                  )}
+
+                  {bannerUploading && (
+                    <div className="absolute inset-0 bg-white/70 flex items-center justify-center z-10">
+                      <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Upload & Remove Actions */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  type="button"
+                  onClick={() => pageBannerInputRef.current?.click()}
+                  disabled={bannerUploading}
+                  className="flex-1 bg-brand-500 hover:bg-brand-600 text-white"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  {((bannerManageType === 'gourmet' ? settings.gourmetBannerUrl : settings.offersBannerUrl)) ? 'Replace Banner' : 'Upload Banner'}
+                </Button>
+
+                {((bannerManageType === 'gourmet' ? settings.gourmetBannerUrl : settings.offersBannerUrl)) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleRemovePageBanner(bannerManageType)}
+                    disabled={bannerRemoving}
+                    className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
+                  >
+                    {bannerRemoving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                    Remove Banner
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowBannerManageModal(false)}
+                className="px-6"
+              >
+                Close
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

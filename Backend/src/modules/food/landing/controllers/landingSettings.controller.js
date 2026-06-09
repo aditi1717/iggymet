@@ -2,7 +2,11 @@ import {
     deleteLandingHeaderVideo,
     getLandingSettings,
     updateLandingSettings,
-    uploadLandingHeaderVideo
+    uploadLandingHeaderVideo,
+    uploadGourmetBanner,
+    deleteGourmetBanner,
+    uploadOffersBanner,
+    deleteOffersBanner
 } from '../services/landingSettings.service.js';
 import { sendResponse } from '../../../../utils/response.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
@@ -49,6 +53,42 @@ export const deleteAdminLandingHeaderVideoController = async (req, res, next) =>
     try {
         const updated = await deleteLandingHeaderVideo();
         return sendResponse(res, 200, 'Landing header video removed successfully', { settings: updated });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const uploadAdminGourmetBannerController = async (req, res, next) => {
+    try {
+        const updated = await uploadGourmetBanner(req.file);
+        return sendResponse(res, 200, 'Gourmet page banner uploaded successfully', { settings: updated });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const deleteAdminGourmetBannerController = async (req, res, next) => {
+    try {
+        const updated = await deleteGourmetBanner();
+        return sendResponse(res, 200, 'Gourmet page banner removed successfully', { settings: updated });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const uploadAdminOffersBannerController = async (req, res, next) => {
+    try {
+        const updated = await uploadOffersBanner(req.file);
+        return sendResponse(res, 200, 'Offers page banner uploaded successfully', { settings: updated });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const deleteAdminOffersBannerController = async (req, res, next) => {
+    try {
+        const updated = await deleteOffersBanner();
+        return sendResponse(res, 200, 'Offers page banner removed successfully', { settings: updated });
     } catch (error) {
         next(error);
     }
