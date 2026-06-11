@@ -132,6 +132,10 @@ export const verifyUserOtpAndLogin = async (
               0,
               Number(settingsDoc.referralRewardUser) || 0,
             );
+            const refereeReward = Math.max(
+              0,
+              Number(settingsDoc.referralRewardReferredUser) || 0,
+            );
             const limit = Math.max(
               0,
               Number(settingsDoc.referralLimitUser) || 0,
@@ -150,6 +154,7 @@ export const verifyUserOtpAndLogin = async (
                 refereeId: userDoc._id,
                 role: "USER",
                 rewardAmount: reward,
+                refereeRewardAmount: refereeReward,
                 status: "credited",
               });
 
@@ -163,6 +168,15 @@ export const verifyUserOtpAndLogin = async (
                   refereeId: String(userDoc._id),
                   referralLogId: String(log._id),
                 }),
+                ...(refereeReward > 0
+                  ? [
+                      creditReferralReward(userDoc._id, refereeReward, {
+                        role: "USER",
+                        referrerId: String(referrerId),
+                        referralLogId: String(log._id),
+                      }),
+                    ]
+                  : []),
               ]);
             } else {
               await FoodReferralLog.create({
@@ -170,6 +184,7 @@ export const verifyUserOtpAndLogin = async (
                 refereeId: userDoc._id,
                 role: "USER",
                 rewardAmount: reward,
+                refereeRewardAmount: refereeReward,
                 status: "rejected",
                 reason:
                   reward <= 0

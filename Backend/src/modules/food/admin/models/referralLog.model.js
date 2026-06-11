@@ -11,6 +11,7 @@ const referralLogSchema = new mongoose.Schema(
             index: true
         },
         rewardAmount: { type: Number, required: true, min: 0, default: 0 },
+        refereeRewardAmount: { type: Number, min: 0, default: 0 },
         status: {
             type: String,
             enum: ['pending', 'credited', 'rejected'],

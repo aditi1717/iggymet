@@ -40,6 +40,7 @@ import { addOrderJob } from '../../../../queues/producers/order.producer.js';
 import { fetchPolyline, fetchRouteDistanceKm } from '../utils/googleMaps.js';
 import { getFirebaseDB } from '../../../../config/firebase.js';
 import * as foodTransactionService from './foodTransaction.service.js';
+import { deductWalletBalance, refundWalletBalance } from '../../user/services/userWallet.service.js';
 
 const ORDER_ID_PREFIX = "FOD-";
 const ORDER_ID_LENGTH = 6;
@@ -1421,6 +1422,48 @@ async function processCancellationRefund(order, contextLabel) {
   }
 }
 
+function isRefundableWalletPayment(order) {
+  const method = String(order?.payment?.method || "").toLowerCase();
+  const status = String(order?.payment?.status || "").toLowerCase();
+  return (
+    method === "wallet" &&
+    status === "paid" &&
+    order?.payment?.refund?.status !== "processed"
+  );
+}
+
+async function processWalletRefund(order, contextLabel) {
+  if (!isRefundableWalletPayment(order)) return { attempted: false };
+
+  const refundAmount = Number(order?.pricing?.totalPayable || order?.pricing?.total || order?.payment?.amountDue || 0);
+  if (!Number.isFinite(refundAmount) || refundAmount <= 0) {
+    order.payment.refund = { status: "failed", amount: 0 };
+    return { attempted: true, success: false };
+  }
+
+  try {
+    await refundWalletBalance(
+      order.userId,
+      refundAmount,
+      `Refund for cancelled order ${order.orderId}`,
+      { orderId: order.orderId, orderMongoId: String(order._id), context: contextLabel }
+    );
+    order.payment.status = "refunded";
+    order.payment.refund = {
+      status: "processed",
+      amount: refundAmount,
+      processedAt: new Date(),
+    };
+    return { attempted: true, success: true };
+  } catch (err) {
+    logger.warn(
+      `Cancellation wallet refund failed for order ${order?.orderId || order?._id} (${contextLabel}): ${err?.message || err}`,
+    );
+    order.payment.refund = { status: "failed", amount: refundAmount };
+    return { attempted: true, success: false };
+  }
+}
+
 // ----- Create order -----
 export async function createOrder(userId, dto) {
   const orderType = dto.orderType === "quick" ? "quick" : "food";
@@ -1640,6 +1683,23 @@ export async function createOrder(userId, dto) {
         )}`,
       );
       throw new ValidationError(`Online payment could not be initialized: ${gatewayMessage}`);
+    }
+  }
+
+  if (isWallet) {
+    const amountDue = normalizedPricing.totalPayable ?? normalizedPricing.total ?? 0;
+    try {
+      await deductWalletBalance(
+        userId,
+        amountDue,
+        `Payment for order ${orderId}`,
+        { orderId, orderMongoId: String(order._id) }
+      );
+    } catch (err) {
+      if (err.name === 'ValidationError') {
+        throw err;
+      }
+      throw new ValidationError(`Wallet payment failed: ${err.message}`);
     }
   }
 
@@ -2104,6 +2164,12 @@ export async function cancelOrder(orderId, userId, reason) {
       console.error(`Refund processing error for Order ${orderId}:`, err);
       order.payment.refund = { status: "failed", amount: order.pricing.total };
     }
+  } else if (
+    order.payment.status === "paid" &&
+    order.payment.method === "wallet" &&
+    (!order.payment.refund || order.payment.refund.status !== "processed")
+  ) {
+    await processWalletRefund(order, "user_cancel");
   }
 
   await order.save();
@@ -2591,6 +2657,14 @@ export async function updateOrderStatusRestaurant(
       }
       // Re-save order with updated payment status
       await order.save();
+    } else if (
+      String(orderStatus).includes("cancel") &&
+      order.payment.status === "paid" &&
+      order.payment.method === "wallet" &&
+      (!order.payment.refund || order.payment.refund.status !== "processed")
+    ) {
+      await processWalletRefund(order, "restaurant_cancel");
+      await order.save();
     }
 
     return order.toObject();
@@ -2719,6 +2793,7 @@ export async function updateOrderStatusAdmin(
   });
   if (normalizedStatus === "cancelled_by_admin") {
     await processCancellationRefund(order, "admin_cancel");
+    await processWalletRefund(order, "admin_cancel");
   }
   await order.save();
   if (normalizedStatus === "delivered" && order.payment?.status === "paid" && order.userId) {

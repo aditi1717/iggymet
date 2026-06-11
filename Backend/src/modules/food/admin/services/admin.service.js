@@ -2651,6 +2651,7 @@ export async function upsertReferralSettings(body = {}) {
         const $set = {};
 
         if (body.referralRewardUser !== undefined) $set.referralRewardUser = Math.max(0, Number(body.referralRewardUser) || 0);
+        if (body.referralRewardReferredUser !== undefined) $set.referralRewardReferredUser = Math.max(0, Number(body.referralRewardReferredUser) || 0);
         if (body.referralRewardDelivery !== undefined) $set.referralRewardDelivery = Math.max(0, Number(body.referralRewardDelivery) || 0);
         if (body.referralLimitUser !== undefined) $set.referralLimitUser = Math.max(0, Number(body.referralLimitUser) || 0);
         if (body.referralLimitDelivery !== undefined) $set.referralLimitDelivery = Math.max(0, Number(body.referralLimitDelivery) || 0);
@@ -2663,6 +2664,7 @@ export async function upsertReferralSettings(body = {}) {
 
     const created = await FoodReferralSettings.create({
         referralRewardUser: Math.max(0, Number(body.referralRewardUser) || 0),
+        referralRewardReferredUser: Math.max(0, Number(body.referralRewardReferredUser) || 0),
         referralRewardDelivery: Math.max(0, Number(body.referralRewardDelivery) || 0),
         referralLimitUser: Math.max(0, Number(body.referralLimitUser) || 0),
         referralLimitDelivery: Math.max(0, Number(body.referralLimitDelivery) || 0),
