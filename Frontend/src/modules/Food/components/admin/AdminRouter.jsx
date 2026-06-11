@@ -53,7 +53,7 @@ const SafetyEmergencyReports = lazy(() => import("@food/pages/admin/SafetyEmerge
 const Customers = lazy(() => import("@food/pages/admin/Customers"));
 const SupportTickets = lazy(() => import("@food/pages/admin/SupportTickets"));
 const AddFund = lazy(() => import("@food/pages/admin/wallet/AddFund"));
-const Bonus = lazy(() => import("@food/pages/admin/wallet/Bonus"));
+const CustomerWalletReport = lazy(() => import("@food/pages/admin/reports/CustomerWalletReport"));
 const LoyaltyPointReport = lazy(() => import("@food/pages/admin/loyalty-point/Report"));
 const SubscribedMailList = lazy(() => import("@food/pages/admin/SubscribedMailList"));
 // Deliveryman Management
@@ -116,6 +116,7 @@ const AppWebSettings = lazy(() => import("@food/pages/admin/system/AppWebSetting
 const NotificationChannels = lazy(() => import("@food/pages/admin/system/NotificationChannels"));
 const NotificationBroadcast = lazy(() => import("@food/pages/admin/system/NotificationBroadcast"));
 const AdminNotifications = lazy(() => import("@food/pages/admin/system/AdminNotifications"));
+const ReferralSettings = lazy(() => import("@food/pages/admin/system/ReferralSettings"));
 const LandingPageSettings = lazy(() => import("@food/pages/admin/system/LandingPageSettings"));
 const PageMetaData = lazy(() => import("@food/pages/admin/system/PageMetaData"));
 const ReactSite = lazy(() => import("@food/pages/admin/system/ReactSite"));
@@ -228,7 +229,7 @@ export default function AdminRouter() {
             <Route path="customers" element={<Customers />} />
             <Route path="support-tickets" element={<SupportTickets />} />
             <Route path="wallet/add-fund" element={<AddFund />} />
-            <Route path="wallet/bonus" element={<Bonus />} />
+            <Route path="wallet/history" element={<CustomerWalletReport />} />
             <Route path="loyalty-point/report" element={<LoyaltyPointReport />} />
             <Route path="subscribed-mail-list" element={<SubscribedMailList />} />
 
@@ -303,6 +304,7 @@ export default function AdminRouter() {
             <Route path="addon-activation" element={<AddonActivation />} />
             <Route path="hero-banner-management" element={<LandingPageManagement />} />
             <Route path="manage-admins" element={<AdminManagement />} />
+            <Route path="referral-settings" element={<ReferralSettings />} />
 
           </Route>
 

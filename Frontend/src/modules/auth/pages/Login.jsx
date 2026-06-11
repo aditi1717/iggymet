@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react"
 import { motion } from "framer-motion"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { Phone, ShieldCheck, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { authAPI } from "@food/api"
@@ -19,6 +19,7 @@ export default function UnifiedOTPFastLogin() {
   const [logoUrl, setLogoUrl] = useState("")
   const [companyName, setCompanyName] = useState(BRAND_THEME.brandName)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const submitting = useRef(false)
 
   useEffect(() => {
@@ -146,7 +147,8 @@ export default function UnifiedOTPFastLogin() {
         console.warn("Failed to get FCM token during login", e);
       }
 
-      const response = await authAPI.verifyOTP(phoneNumber, otpDigits, "login", null, null, "user", null, null, fcmToken, platform)
+      const refParam = String(searchParams.get("ref") || "").trim()
+      const response = await authAPI.verifyOTP(phoneNumber, otpDigits, "login", null, null, "user", null, refParam || null, fcmToken, platform)
       const responseBody = response?.data || {}
       const data = responseBody?.data || responseBody || {}
       let accessToken = data.accessToken
@@ -184,7 +186,7 @@ export default function UnifiedOTPFastLogin() {
             phone: `+91 ${String(phoneNumber || "").replace(/\D/g, "").slice(0, 10)}`,
             email: null,
             name: null,
-            referralCode: null,
+            referralCode: refParam || null,
             isSignUp: false,
             module: "user",
           }),

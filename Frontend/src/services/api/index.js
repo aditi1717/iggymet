@@ -182,6 +182,16 @@ export const adminAPI = {
     apiClient.patch(`/food/admin/admins/${String(id)}/status`, { isActive: isActive !== false }, { contextModule: "admin" }),
   deleteManagedAdmin: (id) =>
     apiClient.delete(`/food/admin/admins/${String(id)}`, { contextModule: "admin" }),
+  getReferralSettings: () =>
+    apiClient.get("/food/admin/referral-settings", {
+      contextModule: "admin",
+    }),
+  updateReferralSettings: (body) =>
+    apiClient.put("/food/admin/referral-settings", body ?? {}, {
+      contextModule: "admin",
+    }),
+  getCustomerWalletReport: (params = {}) =>
+    apiClient.get("/food/admin/reports/customer-wallet", { params, contextModule: "admin" }),
   getStoreOrdersAdmin: (params = {}) =>
     apiClient.get("/food/admin/store/orders", { params, contextModule: "admin" }),
   updateStoreOrderStatusAdmin: (orderId, body) =>
@@ -965,6 +975,15 @@ export const adminAPI = {
   /** Store Orders (admin view of delivery boy purchases) */
   getStoreOrders: (params = {}) =>
     apiClient.get('/food/admin/store/orders', { params, contextModule: 'admin' }),
+  /** Refer & Earn settings (admin) */
+  getReferralSettings: () =>
+    apiClient.get("/food/admin/referral-settings", {
+      contextModule: "admin",
+    }),
+  updateReferralSettings: (body) =>
+    apiClient.put("/food/admin/referral-settings", body ?? {}, {
+      contextModule: "admin",
+    }),
 };
 
   /** Restaurant API - OTP login via new backend; no email/password. */

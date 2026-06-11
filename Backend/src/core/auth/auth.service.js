@@ -136,11 +136,11 @@ export const verifyUserOtpAndLogin = async (
               0,
               Number(settingsDoc.referralLimitUser) || 0,
             );
+            const hasLimit = limit > 0;
 
             if (
               reward > 0 &&
-              limit > 0 &&
-              Number(referrer.referralCount || 0) < limit
+              (!hasLimit || Number(referrer.referralCount || 0) < limit)
             ) {
               userDoc.referredBy = referrerId;
               await userDoc.save();
@@ -174,9 +174,9 @@ export const verifyUserOtpAndLogin = async (
                 reason:
                   reward <= 0
                     ? "reward_disabled"
-                    : limit <= 0
-                      ? "limit_disabled"
-                      : "limit_reached",
+                    : (hasLimit && Number(referrer.referralCount || 0) >= limit)
+                      ? "limit_reached"
+                      : "limit_disabled",
               });
             }
           }

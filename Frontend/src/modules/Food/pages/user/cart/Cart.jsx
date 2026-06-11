@@ -3076,6 +3076,17 @@ export default function Cart() {
                     <div className="space-y-3 overflow-y-auto pr-1 custom-scrollbar pb-4 flex-1 min-h-0">
                       {[
                         {
+                          id: 'wallet',
+                          name: `${companyName} Money`,
+                          description: 'Pay using your digital wallet balance',
+                          icon: <Wallet className="w-5 h-5" />,
+                          color: 'bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400',
+                          selectedColor: 'bg-amber-500 text-white',
+                          subInfo: `Available: ${RUPEE_SYMBOL}${walletBalance.toFixed(0)}`,
+                          disabled: walletBalance < totalPayable,
+                          disabledText: 'INSUFFICIENT BALANCE'
+                        },
+                        {
                           id: 'razorpay',
                           name: 'Online Payment',
                           description: 'UPI, Cards, Netbanking',

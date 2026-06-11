@@ -60,6 +60,7 @@ export default function Profile() {
   const { openLocationSelector } = useLocationSelector();
   const navigate = useNavigate();
   const [brandLogoUrl, setBrandLogoUrl] = useState("");
+  const [walletBalance, setWalletBalance] = useState(0);
   const defaultAddress = getDefaultAddress?.();
   const savedAddressSummary = defaultAddress
     ? [
@@ -548,6 +549,41 @@ export default function Profile() {
             </motion.div>
           </Link>
 
+          <Link to="/food/user/wallet" className="block">
+            <motion.div
+              whileHover={{ x: 2 }}
+              transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
+              <Card className={optionCardClass}>
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <motion.div
+                      className={iconWrapClass}
+                      whileHover={{ scale: 1.03 }}
+                      transition={{ duration: 0.3 }}>
+                      <Wallet className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                    </motion.div>
+                    <div className="min-w-0">
+                      <p className={rowLabelClass}>iggymet Money</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        Add money and pay using your wallet
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium px-2 py-1 rounded bg-green-50 text-green-700 border border-green-200">
+                      Rs {Number(walletBalance || 0).toFixed(0)}
+                    </span>
+                    <motion.div
+                      whileHover={{ x: 2 }}
+                      transition={{ duration: 0.2 }}>
+                      <ChevronRight className={chevronClass} />
+                    </motion.div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </Link>
+
           <motion.div
             whileHover={{ x: 2 }}
             transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
@@ -789,6 +825,33 @@ export default function Profile() {
                       </motion.div>
                       <span className={rowLabelClass}>
                         Help & Support
+                      </span>
+                    </div>
+                    <motion.div
+                      whileHover={{ x: 2 }}
+                      transition={{ duration: 0.2 }}>
+                      <ChevronRight className={chevronClass} />
+                    </motion.div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </Link>
+
+            <Link to="/food/user/profile/refer-earn" className="block">
+              <motion.div
+                whileHover={{ x: 2 }}
+                transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>
+                <Card className={optionCardClass}>
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <motion.div
+                        className={iconWrapClass}
+                        whileHover={{ scale: 1.03 }}
+                        transition={{ duration: 0.3 }}>
+                        <Tag className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                      </motion.div>
+                      <span className={rowLabelClass}>
+                        Refer & Earn
                       </span>
                     </div>
                     <motion.div

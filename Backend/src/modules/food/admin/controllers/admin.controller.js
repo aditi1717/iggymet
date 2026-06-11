@@ -1775,3 +1775,16 @@ export async function updateStoreOrderStatus(req, res, next) {
         next(error);
     }
 }
+
+export async function getCustomerWalletReport(req, res, next) {
+    try {
+        const data = await adminService.getCustomerWalletReport(req.query || {});
+        res.status(200).json({
+            success: true,
+            message: 'Customer wallet report fetched successfully',
+            data
+        });
+    } catch (error) {
+        next(error);
+    }
+}

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useParams } from "react-router-dom"
+import { Routes, Route, Navigate, useParams, useLocation } from "react-router-dom"
 import UserLayout from "./UserLayout"
 import { Suspense, lazy } from "react"
 import Loader from "@food/components/Loader"
@@ -80,6 +80,11 @@ const SubmitComplaint = lazy(() => import("@food/pages/user/complaints/SubmitCom
 function OrderDetailsRedirect() {
   const { orderId } = useParams()
   return <Navigate to={`/food/orders/${encodeURIComponent(String(orderId || ""))}`} replace />
+}
+
+function NavigateWithSearch({ to }) {
+  const location = useLocation()
+  return <Navigate to={`${to}${location.search}`} replace />
 }
 
 export default function UserRouter() {
@@ -269,8 +274,8 @@ export default function UserRouter() {
           <Route path="profile/delivery-safety" element={<DeliveryPartnerSafety />} />
 
           {/* Auth - User login is centralized at /user/auth/login */}
-          <Route path="auth/login" element={<Navigate to="/user/auth/login" replace />} />
-          <Route path="auth/sign-in" element={<Navigate to="/user/auth/login" replace />} />
+          <Route path="auth/login" element={<NavigateWithSearch to="/user/auth/login" />} />
+          <Route path="auth/sign-in" element={<NavigateWithSearch to="/user/auth/login" />} />
           <Route path="auth/otp" element={<OTP />} />
           <Route path="auth/callback" element={<AuthCallback />} />
 

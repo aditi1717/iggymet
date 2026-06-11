@@ -25,6 +25,7 @@ import { FoodReferralLog } from '../models/referralLog.model.js';
 import { FoodSafetyEmergencyReport } from '../models/safetyEmergencyReport.model.js';
 import { FoodAddon } from '../../restaurant/models/foodAddon.model.js';
 import { FoodSupportTicket } from '../../user/models/supportTicket.model.js';
+import { FoodUserWallet } from '../../user/models/userWallet.model.js';
 import { FoodRestaurantSupportTicket } from '../../restaurant/models/supportTicket.model.js';
 import { RestaurantOffer } from '../../restaurant/models/restaurantOffer.model.js';
 import { FoodOrder } from '../../orders/models/order.model.js';
@@ -5939,9 +5940,10 @@ export async function approveDeliveryPartner(id) {
                 const settingsDoc = await FoodReferralSettings.findOne({ isActive: true }).sort({ createdAt: -1 }).lean();
                 const reward = Math.max(0, Number(settingsDoc?.referralRewardDelivery) || 0);
                 const limit = Math.max(0, Number(settingsDoc?.referralLimitDelivery) || 0);
+                const hasLimit = limit > 0;
                 const referrer = await FoodDeliveryPartner.findById(referrerId).select('_id referralCount status').lean();
 
-                if (referrer && referrer.status === 'approved' && reward > 0 && limit > 0 && Number(referrer.referralCount || 0) < limit) {
+                if (referrer && referrer.status === 'approved' && reward > 0 && (!hasLimit || Number(referrer.referralCount || 0) < limit)) {
                     const log = await FoodReferralLog.create({
                         referrerId: referrer._id,
                         refereeId: partner._id,
@@ -5964,7 +5966,7 @@ export async function approveDeliveryPartner(id) {
                         role: 'DELIVERY_PARTNER',
                         rewardAmount: reward,
                         status: 'rejected',
-                        reason: !referrer ? 'referrer_not_found' : reward <= 0 ? 'reward_disabled' : limit <= 0 ? 'limit_disabled' : 'limit_reached'
+                        reason: !referrer ? 'referrer_not_found' : reward <= 0 ? 'reward_disabled' : (hasLimit && Number(referrer.referralCount || 0) >= limit) ? 'limit_reached' : 'limit_disabled'
                     });
                 }
             }
@@ -8519,4 +8521,120 @@ export async function updateStoreOrderStatus(orderId, body = {}) {
     }
 
     return updated;
+}
+
+export async function getCustomerWalletReport(query = {}) {
+    const { fromDate, toDate, all, customer, search } = query;
+
+    const wallets = await FoodUserWallet.find()
+        .populate('userId', 'name phone email')
+        .lean();
+
+    let allTransactions = [];
+    const uniqueCustomers = new Set();
+
+    for (const wallet of wallets) {
+        const user = wallet.userId;
+        const customerName = user?.name || 'Unknown Customer';
+        if (user?.name) {
+            uniqueCustomers.add(user.name);
+        }
+
+        if (Array.isArray(wallet.transactions)) {
+            const sortedTx = [...wallet.transactions].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+            let runningBalance = 0;
+
+            for (const tx of sortedTx) {
+                const isCredit = tx.type === 'addition' || tx.type === 'refund';
+                const isDebit = tx.type === 'deduction';
+                const amount = Number(tx.amount || 0);
+
+                if (isCredit) {
+                    runningBalance += amount;
+                } else if (isDebit) {
+                    runningBalance -= amount;
+                }
+
+                allTransactions.push({
+                    _id: tx._id,
+                    transactionId: String(tx._id),
+                    userId: wallet.userId?._id,
+                    customer: customerName,
+                    customerPhone: user?.phone || '',
+                    customerEmail: user?.email || '',
+                    credit: isCredit ? `₹${amount.toFixed(2)}` : '',
+                    debit: isDebit ? `₹${amount.toFixed(2)}` : '',
+                    balance: `₹${runningBalance.toFixed(2)}`,
+                    creditNum: isCredit ? amount : 0,
+                    debitNum: isDebit ? amount : 0,
+                    balanceNum: runningBalance,
+                    transactionType: isCredit ? 'Credit' : 'Debit',
+                    reference: tx.description || tx.metadata?.source || '',
+                    createdAtDate: new Date(tx.createdAt),
+                    createdAt: new Date(tx.createdAt).toLocaleString('en-IN', {
+                        timeZone: 'Asia/Kolkata',
+                        hour12: true
+                    })
+                });
+            }
+        }
+    }
+
+    let filteredTransactions = allTransactions;
+
+    if (fromDate) {
+        const start = new Date(fromDate);
+        start.setHours(0, 0, 0, 0);
+        filteredTransactions = filteredTransactions.filter(tx => tx.createdAtDate >= start);
+    }
+    if (toDate) {
+        const end = new Date(toDate);
+        end.setHours(23, 59, 59, 999);
+        filteredTransactions = filteredTransactions.filter(tx => tx.createdAtDate <= end);
+    }
+
+    if (all && all !== 'All') {
+        filteredTransactions = filteredTransactions.filter(tx => tx.transactionType.toLowerCase() === all.toLowerCase());
+    }
+
+    if (customer && customer !== 'Select Customer') {
+        filteredTransactions = filteredTransactions.filter(tx => tx.customer.toLowerCase() === customer.toLowerCase());
+    }
+
+    if (search) {
+        const searchLower = String(search).toLowerCase();
+        filteredTransactions = filteredTransactions.filter(tx => 
+            tx.transactionId.toLowerCase().includes(searchLower) ||
+            tx.customer.toLowerCase().includes(searchLower) ||
+            tx.customerPhone.toLowerCase().includes(searchLower) ||
+            tx.reference.toLowerCase().includes(searchLower)
+        );
+    }
+
+    filteredTransactions.sort((a, b) => b.createdAtDate - a.createdAtDate);
+
+    filteredTransactions = filteredTransactions.map((tx, idx) => ({
+        ...tx,
+        sl: idx + 1
+    }));
+
+    let totalCredit = 0;
+    let totalDebit = 0;
+
+    for (const tx of filteredTransactions) {
+        totalCredit += tx.creditNum;
+        totalDebit += tx.debitNum;
+    }
+
+    const stats = {
+        debit: `₹${totalDebit.toFixed(2)}`,
+        credit: `₹${totalCredit.toFixed(2)}`,
+        balance: `₹${(totalCredit - totalDebit).toFixed(2)}`
+    };
+
+    return {
+        transactions: filteredTransactions,
+        stats,
+        customers: Array.from(uniqueCustomers).sort()
+    };
 }

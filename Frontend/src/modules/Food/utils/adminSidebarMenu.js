@@ -121,6 +121,12 @@ export const adminSidebarMenu = [
         path: "/admin/food/coupons",
         icon: "Gift",
       },
+      {
+        type: "link",
+        label: "Refer & Earn Settings",
+        path: "/admin/food/referral-settings",
+        icon: "Gift",
+      },
     ],
   },
   {
@@ -132,6 +138,15 @@ export const adminSidebarMenu = [
         label: "Customers",
         path: "/admin/food/customers",
         icon: "Users",
+      },
+      {
+        type: "expandable",
+        label: "Customer Wallet",
+        icon: "Wallet",
+        subItems: [
+          { label: "Add Fund", path: "/admin/food/wallet/add-fund" },
+          { label: "Wallet History", path: "/admin/food/wallet/history" },
+        ],
       },
       {
         type: "link",
