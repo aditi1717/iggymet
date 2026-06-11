@@ -128,7 +128,19 @@ const DeliveryTrackingMap = ({
     }
 
     // C. Delivery partner's live location (from populated deliveryPartnerId)
-    const partnerLoc = parseLocation(order?.deliveryPartnerId?.location || order?.deliveryPartner?.location);
+    const partnerLoc = parseLocation(
+      order?.deliveryPartnerId?.location ||
+      order?.deliveryPartnerId?.lastLocation ||
+      order?.deliveryPartner?.location ||
+      order?.deliveryPartner?.lastLocation ||
+      // flat lat/lng from partner profile
+      (order?.deliveryPartner?.lastLat && order?.deliveryPartner?.lastLng
+        ? { lat: order.deliveryPartner.lastLat, lng: order.deliveryPartner.lastLng }
+        : null) ||
+      (order?.deliveryPartnerId?.lastLat && order?.deliveryPartnerId?.lastLng
+        ? { lat: order.deliveryPartnerId.lastLat, lng: order.deliveryPartnerId.lastLng }
+        : null)
+    );
     if (partnerLoc) {
       debugLog('📍 Initial rider location from delivery partner profile');
       triggerSmoothMove(partnerLoc);

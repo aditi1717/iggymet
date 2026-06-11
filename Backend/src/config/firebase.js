@@ -82,7 +82,8 @@ export const initializeFirebaseRealtime = () => {
  */
 export const getFirebaseDB = () => {
     if (!db) {
-        throw new Error('⚠️ Firebase Realtime Database not initialized. Call initializeFirebaseRealtime() first.');
+        logger.warn('⚠️ Firebase Realtime Database not initialized. Returning null.');
+        return null;
     }
     return db;
 };
@@ -94,7 +95,8 @@ export const getFirebaseDB = () => {
  */
 export const getFirebaseMessaging = () => {
     if (!messaging) {
-        throw new Error('⚠️ Firebase Messaging not initialized. Call initializeFirebaseRealtime() first.');
+        logger.warn('⚠️ Firebase Messaging not initialized. Returning null.');
+        return null;
     }
     return messaging;
 };

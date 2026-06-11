@@ -405,7 +405,8 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
     deliveryPartner: apiOrder?.deliveryPartnerId ? {
       name: apiOrder.deliveryPartnerId.name || apiOrder.deliveryPartnerId.fullName || 'Delivery Partner',
       phone: apiOrder.deliveryPartnerId.phone || apiOrder.deliveryPartnerId.phoneNumber || '',
-      avatar: apiOrder.deliveryPartnerId.avatar || apiOrder.deliveryPartnerId.profilePicture || null
+      avatar: apiOrder.deliveryPartnerId.avatar || apiOrder.deliveryPartnerId.profilePicture || null,
+      location: apiOrder.deliveryPartnerId.location || apiOrder.deliveryPartnerId.lastLocation || null
     } : (previousOrder?.deliveryPartner || null),
     deliveryPartnerId: apiOrder?.deliveryPartnerId?._id || apiOrder?.deliveryPartnerId || apiOrder?.dispatch?.deliveryPartnerId?._id || apiOrder?.dispatch?.deliveryPartnerId || apiOrder?.assignmentInfo?.deliveryPartnerId || null,
     dispatch: apiOrder?.dispatch || previousOrder?.dispatch || null,

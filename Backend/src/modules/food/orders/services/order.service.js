@@ -2016,7 +2016,7 @@ export async function listOrdersUser(userId, query) {
         "restaurantId",
         "restaurantName profileImage area city location rating totalRatings",
       )
-      .populate("dispatch.deliveryPartnerId", "name phone rating totalRatings")
+      .populate("dispatch.deliveryPartnerId", "name phone rating totalRatings lastLocation lastLat lastLng")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -2045,7 +2045,7 @@ export async function getOrderById(
       "restaurantId",
       "restaurantName name profileImage address addressLine1 addressLine2 area city state zipCode pincode postalCode location rating totalRatings ownerPhone primaryContactNumber phone contactNumber mobile",
     )
-    .populate("dispatch.deliveryPartnerId", "name phone rating totalRatings")
+    .populate("dispatch.deliveryPartnerId", "name phone rating totalRatings lastLocation lastLat lastLng")
     .populate("userId", "name phone email")
     .select("+deliveryOtp")
     .lean();
