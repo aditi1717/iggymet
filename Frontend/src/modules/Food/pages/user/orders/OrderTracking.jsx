@@ -1493,6 +1493,8 @@ export default function OrderTracking() {
   const canShowLiveTrackingMap =
     !isDeliveredOrder &&
     orderStatus !== "cancelled" &&
+    orderStatus !== "at_drop" &&
+    !showDeliveryOtpInline &&
     Boolean(order?.deliveryPartnerId) &&
     Boolean(trackingMapCoords.restaurant && trackingMapCoords.customer)
 
