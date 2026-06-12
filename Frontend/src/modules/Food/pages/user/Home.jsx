@@ -2445,20 +2445,23 @@ export default function Home() {
   const HeroBannerSection = useMemo(() => {
     if (showBannerSkeleton) {
       return (
-        <div className="h-full w-full">
-          <HeroBannerSkeleton className="h-full w-full" />
-        </div>
+        <section className="px-4 pt-4 sm:pt-5 lg:pt-6">
+          <div className="relative h-[160px] w-full overflow-hidden rounded-[28px] sm:h-[220px] lg:h-[260px]">
+            <HeroBannerSkeleton className="h-full w-full rounded-[28px]" />
+          </div>
+        </section>
       );
     }
 
     if (heroBannerImages.length === 0) return null;
 
     return (
-      <div className="h-full w-full">
+      <section className="px-4 pt-4 sm:pt-5 lg:pt-6">
+        <div className="relative h-[160px] w-full overflow-hidden rounded-[28px] border border-[#efe2d4] bg-white shadow-[0_18px_40px_rgba(15,23,42,0.08)] sm:h-[220px] lg:h-[260px] dark:border-white/10 dark:bg-[#121212]">
         <div
           ref={heroShellRef}
           data-home-hero-shell="true"
-          className="relative w-full h-full overflow-hidden bg-white"
+          className="relative h-full w-full overflow-hidden rounded-[28px] bg-white dark:bg-[#121212]"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -2536,7 +2539,7 @@ export default function Home() {
             aria-label={`Open hero banner ${currentBannerIndex + 1}`}
           />
 
-          <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex gap-1.5 px-3 py-1.5 bg-black/20 backdrop-blur-md rounded-full border border-white/10 z-30">
+          <div className="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 gap-1.5 rounded-full border border-white/15 bg-black/20 px-3 py-1.5 backdrop-blur-md sm:bottom-5">
             {heroBannerImages.map((_, index) => (
               <button
                 key={index}
@@ -2551,7 +2554,8 @@ export default function Home() {
             ))}
           </div>
         </div>
-      </div>
+        </div>
+      </section>
     );
   }, [heroBannerImages, currentBannerIndex, showBannerSkeleton, heroBannersData, navigate]);
 
@@ -2687,6 +2691,7 @@ export default function Home() {
           >
             <div className="relative z-10">
               {CategoryRailSection}
+              {HeroBannerSection}
               {recommendedForYouRestaurants.length > 0 && (
                 <motion.section
                   className="content-auto pt-1 sm:pt-2"

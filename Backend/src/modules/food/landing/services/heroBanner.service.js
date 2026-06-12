@@ -2,7 +2,29 @@ import { FoodHeroBanner } from '../models/heroBanner.model.js';
 import { v2 as cloudinary } from 'cloudinary';
 
 export const listHeroBanners = async () => {
-    return FoodHeroBanner.find().sort({ sortOrder: 1, createdAt: -1 }).lean();
+    const banners = await FoodHeroBanner.find()
+        .populate({
+            path: 'linkedRestaurantIds',
+            select: 'restaurantName name images.profileImage images.coverImages status'
+        })
+        .sort({ sortOrder: 1, createdAt: -1 })
+        .lean();
+
+    return banners.map((banner) => {
+        const { linkedRestaurantIds, ...rest } = banner;
+        return {
+            ...rest,
+            order: rest.sortOrder,
+            linkedRestaurantIds: Array.isArray(linkedRestaurantIds)
+                ? linkedRestaurantIds.map((restaurant) => restaurant?._id || restaurant)
+                : [],
+            linkedRestaurants: Array.isArray(linkedRestaurantIds) ? linkedRestaurantIds : []
+        };
+    });
+};
+
+export const getHeroBannerById = async (id) => {
+    return FoodHeroBanner.findById(id).lean();
 };
 
 export const createHeroBannersFromFiles = async (files, meta = {}) => {
@@ -79,5 +101,32 @@ export const toggleHeroBannerStatus = async (id, isActive) => {
         { new: true }
     ).lean();
     return updated;
+};
+
+export const linkHeroBannerRestaurants = async (id, restaurantIds = []) => {
+    const updated = await FoodHeroBanner.findByIdAndUpdate(
+        id,
+        { linkedRestaurantIds: restaurantIds },
+        { new: true }
+    )
+        .populate({
+            path: 'linkedRestaurantIds',
+            select: 'restaurantName name images.profileImage images.coverImages status'
+        })
+        .lean();
+
+    if (!updated) {
+        return null;
+    }
+
+    const { linkedRestaurantIds, ...rest } = updated;
+    return {
+        ...rest,
+        order: rest.sortOrder,
+        linkedRestaurantIds: Array.isArray(linkedRestaurantIds)
+            ? linkedRestaurantIds.map((restaurant) => restaurant?._id || restaurant)
+            : [],
+        linkedRestaurants: Array.isArray(linkedRestaurantIds) ? linkedRestaurantIds : []
+    };
 };
 
