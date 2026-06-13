@@ -11,6 +11,7 @@ import { API_BASE_URL } from '@food/api/config';
 import { subscribeOrderTracking } from '@food/realtimeTracking';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Navigation } from 'lucide-react';
+import { getSocketUrl } from '@/services/api/baseUrl';
 
 const LIBRARIES = ['geometry', 'places'];
 
@@ -47,6 +48,7 @@ const DeliveryTrackingMap = ({
   const [cloudPolyline, setCloudPolyline] = useState(null);
   const [smoothLocation, setSmoothLocation] = useState(null);
   const socketRef = useRef(null);
+  const joinedTrackingIdsRef = useRef([]);
   const interpStateRef = useRef({ lastPos: null, nextPos: null, startTime: 0 });
   const latestRiderLocationRef = useRef(null);
   const latestSmoothLocationRef = useRef(null);
@@ -76,7 +78,17 @@ const DeliveryTrackingMap = ({
   }, [orderId, orderTrackingIds]);
 
   const backendUrl = useMemo(() => {
-    return (API_BASE_URL || '').replace(/\/api\/v1\/?$/i, '').replace(/\/api\/?$/i, '');
+    const resolvedSocketUrl = String(getSocketUrl() || '').trim();
+    if (resolvedSocketUrl) return resolvedSocketUrl.replace(/\/+$/, '');
+
+    try {
+      return new URL(API_BASE_URL || '').origin;
+    } catch {
+      return String(API_BASE_URL || '')
+        .replace(/\/api\/v1\/?$/i, '')
+        .replace(/\/api\/?$/i, '')
+        .replace(/\/+$/, '');
+    }
   }, []);
 
   // Helper: trigger smooth interpolation from ANY source
@@ -213,31 +225,67 @@ const DeliveryTrackingMap = ({
 
     // B. SOCKET.IO REALTIME (low-latency live stream)
     const token = localStorage.getItem('user_accessToken') || localStorage.getItem('accessToken') || '';
+    if (!backendUrl || !token) {
+      return () => {
+        unsubs.forEach(u => u?.());
+      };
+    }
+
     socketRef.current = io(backendUrl, {
       path: '/socket.io/',
       transports: ['polling', 'websocket'],
       auth: { token },
+      query: token ? { token } : undefined,
       reconnection: true,
       reconnectionAttempts: 20,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
+      timeout: 20000,
     });
 
     socketRef.current.on('connect', () => {
       debugLog('🔌 Socket connected, joining tracking rooms:', ids);
+      joinedTrackingIdsRef.current = ids;
       ids.forEach(id => socketRef.current.emit('join-tracking', id));
+      socketRef.current.emit('resync');
     });
 
     socketRef.current.on('location-update', (data) => {
       const matchedId = ids.find(id => String(id) === String(data.orderId));
-      if (data && matchedId && typeof data.lat === 'number') {
+      const lat = Number(data?.lat ?? data?.boy_lat);
+      const lng = Number(data?.lng ?? data?.boy_lng);
+      if (data && matchedId && Number.isFinite(lat) && Number.isFinite(lng)) {
         const nextPos = {
-          lat: data.lat,
-          lng: data.lng,
+          lat,
+          lng,
           heading: data.heading || data.bearing || 0
         };
         debugLog('⚡ Socket location update:', nextPos);
         triggerSmoothMove(nextPos);
+      }
+
+      if (data?.polyline) {
+        setCloudPolyline(data.polyline);
+      }
+
+      if (data?.eta) {
+        setCurrentEta(data.eta);
+        if (onEtaUpdate) onEtaUpdate(data.eta);
+      }
+    });
+
+    socketRef.current.on('order_state', (payload) => {
+      const liveLoc = parseLocation(
+        payload?.lastRiderLocation ||
+        payload?.deliveryState?.currentLocation ||
+        payload?.deliveryPartner?.location ||
+        payload?.deliveryPartner?.lastLocation ||
+        payload?.deliveryPartnerId?.location ||
+        payload?.deliveryPartnerId?.lastLocation
+      );
+
+      if (liveLoc) {
+        triggerSmoothMove(liveLoc);
       }
     });
 
@@ -245,11 +293,23 @@ const DeliveryTrackingMap = ({
       debugLog('🔌 Socket disconnected:', reason);
     });
 
+    socketRef.current.on('connect_error', (error) => {
+      console.error('[DeliveryTrackingMap] Socket connection error', {
+        message: error?.message,
+        backendUrl,
+        hasToken: Boolean(token),
+      });
+    });
+
     return () => {
       unsubs.forEach(u => u?.());
+      joinedTrackingIdsRef.current.forEach((id) => {
+        socketRef.current?.emit('leave-tracking', id);
+      });
+      joinedTrackingIdsRef.current = [];
       socketRef.current?.disconnect();
     };
-  }, [trackingIdsStr, backendUrl, triggerSmoothMove, onEtaUpdate]);
+  }, [trackingIdsStr, backendUrl, triggerSmoothMove, onEtaUpdate, parseLocation]);
 
   // 3. Smooth Animation Loop (60 FPS Glide — Swiggy/Ola style)
   useEffect(() => {
