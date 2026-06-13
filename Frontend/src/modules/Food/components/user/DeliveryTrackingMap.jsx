@@ -481,7 +481,7 @@ const DeliveryTrackingMap = ({
   return (
     <div className="relative w-full h-full overflow-hidden rounded-2xl shadow-inner border border-gray-100">
       <GoogleMap
-        mapContainerStyle={{ width: '100%', height: '100%' }}
+        mapContainerStyle={{ width: '100%', height: '100%', touchAction: 'pan-x pan-y pinch-zoom' }}
         center={center}
         zoom={15}
         onLoad={setMap}
@@ -601,7 +601,7 @@ const DeliveryTrackingMap = ({
           position={restaurantCoords}
           mapPaneName={OverlayView.MARKER_LAYER}
         >
-          <div className="relative -translate-x-1/2 -translate-y-full mb-1 group">
+          <div className="relative -translate-x-1/2 -translate-y-full mb-1 group pointer-events-none touch-none">
              {!isOrderPickedUp && (
                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
                  <motion.div 
@@ -628,7 +628,7 @@ const DeliveryTrackingMap = ({
           position={customerCoords}
           mapPaneName={OverlayView.MARKER_LAYER}
         >
-          <div className="relative -translate-x-1/2 -translate-y-full mb-1 group">
+          <div className="relative -translate-x-1/2 -translate-y-full mb-1 group pointer-events-none touch-none">
              {isOrderPickedUp && (
                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
                  <motion.div 
@@ -656,7 +656,7 @@ const DeliveryTrackingMap = ({
             position={displayRiderLocation}
             mapPaneName={OverlayView.OVERLAY_LAYER}
           >
-            <div style={{ transform: 'translate(-50%, -50%)' }} className="pointer-events-none">
+            <div style={{ transform: 'translate(-50%, -50%)' }} className="pointer-events-none touch-none">
               <motion.div
                 animate={{ scale: [1, 2.2], opacity: [0.5, 0] }}
                 transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
@@ -670,7 +670,7 @@ const DeliveryTrackingMap = ({
         {/* ── RIDER MARKER (MapRider.png — EXACT same as delivery feed LiveMap.jsx) ── */}
         {displayRiderLocation && (
           <OverlayView position={displayRiderLocation} mapPaneName={OverlayView.MARKER_LAYER}>
-            <div style={{ transform: `translate(-50%, -50%) rotate(${displayRiderLocation.heading || 0}deg)`, transition: 'transform 0.5s linear' }} className="relative w-[72px] h-[72px]">
+            <div style={{ transform: `translate(-50%, -50%) rotate(${displayRiderLocation.heading || 0}deg)`, transition: 'transform 0.5s linear' }} className="relative w-[72px] h-[72px] pointer-events-none touch-none">
               <img src="/MapRider.png" alt="Rider" className="w-full h-full object-contain" />
             </div>
           </OverlayView>

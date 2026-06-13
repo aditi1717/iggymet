@@ -408,12 +408,20 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
       avatar: apiOrder.deliveryPartnerId.avatar || apiOrder.deliveryPartnerId.profilePicture || null,
       location: apiOrder.deliveryPartnerId.location || apiOrder.deliveryPartnerId.lastLocation || null
     } : (previousOrder?.deliveryPartner || null),
+    lastRiderLocation:
+      apiOrder?.lastRiderLocation ||
+      apiOrder?.deliveryState?.currentLocation ||
+      apiOrder?.deliveryPartnerId?.location ||
+      apiOrder?.deliveryPartnerId?.lastLocation ||
+      previousOrder?.lastRiderLocation ||
+      null,
     deliveryPartnerId: apiOrder?.deliveryPartnerId?._id || apiOrder?.deliveryPartnerId || apiOrder?.dispatch?.deliveryPartnerId?._id || apiOrder?.dispatch?.deliveryPartnerId || apiOrder?.assignmentInfo?.deliveryPartnerId || null,
     dispatch: apiOrder?.dispatch || previousOrder?.dispatch || null,
     assignmentInfo: apiOrder?.assignmentInfo || previousOrder?.assignmentInfo || null,
     tracking: apiOrder?.tracking || previousOrder?.tracking || {},
     deliveryState: apiOrder?.deliveryState || previousOrder?.deliveryState || null,
     eta: apiOrder?.eta || previousOrder?.eta || null,
+    trackingLiveState: apiOrder?.trackingLiveState || previousOrder?.trackingLiveState || null,
     estimatedDeliveryTime:
       apiOrder?.eta?.currentEstimatedMinutes ||
       apiOrder?.eta?.totalBeforeReadyMinutes ||
