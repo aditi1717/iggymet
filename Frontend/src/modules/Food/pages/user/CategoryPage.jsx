@@ -1,4 +1,4 @@
-﻿import { useState, useMemo, useRef, useEffect, startTransition, useDeferredValue } from "react"
+import { useState, useMemo, useRef, useEffect, startTransition, useDeferredValue } from "react"
 import { useParams, Link, useNavigate } from "react-router-dom"
 import { createPortal } from "react-dom"
 import { motion, AnimatePresence } from "framer-motion"
@@ -44,6 +44,7 @@ const CATEGORY_PAGE_FILTERS_STORAGE_KEY = "food-category-page-filters-v1"
 export default function CategoryPage() {
   const { category } = useParams()
   const navigate = useNavigate()
+  const showDishInfo = false
   const { vegMode, vegModePreference } = useProfile()
   const { location } = useLocation()
   const { zoneId, isOutOfService } = useZone(location)
@@ -1244,7 +1245,6 @@ export default function CategoryPage() {
   }
 
   // Filter restaurants based on active filters and selected category
-  // If category is selected, expand restaurants into dish cards (one card per matching dish)
   const filteredRecommended = useMemo(() => {
     const sourceData = restaurantsData.length > 0 ? restaurantsData : []
     let filtered = effectiveVegMode && effectiveVegModePreference === "pure-veg"
@@ -1253,43 +1253,89 @@ export default function CategoryPage() {
 
     // Filter by category - Dynamic filtering based on menu items
     if (selectedCategory && selectedCategory !== 'all') {
-      const expandedDishes = []
+      if (showDishInfo) {
+        const expandedDishes = []
 
-      filtered.forEach(r => {
-        if (r.menu) {
-          const hasCategoryItem = checkCategoryInMenu(r.menu, selectedCategory)
-          if (hasCategoryItem) {
-            // Get ALL matching dishes for this category
-            const categoryDishes = getAllCategoryDishesFromMenu(r.menu, selectedCategory)
+        filtered.forEach(r => {
+          if (r.menu) {
+            const hasCategoryItem = checkCategoryInMenu(r.menu, selectedCategory)
+            if (hasCategoryItem) {
+              // Get ALL matching dishes for this category
+              const categoryDishes = getAllCategoryDishesFromMenu(r.menu, selectedCategory)
 
-            if (categoryDishes.length > 0) {
+              if (categoryDishes.length > 0) {
+                const validDishes = effectiveVegMode
+                  ? categoryDishes.filter((dish) => dish.foodType === "Veg")
+                  : categoryDishes;
+
+                validDishes.forEach((dishForCard) => {
+                  expandedDishes.push({
+                    ...r,
+                    id: `${r.id || r.restaurantId}-${dishForCard.itemId}`,
+                    dishId: dishForCard.itemId || `${r.id}-dish`,
+                    categoryDish: dishForCard,
+                    categoryDishName: dishForCard.name,
+                    categoryDishPrice: dishForCard.price,
+                    categoryDishImage: dishForCard.image,
+                  })
+                })
+              }
+            }
+          }
+        })
+
+        filtered = expandedDishes
+
+        if (filtered.length === 0) {
+          const fallbackDishes = getCategoryFallbackDishesFromApprovedFoods(selectedCategory, sourceData)
+          filtered = effectiveVegMode
+            ? fallbackDishes.filter((dish) => dish.categoryDishFoodType === "Veg")
+            : fallbackDishes
+        }
+      } else {
+        // Show unique restaurants serving the category
+        const matchingRestaurants = []
+
+        filtered.forEach(r => {
+          if (r.menu) {
+            const hasCategoryItem = checkCategoryInMenu(r.menu, selectedCategory)
+            if (hasCategoryItem) {
+              const categoryDishes = getAllCategoryDishesFromMenu(r.menu, selectedCategory)
               const validDishes = effectiveVegMode
                 ? categoryDishes.filter((dish) => dish.foodType === "Veg")
                 : categoryDishes;
 
-              validDishes.forEach((dishForCard) => {
-                expandedDishes.push({
-                  ...r,
-                  id: `${r.id || r.restaurantId}-${dishForCard.itemId}`,
-                  dishId: dishForCard.itemId || `${r.id}-dish`,
-                  categoryDish: dishForCard,
-                  categoryDishName: dishForCard.name,
-                  categoryDishPrice: dishForCard.price,
-                  categoryDishImage: dishForCard.image,
-                })
-              })
+              if (validDishes.length > 0) {
+                matchingRestaurants.push(r)
+              }
             }
           }
+        })
+
+        filtered = matchingRestaurants
+
+        if (filtered.length === 0) {
+          const fallbackDishes = getCategoryFallbackDishesFromApprovedFoods(selectedCategory, sourceData)
+          const validFallbackDishes = effectiveVegMode
+            ? fallbackDishes.filter((dish) => dish.categoryDishFoodType === "Veg")
+            : fallbackDishes
+
+          const seenIds = new Set()
+          const fallbackRestaurants = []
+          validFallbackDishes.forEach(dish => {
+            const resId = dish.restaurantId || dish.id
+            if (resId && !seenIds.has(resId)) {
+              seenIds.add(resId)
+              const originalRestaurant = sourceData.find(sr => (sr.restaurantId || sr.id) === resId)
+              if (originalRestaurant) {
+                fallbackRestaurants.push(originalRestaurant)
+              } else {
+                fallbackRestaurants.push(dish)
+              }
+            }
+          })
+          filtered = fallbackRestaurants
         }
-      })
-
-      filtered = expandedDishes
-
-      if (filtered.length === 0) {
-        const fallbackDishes = getCategoryFallbackDishesFromApprovedFoods(selectedCategory, sourceData)
-        filtered = effectiveVegMode
-          ? fallbackDishes.filter((dish) => dish.categoryDishFoodType === "Veg")
-          : fallbackDishes
       }
     }
 
@@ -1303,45 +1349,90 @@ export default function CategoryPage() {
       : [...sourceData]
 
     // Filter by category - Dynamic filtering based on menu items
-    // If category is selected, expand restaurants into dish cards (one card per matching dish)
     if (selectedCategory && selectedCategory !== 'all') {
-      const expandedDishes = []
+      if (showDishInfo) {
+        const expandedDishes = []
 
-      filtered.forEach(r => {
-        if (r.menu) {
-          const hasCategoryItem = checkCategoryInMenu(r.menu, selectedCategory)
-          if (hasCategoryItem) {
-            // Get ALL matching dishes for this category
-            const categoryDishes = getAllCategoryDishesFromMenu(r.menu, selectedCategory)
+        filtered.forEach(r => {
+          if (r.menu) {
+            const hasCategoryItem = checkCategoryInMenu(r.menu, selectedCategory)
+            if (hasCategoryItem) {
+              // Get ALL matching dishes for this category
+              const categoryDishes = getAllCategoryDishesFromMenu(r.menu, selectedCategory)
 
-            if (categoryDishes.length > 0) {
+              if (categoryDishes.length > 0) {
+                const validDishes = effectiveVegMode
+                  ? categoryDishes.filter((dish) => dish.foodType === "Veg")
+                  : categoryDishes;
+
+                validDishes.forEach((dishForCard) => {
+                  expandedDishes.push({
+                    ...r,
+                    id: `${r.id || r.restaurantId}-${dishForCard.itemId}`,
+                    dishId: dishForCard.itemId || `${r.id}-dish`,
+                    categoryDish: dishForCard,
+                    categoryDishName: dishForCard.name,
+                    categoryDishPrice: dishForCard.price,
+                    categoryDishImage: dishForCard.image,
+                  })
+                })
+              }
+            }
+          }
+        })
+
+        filtered = expandedDishes
+
+        if (filtered.length === 0) {
+          const fallbackDishes = getCategoryFallbackDishesFromApprovedFoods(selectedCategory, sourceData)
+          filtered = effectiveVegMode
+            ? fallbackDishes.filter((dish) => dish.categoryDishFoodType === "Veg")
+            : fallbackDishes
+        }
+      } else {
+        // Show unique restaurants serving the category
+        const matchingRestaurants = []
+
+        filtered.forEach(r => {
+          if (r.menu) {
+            const hasCategoryItem = checkCategoryInMenu(r.menu, selectedCategory)
+            if (hasCategoryItem) {
+              const categoryDishes = getAllCategoryDishesFromMenu(r.menu, selectedCategory)
               const validDishes = effectiveVegMode
                 ? categoryDishes.filter((dish) => dish.foodType === "Veg")
                 : categoryDishes;
 
-              validDishes.forEach((dishForCard) => {
-                expandedDishes.push({
-                  ...r,
-                  id: `${r.id || r.restaurantId}-${dishForCard.itemId}`,
-                  dishId: dishForCard.itemId || `${r.id}-dish`,
-                  categoryDish: dishForCard,
-                  categoryDishName: dishForCard.name,
-                  categoryDishPrice: dishForCard.price,
-                  categoryDishImage: dishForCard.image,
-                })
-              })
+              if (validDishes.length > 0) {
+                matchingRestaurants.push(r)
+              }
             }
           }
+        })
+
+        filtered = matchingRestaurants
+
+        if (filtered.length === 0) {
+          const fallbackDishes = getCategoryFallbackDishesFromApprovedFoods(selectedCategory, sourceData)
+          const validFallbackDishes = effectiveVegMode
+            ? fallbackDishes.filter((dish) => dish.categoryDishFoodType === "Veg")
+            : fallbackDishes
+
+          const seenIds = new Set()
+          const fallbackRestaurants = []
+          validFallbackDishes.forEach(dish => {
+            const resId = dish.restaurantId || dish.id
+            if (resId && !seenIds.has(resId)) {
+              seenIds.add(resId)
+              const originalRestaurant = sourceData.find(sr => (sr.restaurantId || sr.id) === resId)
+              if (originalRestaurant) {
+                fallbackRestaurants.push(originalRestaurant)
+              } else {
+                fallbackRestaurants.push(dish)
+              }
+            }
+          })
+          filtered = fallbackRestaurants
         }
-      })
-
-      filtered = expandedDishes
-
-      if (filtered.length === 0) {
-        const fallbackDishes = getCategoryFallbackDishesFromApprovedFoods(selectedCategory, sourceData)
-        filtered = effectiveVegMode
-          ? fallbackDishes.filter((dish) => dish.categoryDishFoodType === "Veg")
-          : fallbackDishes
       }
     }
 
@@ -1581,7 +1672,7 @@ export default function CategoryPage() {
                         {/* Image Container */}
                         <div className="relative aspect-square rounded-xl md:rounded-2xl overflow-hidden mb-2">
                           {/* Use category dish image if available, otherwise restaurant image */}
-                          {restaurant.categoryDishImage ? (
+                          {showDishInfo && restaurant.categoryDishImage ? (
                             <img
                               src={restaurant.categoryDishImage}
                               alt={restaurant.categoryDishName || restaurant.name}
@@ -1634,16 +1725,16 @@ export default function CategoryPage() {
                           )}
 
                           {/* Rating Badge (NOW ON IMAGE, bottom-left with white border) */}
-                          <div className="absolute bottom-0 left-0 bg-green-600 border-[4px] rounded-md border-white text-white text-[11px] md:text-xs font-bold px-1.5 py-0.5 flex items-center gap-0.5">
-                            {restaurant.rating}
-                            <Star className="h-2.5 w-2.5 md:h-3 md:w-3 fill-white" />
+                          <div className={`absolute bottom-0 left-0 border-[4px] rounded-md border-white text-white text-[11px] md:text-xs font-bold px-1.5 py-0.5 flex items-center gap-0.5 ${Number(restaurant.rating) > 0 ? "bg-green-600" : "bg-gray-500"}`}>
+                            {Number(restaurant.rating) > 0 ? Number(restaurant.rating).toFixed(1) : "NEW"}
+                            {Number(restaurant.rating) > 0 && <Star className="h-2.5 w-2.5 md:h-3 md:w-3 fill-white" />}
                           </div>
                         </div>
 
                         <h3 className="font-semibold text-gray-900 dark:text-white text-xs md:text-sm line-clamp-1">
-                          {isCategoryView ? (restaurant.categoryDishName || restaurant.featuredDish || restaurant.name) : restaurant.name}
+                          {showDishInfo && isCategoryView ? (restaurant.categoryDishName || restaurant.featuredDish || restaurant.name) : restaurant.name}
                         </h3>
-                        {isCategoryView && (
+                        {showDishInfo && isCategoryView && (
                           <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
                             {restaurant.name}
                           </p>
@@ -1697,7 +1788,7 @@ export default function CategoryPage() {
                       {/* Image Section */}
                       <div className="relative h-44 sm:h-52 md:h-60 lg:h-64 xl:h-72 w-full overflow-hidden rounded-t-md flex-shrink-0">
                         {/* Use category dish image if available, otherwise restaurant image */}
-                        {restaurant.categoryDishImage ? (
+                        {showDishInfo && restaurant.categoryDishImage ? (
                           <img
                             src={restaurant.categoryDishImage}
                             alt={restaurant.categoryDishName || restaurant.name}
@@ -1737,10 +1828,10 @@ export default function CategoryPage() {
                         )}
 
                         {/* Category Dish Badge - Top Left (shows category dish if available, otherwise featured dish) */}
-                        {(isCategoryView ? restaurant.categoryDishPrice : (restaurant.categoryDishName || restaurant.featuredDish)) && (
+                        {((showDishInfo && isCategoryView) ? restaurant.categoryDishPrice : (restaurant.categoryDishName || restaurant.featuredDish)) && (
                           <div className="absolute top-3 left-3">
                             <div className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm md:text-base font-medium ${BRAND_THEME.tokens.homepage.home.restaurantCard.featuredDishBadge}`}>
-                              {isCategoryView
+                              {showDishInfo && isCategoryView
                                 ? `â‚¹${restaurant.categoryDishPrice || restaurant.featuredPrice || 0}`
                                 : `${restaurant.categoryDishName || restaurant.featuredDish} â€¢ â‚¹${restaurant.categoryDishPrice || restaurant.featuredPrice}`}
                             </div>
@@ -1781,17 +1872,19 @@ export default function CategoryPage() {
                         <div className="flex items-start justify-between gap-2 mb-2 lg:mb-3">
                           <div className="flex-1 min-w-0">
                             <h3 className="text-md md:text-xl lg:text-2xl font-bold text-gray-900 dark:text-white line-clamp-1 lg:line-clamp-2">
-                              {isCategoryView ? (restaurant.categoryDishName || restaurant.featuredDish || restaurant.name) : restaurant.name}
+                              {showDishInfo && isCategoryView ? (restaurant.categoryDishName || restaurant.featuredDish || restaurant.name) : restaurant.name}
                             </h3>
-                            {isCategoryView && (
+                            {showDishInfo && isCategoryView && (
                               <p className="mt-1 text-sm md:text-base text-gray-500 dark:text-gray-400 line-clamp-1">
                                 {restaurant.name}
                               </p>
                             )}
                           </div>
-                          <div className="flex-shrink-0 bg-green-600 text-white px-2 md:px-3 lg:px-4 py-1 lg:py-1.5 rounded-lg flex items-center gap-1">
-                            <span className="text-sm md:text-base lg:text-lg font-bold">{restaurant.rating}</span>
-                            <Star className="h-3 w-3 md:h-4 md:w-4 lg:h-5 lg:w-5 fill-white text-white" />
+                          <div className={`flex-shrink-0 ${Number(restaurant.rating) > 0 ? "bg-green-600 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"} px-2 md:px-3 lg:px-4 py-1 lg:py-1.5 rounded-lg flex items-center gap-1`}>
+                            <span className="text-sm md:text-base lg:text-lg font-bold">
+                              {Number(restaurant.rating) > 0 ? Number(restaurant.rating).toFixed(1) : "NEW"}
+                            </span>
+                            {Number(restaurant.rating) > 0 && <Star className="h-3 w-3 md:h-4 md:w-4 lg:h-5 lg:w-5 fill-white text-white" />}
                           </div>
                         </div>
 
