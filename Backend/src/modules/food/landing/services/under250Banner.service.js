@@ -7,7 +7,7 @@ const normalizePriceLimit = (value) => {
     return Math.round(parsed);
 };
 
-export const listUnder250Banners = async ({ priceLimit = null, isActive = null } = {}) => {
+export const listUnder250Banners = async ({ priceLimit = null, isActive = null, zoneId = null } = {}) => {
     const filter = {};
     const normalizedPriceLimit = normalizePriceLimit(priceLimit);
     if (normalizedPriceLimit !== null) {
@@ -15,6 +15,14 @@ export const listUnder250Banners = async ({ priceLimit = null, isActive = null }
     }
     if (typeof isActive === 'boolean') {
         filter.isActive = isActive;
+    }
+    if (zoneId && zoneId !== 'undefined' && zoneId !== 'null') {
+        filter.$or = [
+            { zoneId: { $exists: false } },
+            { zoneId: null },
+            { zoneId: "" },
+            { zoneId: zoneId }
+        ];
     }
     return FoodUnder250Banner.find(filter).sort({ sortOrder: 1, createdAt: -1 }).lean();
 };

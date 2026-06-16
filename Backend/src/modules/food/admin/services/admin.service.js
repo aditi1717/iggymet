@@ -7630,6 +7630,34 @@ export async function getDeliveryPayoutSettlementPreview(query = {}, adminScope 
                             0
                         ]
                     }
+                },
+                codOrdersCount: {
+                    $sum: {
+                        $cond: [
+                            {
+                                $and: [
+                                    '$payoutPending',
+                                    { $in: ['$paymentMethodLower', ['cash', 'cod', 'cash_on_delivery']] }
+                                ]
+                            },
+                            1,
+                            0
+                        ]
+                    }
+                },
+                codAmount: {
+                    $sum: {
+                        $cond: [
+                            {
+                                $and: [
+                                    '$payoutPending',
+                                    { $in: ['$paymentMethodLower', ['cash', 'cod', 'cash_on_delivery']] }
+                                ]
+                            },
+                            { $ifNull: ['$pricing.total', 0] },
+                            0
+                        ]
+                    }
                 }
             }
         },
@@ -7653,7 +7681,9 @@ export async function getDeliveryPayoutSettlementPreview(query = {}, adminScope 
                 beneficiaryId: '$_id',
                 beneficiaryName: { $ifNull: ['$partner.name', 'Unknown Delivery Partner'] },
                 ordersCount: 1,
-                totalEarning: 1
+                totalEarning: 1,
+                codOrdersCount: 1,
+                codAmount: 1
             }
         },
         { $sort: { totalEarning: -1, beneficiaryName: 1 } }
@@ -7699,17 +7729,19 @@ export async function getDeliveryPayoutSettlementPreview(query = {}, adminScope 
         const totalEarning = Number(row.totalEarning || 0);
         const alreadyPaid = 0;
         const payableNow = Math.max(0, totalEarning);
+        const codOrdersCount = Number(row.codOrdersCount || 0);
+        const codAmount = Number(row.codAmount || 0);
 
         return {
             ...row,
             beneficiaryId: id,
             alreadyPaid,
             payableNow,
-            codOrdersCount: 0,
-            codAmount: 0,
+            codOrdersCount,
+            codAmount,
             codPaid: 0,
-            codPending: 0,
-            codStatus: 'nil',
+            codPending: codAmount,
+            codStatus: codAmount > 0 ? 'pending' : 'nil',
             status: payableNow <= 0 ? 'paid' : 'pending',
             lastSettledToDate: lastSettledByPartner.get(id) || null
         };
@@ -8125,7 +8157,35 @@ export async function markAllDeliveryPayoutSettled(payload = {}, adminScope = {}
                 _id: '$dispatch.deliveryPartnerId',
                 payoutOrderIds: { $push: { $cond: ['$payoutPending', '$_id', null] } },
                 ordersCount: { $sum: { $cond: ['$payoutPending', 1, 0] } },
-                totalEarning: { $sum: { $cond: ['$payoutPending', '$payoutAmount', 0] } }
+                totalEarning: { $sum: { $cond: ['$payoutPending', '$payoutAmount', 0] } },
+                codOrdersCount: {
+                    $sum: {
+                        $cond: [
+                            {
+                                $and: [
+                                    '$payoutPending',
+                                    { $in: ['$paymentMethodLower', ['cash', 'cod', 'cash_on_delivery']] }
+                                ]
+                            },
+                            1,
+                            0
+                        ]
+                    }
+                },
+                codAmount: {
+                    $sum: {
+                        $cond: [
+                            {
+                                $and: [
+                                    '$payoutPending',
+                                    { $in: ['$paymentMethodLower', ['cash', 'cod', 'cash_on_delivery']] }
+                                ]
+                            },
+                            { $ifNull: ['$pricing.total', 0] },
+                            0
+                        ]
+                    }
+                }
             }
         }
     ]);
@@ -8168,9 +8228,9 @@ export async function markAllDeliveryPayoutSettled(payload = {}, adminScope = {}
             toAt: end,
             transactionIds: settlementOrderIds,
             ordersCount: Number(entry.ordersCount || 0),
-            codOrdersCount: 0,
+            codOrdersCount: Number(entry.codOrdersCount || 0),
             grossAmount: totalEarning,
-            codAmount: 0,
+            codAmount: Number(entry.codAmount || 0),
             codPaidAmount: 0,
             paidAmount: payableNow,
             adjustmentAmount: 0,

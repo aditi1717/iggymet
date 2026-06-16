@@ -904,41 +904,6 @@ export default function Home() {
     };
   }, [showVegModePopup]);
 
-  // Fetch hero banners from public API (no auth required)
-  useEffect(() => {
-    let cancelled = false;
-    setLoadingBanners(true);
-    publicGetOnce("/food/hero-banners/public")
-      .then((response) => {
-        if (cancelled) return;
-        const data = response?.data?.data;
-        const list = Array.isArray(data?.banners)
-          ? data.banners
-          : Array.isArray(data)
-            ? data
-            : [];
-        const images = list
-          .map((b) => (b && typeof b.imageUrl === "string" ? b.imageUrl : ""))
-          .filter(Boolean);
-        
-        setHeroBannerImages(images);
-        setHeroBannersData(list);
-        setCurrentBannerIndex(0);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        debugError("Failed to fetch hero banners", err);
-        setHeroBannerImages([]);
-        setHeroBannersData([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingBanners(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   // Old backend endpoint removed: keep UI stable with empty categories.
   useEffect(() => {
     setLoadingRealCategories(true);
@@ -1226,6 +1191,43 @@ export default function Home() {
     }
   }, [zoneId, zoneStatus, location?.latitude, location?.longitude]);
   const resolvedZoneId = zoneId || cachedZoneId;
+
+  // Fetch hero banners from public API (no auth required)
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingBanners(true);
+    const url = resolvedZoneId ? `/food/hero-banners/public?zoneId=${resolvedZoneId}` : "/food/hero-banners/public";
+    publicGetOnce(url)
+      .then((response) => {
+        if (cancelled) return;
+        const data = response?.data?.data;
+        const list = Array.isArray(data?.banners)
+          ? data.banners
+          : Array.isArray(data)
+            ? data
+            : [];
+        const images = list
+          .map((b) => (b && typeof b.imageUrl === "string" ? b.imageUrl : ""))
+          .filter(Boolean);
+        
+        setHeroBannerImages(images);
+        setHeroBannersData(list);
+        setCurrentBannerIndex(0);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        debugError("Failed to fetch hero banners", err);
+        setHeroBannerImages([]);
+        setHeroBannersData([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingBanners(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedZoneId]);
+  
   const [showToast, setShowToast] = useState(false);
   const [showManageCollections, setShowManageCollections] = useState(false);
   const [selectedRestaurantSlug, setSelectedRestaurantSlug] = useState(null);

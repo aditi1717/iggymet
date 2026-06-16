@@ -71,49 +71,6 @@ const getAdminPaidStatus = (trip) => {
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 };
 
-const getCodToAdminStatus = (trip, adminPaidStatus) => {
-  const rawOrderStatus = normalizeStatus(trip?.rawOrderStatus || trip?.orderStatus || trip?.status);
-  const isUserUnavailable = Boolean(
-    trip?.codExempt ||
-      trip?.isCompensatedCancellation ||
-      rawOrderStatus === 'cancelled_by_user_unavailable',
-  );
-  if (isUserUnavailable) return 'N/A (User Unavailable)';
-
-  const method = String(
-    trip?.paymentMethod ||
-      trip?.payment?.method ||
-      trip?.transaction?.paymentMethod ||
-      '',
-  )
-    .trim()
-    .toLowerCase();
-
-  const isCash = ['cash', 'cod', 'cash_on_delivery'].includes(method);
-  if (!isCash) return 'N/A (Online)';
-
-  const raw = String(
-    trip?.cashSubmittedToAdmin ||
-      trip?.cashHandoverStatus ||
-      trip?.paymentCollectionStatus ||
-      trip?.dispatch?.cashCollectionStatus ||
-      trip?.deliveryCashStatus ||
-      '',
-  )
-    .trim()
-    .toLowerCase();
-
-  if (['yes', 'true', 'submitted', 'deposited', 'settled', 'paid', 'handed_over', 'collected'].includes(raw)) {
-    return 'Submitted';
-  }
-
-  if (['no', 'false', 'pending', 'not_submitted', 'due'].includes(raw)) {
-    return 'Pending';
-  }
-
-  return adminPaidStatus === 'Paid' ? 'Submitted' : 'Pending';
-};
-
 const getPaymentModeLabel = (trip) => {
   const method = String(
     trip?.paymentMethod ||
@@ -134,14 +91,6 @@ const getStatusBadgeClasses = (status) => {
   if (status === 'Paid') return 'bg-green-50 text-green-700 border-green-200';
   if (status === 'Pending') return 'bg-amber-50 text-amber-700 border-amber-200';
   if (status === 'Failed') return 'bg-red-50 text-red-700 border-red-200';
-  return 'bg-slate-50 text-slate-700 border-slate-200';
-};
-
-const getCodStatusBadgeClasses = (status) => {
-  if (status === 'Submitted') return 'bg-green-50 text-green-700 border-green-200';
-  if (status === 'Pending') return 'bg-amber-50 text-amber-700 border-amber-200';
-  if (status === 'N/A (Online)') return 'bg-slate-50 text-slate-600 border-slate-200';
-  if (status === 'N/A (User Unavailable)') return 'bg-slate-50 text-slate-600 border-slate-200';
   return 'bg-slate-50 text-slate-700 border-slate-200';
 };
 
@@ -333,7 +282,6 @@ export const PocketDetailsV2 = () => {
             earning: getTripEarning(trip),
             paymentMode: getPaymentModeLabel(trip),
             adminPaidStatus,
-            codToAdminStatus: getCodToAdminStatus(trip, adminPaidStatus),
           };
         })
         .sort((a, b) => new Date(b.deliveredAt || 0).getTime() - new Date(a.deliveredAt || 0).getTime()),
@@ -404,7 +352,6 @@ export const PocketDetailsV2 = () => {
       row.orderAmount.toFixed(2),
       row.earning.toFixed(2),
       row.adminPaidStatus,
-      row.codToAdminStatus,
     ]);
 
     const totals = filteredRows.reduce(
@@ -426,7 +373,6 @@ export const PocketDetailsV2 = () => {
           <td class="num">${htmlEscape(line[4])}</td>
           <td class="num">${htmlEscape(line[5])}</td>
           <td>${htmlEscape(line[6])}</td>
-          <td>${htmlEscape(line[7])}</td>
         </tr>
       `)
       .join('');
@@ -439,7 +385,6 @@ export const PocketDetailsV2 = () => {
         <td></td>
         <td class="num">${htmlEscape(totals.orderAmount.toFixed(2))}</td>
         <td class="num">${htmlEscape(totals.earning.toFixed(2))}</td>
-        <td></td>
         <td></td>
       </tr>
     `;
@@ -467,7 +412,6 @@ export const PocketDetailsV2 = () => {
                 <th>Order Amount</th>
                 <th>Earning</th>
                 <th>Admin Paid</th>
-                <th>COD To Admin</th>
               </tr>
             </thead>
             <tbody>
@@ -687,7 +631,6 @@ export const PocketDetailsV2 = () => {
                     <th className="px-6 py-2.5 text-right text-[11px] font-bold text-gray-600 uppercase tracking-wider">Order Amount</th>
                     <th className="px-6 py-2.5 text-right text-[11px] font-bold text-gray-600 uppercase tracking-wider">Earning</th>
                     <th className="px-6 py-2.5 text-left text-[11px] font-bold text-gray-600 uppercase tracking-wider">Admin Paid</th>
-                    <th className="px-6 py-2.5 text-left text-[11px] font-bold text-gray-600 uppercase tracking-wider">COD To Admin</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -716,15 +659,6 @@ export const PocketDetailsV2 = () => {
                           )}`}
                         >
                           {row.adminPaidStatus}
-                        </span>
-                      </td>
-                      <td className="px-6 py-2.5">
-                        <span
-                          className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${getCodStatusBadgeClasses(
-                            row.codToAdminStatus,
-                          )}`}
-                        >
-                          {row.codToAdminStatus}
                         </span>
                       </td>
                     </tr>

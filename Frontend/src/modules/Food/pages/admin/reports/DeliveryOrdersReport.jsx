@@ -102,7 +102,7 @@ const getCashHandover = (order, payoutStatus) => {
     return "No";
   }
 
-  return payoutStatus === "Paid" ? "Yes" : "No";
+  return "No";
 };
 
 export default function DeliveryOrdersReport() {

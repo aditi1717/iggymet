@@ -478,7 +478,8 @@ export default function Under250() {
   useEffect(() => {
     let cancelled = false
     setLoadingBanner(true)
-    api.get('/food/hero-banners/under-250/public')
+    const url = zoneId ? `/food/hero-banners/under-250/public?zoneId=${zoneId}` : '/food/hero-banners/under-250/public'
+    api.get(url)
       .then((res) => {
         if (cancelled) return
         const data = res?.data?.data
@@ -495,7 +496,7 @@ export default function Under250() {
         if (!cancelled) setLoadingBanner(false)
       })
     return () => { cancelled = true }
-  }, [])
+  }, [zoneId])
 
   useEffect(() => {
     setCurrentBannerIndex((prev) => {

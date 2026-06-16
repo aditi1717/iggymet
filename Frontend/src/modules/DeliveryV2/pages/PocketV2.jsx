@@ -32,6 +32,7 @@ export const PocketV2 = () => {
     adminDue: 0,
     cashInHand: 0,
     cashSubmittedToAdmin: 0,
+    availableCashLimit: 0,
   });
   const [profileState, setProfileState] = useState({ name: '', phone: '', email: '' });
   const [depositAmount, setDepositAmount] = useState('');
@@ -62,6 +63,7 @@ export const PocketV2 = () => {
       wallet.totalSubmittedToAdmin,
       0,
     );
+    const availableCashLimit = toNumber(wallet.availableCashLimit, 0);
 
     setProfileState({
       name: profile?.name || '',
@@ -77,6 +79,7 @@ export const PocketV2 = () => {
       adminDue: Math.max(0, grossBalance - totalWithdrawn),
       cashInHand,
       cashSubmittedToAdmin,
+      availableCashLimit,
     });
   };
 
@@ -207,6 +210,7 @@ export const PocketV2 = () => {
           <div className="grid grid-cols-2 gap-3">
             <InfoCard label="Cash In Hand" value={formatCurrency(walletState.cashInHand)} />
             <InfoCard label="Cash Submitted To Admin" value={formatCurrency(walletState.cashSubmittedToAdmin)} />
+            <InfoCard label="Remaining COD Limit" value={formatCurrency(walletState.availableCashLimit)} className="col-span-2 border-emerald-100/60" />
           </div>
           <div className="mt-3 space-y-3">
             <div className="flex items-center gap-2">

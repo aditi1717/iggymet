@@ -13,17 +13,28 @@ export const getPublicHeroBannersController = async (req, res, next) => {
             .sort({ sortOrder: 1, createdAt: -1 })
             .populate({
                 path: 'linkedRestaurantIds',
-                select: '_id restaurantName slug area city rating cuisines profileImage pureVegRestaurant',
+                select: '_id restaurantName slug area city rating cuisines profileImage pureVegRestaurant zoneId status',
                 model: 'FoodRestaurant'
             })
             .lean();
-        const banners = (docs || []).map((b) => {
+        let banners = (docs || []).map((b) => {
             const { linkedRestaurantIds, ...rest } = b;
+            const approvedRestaurants = (Array.isArray(linkedRestaurantIds) ? linkedRestaurantIds : [])
+                .filter((r) => r && r.status === 'approved');
             return {
                 ...rest,
-                linkedRestaurants: Array.isArray(linkedRestaurantIds) ? linkedRestaurantIds : [],
+                linkedRestaurants: approvedRestaurants,
+                hasOriginalLinks: Array.isArray(linkedRestaurantIds) && linkedRestaurantIds.length > 0,
                 imageUrl: b.imageUrl
             };
+        });
+        const { zoneId } = req.query;
+        banners = banners.filter((b) => {
+            if (b.hasOriginalLinks && b.linkedRestaurants.length === 0) return false;
+            if (zoneId && zoneId !== 'undefined' && zoneId !== 'null' && b.linkedRestaurants.length > 0) {
+                return b.linkedRestaurants.some((r) => r.zoneId && r.zoneId.toString() === zoneId.toString());
+            }
+            return true;
         });
         return sendResponse(res, 200, 'Hero banners fetched', { banners });
     } catch (error) {
@@ -33,7 +44,8 @@ export const getPublicHeroBannersController = async (req, res, next) => {
 
 export const getPublicUnder250BannersController = async (req, res, next) => {
     try {
-        const docs = await listUnder250Banners({ isActive: true });
+        const { zoneId } = req.query;
+        const docs = await listUnder250Banners({ isActive: true, zoneId });
         return sendResponse(res, 200, 'Under 250 banners fetched', { banners: docs });
     } catch (error) {
         next(error);
