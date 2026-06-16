@@ -7,6 +7,8 @@ import {
   Polyline
 } from '@react-google-maps/api';
 import io from 'socket.io-client';
+import { goOffline, goOnline } from 'firebase/database';
+import { firebaseRealtimeDb } from '@food/firebase';
 import { API_BASE_URL } from '@food/api/config';
 import { subscribeOrderTracking } from '@food/realtimeTracking';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -145,7 +147,6 @@ const DeliveryTrackingMap = ({
       order?.deliveryPartnerId?.lastLocation ||
       order?.deliveryPartner?.location ||
       order?.deliveryPartner?.lastLocation ||
-      // flat lat/lng from partner profile
       (order?.deliveryPartner?.lastLat && order?.deliveryPartner?.lastLng
         ? { lat: order.deliveryPartner.lastLat, lng: order.deliveryPartner.lastLng }
         : null) ||
@@ -193,12 +194,33 @@ const DeliveryTrackingMap = ({
     }
   }, [order, riderLocation, triggerSmoothMove, parseLocation, restaurantCoords, customerCoords]);
 
-  // 2. Core Data Sync (Socket + Firebase) — ALL updates go through triggerSmoothMove
   useEffect(() => {
     const ids = trackingIdsStr.split(',').filter(Boolean);
     if (!ids.length) return;
 
     debugLog('🔌 Subscribing to tracking IDs:', ids);
+
+    // Reconnection recovery helper
+    const handleReconnection = () => {
+      debugLog('📱 Re-focus/visibility/online detected: forcing connection recovery');
+      if (socketRef.current) {
+        debugLog('🔌 Forcing Socket.IO disconnect/reconnect cycle...');
+        socketRef.current.disconnect().connect();
+      }
+      if (firebaseRealtimeDb) {
+        try {
+          debugLog('🔥 Cycling Firebase connection...');
+          goOffline(firebaseRealtimeDb);
+          goOnline(firebaseRealtimeDb);
+        } catch (e) {
+          console.error('[DeliveryTrackingMap] Error cycling Firebase connection:', e);
+        }
+      }
+    };
+
+    window.addEventListener('focus', handleReconnection);
+    document.addEventListener('visibilitychange', handleReconnection);
+    window.addEventListener('online', handleReconnection);
 
     // A. FIREBASE REALTIME (persistent fallback)
     const unsubs = ids.map(id => subscribeOrderTracking(id, (data) => {
@@ -227,6 +249,9 @@ const DeliveryTrackingMap = ({
     const token = localStorage.getItem('user_accessToken') || localStorage.getItem('accessToken') || '';
     if (!backendUrl || !token) {
       return () => {
+        window.removeEventListener('focus', handleReconnection);
+        document.removeEventListener('visibilitychange', handleReconnection);
+        window.removeEventListener('online', handleReconnection);
         unsubs.forEach(u => u?.());
       };
     }
@@ -302,6 +327,9 @@ const DeliveryTrackingMap = ({
     });
 
     return () => {
+      window.removeEventListener('focus', handleReconnection);
+      document.removeEventListener('visibilitychange', handleReconnection);
+      window.removeEventListener('online', handleReconnection);
       unsubs.forEach(u => u?.());
       joinedTrackingIdsRef.current.forEach((id) => {
         socketRef.current?.emit('leave-tracking', id);
