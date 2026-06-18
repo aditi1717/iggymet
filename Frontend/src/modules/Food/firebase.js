@@ -39,7 +39,12 @@ function initializeBaseApp() {
   if (existingApps.length > 0) {
     app = existingApps[0];
   } else {
-    app = initializeApp(firebaseConfig);
+    try {
+      app = initializeApp(firebaseConfig);
+    } catch (error) {
+      console.error('[firebase] Failed to initialize Firebase app:', error?.message || error);
+      return null;
+    }
   }
   return app;
 }
@@ -50,6 +55,7 @@ function initializeBaseApp() {
 export function getFirebaseAuth() {
   if (!firebaseAuth) {
     const firebaseApp = initializeBaseApp();
+    if (!firebaseApp) return null;
     firebaseAuth = getAuth(firebaseApp);
   }
   return firebaseAuth;
@@ -76,13 +82,20 @@ export function ensureFirebaseInitialized(options = {}) {
     return null;
   }
   const firebaseApp = initializeBaseApp();
+  if (!firebaseApp) return null;
 
   if (enableAuth) {
     getFirebaseAuth();
   }
 
   if (enableRealtimeDb && !firebaseRealtimeDb) {
-    firebaseRealtimeDb = getDatabase(firebaseApp);
+    try {
+      firebaseRealtimeDb = getDatabase(firebaseApp);
+    } catch (error) {
+      console.error('[firebase] Failed to initialize Firebase Realtime DB:', error?.message || error);
+      firebaseRealtimeDb = null;
+      return null;
+    }
   }
   
   return firebaseApp;

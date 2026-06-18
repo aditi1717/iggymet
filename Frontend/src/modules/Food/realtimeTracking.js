@@ -24,21 +24,26 @@ function getOrderTrackingPath(orderId) {
 
 export function subscribeOrderTracking(orderId, onChange, onError) {
   if (!orderId || typeof onChange !== 'function') return () => {};
-  const firebaseApp = ensureFirebaseInitialized({ enableAuth: false, enableRealtimeDb: true });
-  if (!firebaseApp || !firebaseRealtimeDb) return () => {};
-  const path = getOrderTrackingPath(orderId);
-  const unsub = onValue(
-    ref(firebaseRealtimeDb, path),
-    (snapshot) => {
-      const data = snapshot.val();
-      if (!data) return;
-      onChange(data, path);
-    },
-    (error) => {
-      if (typeof onError === 'function') onError(error, path);
-    },
-  );
-  return unsub;
+  try {
+    const firebaseApp = ensureFirebaseInitialized({ enableAuth: false, enableRealtimeDb: true });
+    if (!firebaseApp || !firebaseRealtimeDb) return () => {};
+    const path = getOrderTrackingPath(orderId);
+    const unsub = onValue(
+      ref(firebaseRealtimeDb, path),
+      (snapshot) => {
+        const data = snapshot.val();
+        if (!data) return;
+        onChange(data, path);
+      },
+      (error) => {
+        if (typeof onError === 'function') onError(error, path);
+      },
+    );
+    return unsub;
+  } catch (error) {
+    console.error('[realtimeTracking] subscribeOrderTracking failed:', error?.message || error);
+    return () => {};
+  }
 }
 
 export function subscribeDeliveryLocation(deliveryId, onChange, onError) {

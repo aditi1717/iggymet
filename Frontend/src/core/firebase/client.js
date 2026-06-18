@@ -32,13 +32,23 @@ export const getFirebaseApp = () => {
     appId: import.meta.env.VITE_FIREBASE_APP_ID,
   };
 
-  firebaseApp = initializeApp(firebaseConfig);
-  return firebaseApp;
+  try {
+    firebaseApp = initializeApp(firebaseConfig);
+    return firebaseApp;
+  } catch (error) {
+    console.error("[firebase] Failed to initialize Firebase app:", error?.message || error);
+    return null;
+  }
 };
 
 export const getRealtimeDb = () => {
-  const app = getFirebaseApp();
-  if (!app) return null;
-  return getDatabase(app);
+  try {
+    const app = getFirebaseApp();
+    if (!app) return null;
+    return getDatabase(app);
+  } catch (error) {
+    console.error("[firebase] Failed to initialize Firebase Realtime DB:", error?.message || error);
+    return null;
+  }
 };
 
