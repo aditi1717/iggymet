@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from "@food/components/ui/dialog"
 import { Textarea } from "@food/components/ui/textarea"
+import ErrorBoundary from "../../../../../shared/components/ErrorBoundary"
 import { useOrders } from "@food/context/OrdersContext"
 import { useProfile } from "@food/context/ProfileContext"
 import { useCart } from "@food/context/CartContext"
@@ -619,7 +620,7 @@ function shouldFallbackToOrderList(error) {
   return status === 400 || status === 404
 }
 
-export default function OrderTracking() {
+function OrderTrackingContent() {
   const companyName = useCompanyName()
   const navigate = useNavigate()
   const { orderId } = useParams()
@@ -1628,17 +1629,19 @@ export default function OrderTracking() {
       </motion.div>
 
       {canShowLiveTrackingMap && (
-        <div className="max-w-4xl mx-auto px-4 md:px-6 lg:px-8 pt-4 md:pt-6">
-          <div className="h-[36vh] min-h-[280px] md:h-[44vh] rounded-2xl overflow-hidden">
-            <DeliveryTrackingMap
-              orderId={resolvedLookupId || orderId}
-              orderTrackingIds={trackingIds}
-              restaurantCoords={trackingMapCoords.restaurant}
-              customerCoords={trackingMapCoords.customer}
-              order={order}
-            />
+        <ErrorBoundary>
+          <div className="max-w-4xl mx-auto px-4 md:px-6 lg:px-8 pt-4 md:pt-6">
+            <div className="h-[36vh] min-h-[280px] md:h-[44vh] rounded-2xl overflow-hidden">
+              <DeliveryTrackingMap
+                orderId={resolvedLookupId || orderId}
+                orderTrackingIds={trackingIds}
+                restaurantCoords={trackingMapCoords.restaurant}
+                customerCoords={trackingMapCoords.customer}
+                order={order}
+              />
+            </div>
           </div>
-        </div>
+        </ErrorBoundary>
       )}
 
       {/* Scrollable Content */}
@@ -2293,5 +2296,13 @@ export default function OrderTracking() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function OrderTracking() {
+  return (
+    <ErrorBoundary>
+      <OrderTrackingContent />
+    </ErrorBoundary>
   )
 }
