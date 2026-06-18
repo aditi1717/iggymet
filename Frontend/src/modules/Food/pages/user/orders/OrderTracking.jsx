@@ -680,6 +680,15 @@ export default function OrderTracking() {
     latestRefreshStateRef.current = isRefreshing
   }, [isRefreshing])
 
+  useEffect(() => {
+    console.info("[OrderTracking][prod] mounted", {
+      orderId,
+      pathname: typeof window !== "undefined" ? window.location.pathname : "",
+      search: typeof window !== "undefined" ? window.location.search : "",
+      hasOrderInCache: Boolean(getOrderById(orderId)),
+    })
+  }, [getOrderById, orderId])
+
 
   // --------------------------------------------------------------------------
   // DATA FETCHING & POLLING STABILITY (FIXED FOR HAMMERING)
@@ -768,6 +777,14 @@ export default function OrderTracking() {
     if (activeFetchPromiseRef.current) return activeFetchPromiseRef.current
     if (terminalPollStopRef.current && !isInitial) return null
 
+    console.info("[OrderTracking][prod] refreshOrderData:start", {
+      orderId,
+      isInitial,
+      force,
+      allowListFallback,
+      hasCurrentOrder: Boolean(latestOrderRef.current),
+    })
+
     const now = Date.now()
     const minFetchGap = force ? 1000 : 2000
     if (!isInitial && now - lastNetworkFetchAtRef.current < minFetchGap) {
@@ -795,6 +812,13 @@ export default function OrderTracking() {
         }
 
         if (finalOrderData) {
+          console.info("[OrderTracking][prod] refreshOrderData:success", {
+            orderId,
+            resolvedId: finalOrderData?._id || finalOrderData?.orderId || finalOrderData?.id || null,
+            status: finalOrderData?.orderStatus || finalOrderData?.status || null,
+            hasNote: Boolean(finalOrderData?.note),
+            itemCount: Array.isArray(finalOrderData?.items) ? finalOrderData.items.length : 0,
+          })
           setOrder((prev) => {
             const transformedOrder = transformOrderForTracking(finalOrderData, prev)
             const ui = mapOrderToTrackingUiStatus(transformedOrder)
@@ -812,6 +836,14 @@ export default function OrderTracking() {
 
         return response
       } catch (err) {
+        console.error("[OrderTracking][prod] refreshOrderData:error", {
+          orderId,
+          isInitial,
+          force,
+          allowListFallback,
+          status: err?.response?.status || null,
+          message: err?.response?.data?.message || err?.message || String(err),
+        })
         if (isInitial && !latestOrderRef.current && allowListFallback && shouldFallbackToOrderList(err)) {
           try {
             const matchedOrder = await resolveOrderFromList(orderId)
@@ -1009,6 +1041,10 @@ export default function OrderTracking() {
     () => !isCancelledOrder && !isDeliveredLikeOrder,
     [isCancelledOrder, isDeliveredLikeOrder],
   )
+  const orderNote = String(order?.note || "").trim()
+  const orderNotePreview = orderNote
+    ? `${orderNote.slice(0, 35)}${orderNote.length > 35 ? "..." : ""}`
+    : ""
 
   const handleCallRestaurant = (e) => {
     // Prevent event bubbling if necessary
@@ -1548,7 +1584,7 @@ export default function OrderTracking() {
           >
             <ArrowLeft className="w-6 h-6" />
           </motion.button>
-          <h2 className="font-semibold text-lg text-black">{order.restaurant}</h2>
+          <h2 className="font-semibold text-lg text-black">{order?.restaurant || "Restaurant"}</h2>
           <div className="w-10 h-10" />
         </div>
 
@@ -1734,7 +1770,7 @@ export default function OrderTracking() {
                 <MessageSquare className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
                   <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-0.5">Instruction for Rider</p>
-                  <p className="text-xs text-gray-700 leading-relaxed font-medium">"{order.note}"</p>
+                  <p className="text-xs text-gray-700 leading-relaxed font-medium">"{orderNote}"</p>
                 </div>
               </div>
             )}
@@ -1880,7 +1916,7 @@ export default function OrderTracking() {
             <SectionItem
               icon={MessageSquare}
               title="Delivery instructions added"
-              subtitle={order.note.substring(0, 35) + (order.note.length > 35 ? "..." : "")}
+              subtitle={orderNotePreview}
               showArrow={false}
             />
           )}

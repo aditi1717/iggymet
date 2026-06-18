@@ -41,7 +41,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import Footer from "@food/components/user/Footer";
 import AddToCartButton from "@food/components/user/AddToCartButton";
 import StickyCartCard from "@food/components/user/StickyCartCard";
-import OrderTrackingCard from "@food/components/user/OrderTrackingCard";
 import {
   CategoryChipRowSkeleton,
   ExploreGridSkeleton,
@@ -4275,8 +4274,6 @@ export default function Home() {
         )}
 
       <StickyCartCard />
-      {/* Live order strip: homepage only */}
-      <OrderTrackingCard hasBottomNav showOtpBanner={false} />
     </div>
   );
 }
