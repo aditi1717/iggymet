@@ -1,4 +1,5 @@
 import { sendResponse } from '../../../../utils/response.js';
+import { logger } from '../../../../utils/logger.js';
 import * as orderService from '../services/order.service.js';
 import * as foodOrderPaymentService from '../services/foodOrderPayment.service.js';
 import {
@@ -71,9 +72,16 @@ export async function getOrderByIdUserController(req, res, next) {
     try {
         const userId = req.user?.userId;
         const orderId = req.params.orderId;
+        logger.info(`[FoodOrderDetail] userId=${userId || '-'} orderId=${orderId || '-'} route=/api/v1/food/orders/${orderId || '-'}`);
         const order = await orderService.getOrderById(orderId, { userId });
+        logger.info(
+            `[FoodOrderDetail] loaded orderId=${order?._id || '-'} publicId=${order?.orderId || '-'} status=${order?.orderStatus || order?.status || '-'} hasNote=${Boolean(order?.note)} items=${Array.isArray(order?.items) ? order.items.length : 0}`
+        );
         return sendResponse(res, 200, 'Order retrieved', { order });
     } catch (err) {
+        logger.error(
+            `[FoodOrderDetail] failed orderId=${req.params?.orderId || '-'} userId=${req.user?.userId || '-'} message=${err?.message || err}`
+        );
         next(err);
     }
 }

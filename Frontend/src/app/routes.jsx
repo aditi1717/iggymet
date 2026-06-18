@@ -106,7 +106,6 @@ const AppRoutes = () => {
       <Route path="/user/*" element={<LegacyUserRedirect />} />
       <Route path="/food/user/*" element={<LegacyFoodUserRedirect />} />
       <Route path="/under-price" element={<FoodAppWrapper />} />
-      <Route path="/under-*" element={<Navigate to="/food/under-price" replace />} />
       <Route path="/food/*" element={<FoodAppWrapper />} />
       <Route path="/*" element={<FoodAppWrapper />} />
     </Routes>
