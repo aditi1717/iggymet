@@ -4972,7 +4972,7 @@ export async function updateDeliverySupportTicket(id, body = {}) {
 // ----- Delivery partners (approved list) -----
 export async function getDeliveryPartners(query, adminScope = {}) {
     const { page = 1, limit = 1000, search } = query;
-    const filter = { status: 'approved' };
+    const filter = { status: { $in: ['approved', 'rejected'] } };
     const includeAvailability = String(query?.includeAvailability || '').toLowerCase() === 'true';
     const scope = normalizeAdminScope(adminScope);
 
@@ -5128,6 +5128,7 @@ export async function getDeliveryPartners(query, adminScope = {}) {
         zone: doc.zoneId?.name || doc.zoneId?.zoneName || doc.zoneId?.serviceLocation || doc.city || doc.state || doc.address || '',
         vehicleType: doc.vehicleType || '',
         status: doc.status,
+        displayStatus: doc.status === 'rejected' ? 'blocked' : doc.status,
         availabilityStatus: doc.availabilityStatus || 'offline',
         lastLat: Number(doc?.lastLat) || 0,
         lastLng: Number(doc?.lastLng) || 0,
@@ -5998,6 +5999,12 @@ export async function rejectDeliveryPartner(id, reason) {
 
     if (updated) {
         try {
+            await FoodRefreshToken.deleteMany({ userId: updated._id });
+            console.log('[AdminDelivery] Blocked delivery partner:', {
+                deliveryPartnerId: String(updated._id),
+                name: updated.name || '',
+                reason: reason || '',
+            });
             const { notifyOwnerSafely } = await import('../../../../core/notifications/firebase.service.js');
             await notifyOwnerSafely(
                 { ownerType: 'DELIVERY_PARTNER', ownerId: updated._id },
@@ -6017,6 +6024,48 @@ export async function rejectDeliveryPartner(id, reason) {
         }
     }
     return updated;
+}
+
+export async function deleteDeliveryPartner(id, adminScope = {}) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+
+    const partner = await FoodDeliveryPartner.findById(id).lean();
+    if (!partner) return null;
+
+    const activeOrderCount = await FoodOrder.countDocuments({
+        'dispatch.deliveryPartnerId': partner._id,
+        orderStatus: {
+            $nin: [
+                'delivered',
+                'cancelled',
+                'cancelled_by_user',
+                'cancelled_by_user_unavailable',
+                'cancelled_by_restaurant',
+                'cancelled_by_admin',
+            ],
+        },
+    });
+
+    if (activeOrderCount > 0) {
+        throw new ValidationError(`Cannot delete delivery partner with ${activeOrderCount} active order(s). Block the account instead.`);
+    }
+
+    await Promise.all([
+        FoodRefreshToken.deleteMany({ userId: partner._id }),
+        FoodDeliveryPartner.deleteOne({ _id: partner._id }),
+    ]);
+
+    console.log('[AdminDelivery] Deleted delivery partner:', {
+        deliveryPartnerId: String(partner._id),
+        name: partner.name || '',
+        adminId: adminScope?.id || '',
+    });
+
+    return {
+        deletedId: String(partner._id),
+        name: partner.name || '',
+        phone: partner.phone || '',
+    };
 }
 
 export async function approveDeliveryPartnerZoneChange(id) {

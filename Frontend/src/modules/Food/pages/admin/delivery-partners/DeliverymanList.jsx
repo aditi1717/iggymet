@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from "react"
-import { Search, Download, ChevronDown, Eye, User, Star, ArrowUpDown, Settings, FileText, FileSpreadsheet, Loader2, Check, Columns, ExternalLink, Calendar, MapPin, CreditCard, Mail, Phone, Bike, FileCheck, Pencil, Save, Trash2, X } from "lucide-react"
+import { Search, Download, ChevronDown, Eye, User, Star, ArrowUpDown, Settings, FileText, FileSpreadsheet, Loader2, Check, Columns, ExternalLink, Calendar, MapPin, CreditCard, Mail, Phone, Bike, FileCheck, Pencil, Save, Trash2, X, ShieldX } from "lucide-react"
 import { adminAPI } from "@food/api"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@food/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@food/components/ui/dialog"
 import { exportDeliverymenToExcel, exportDeliverymenToPDF } from "@food/components/admin/deliveryman/deliverymanExportUtils"
 import { DEFAULT_USER_AVATAR, resolveProfileAvatar } from "@food/utils/profileAvatar"
@@ -71,6 +70,7 @@ export default function DeliverymanList() {
   const [editValues, setEditValues] = useState({ pocketBalance: "", cashInHand: "" })
   const [savingDeliveryId, setSavingDeliveryId] = useState(null)
   const [deletingDeliveryId, setDeletingDeliveryId] = useState(null)
+  const [blockingDeliveryId, setBlockingDeliveryId] = useState(null)
   const [zones, setZones] = useState([])
   const [zonesLoading, setZonesLoading] = useState(false)
   const [isZoneDialogOpen, setIsZoneDialogOpen] = useState(false)
@@ -501,6 +501,65 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
     }
   }
 
+  const handleBlock = async (deliveryman) => {
+    const deliverymanId = String(deliveryman?._id || "")
+    if (!deliverymanId) {
+      toast.error("Delivery partner not found")
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Block ${deliveryman?.name || "this delivery partner"}?\n\nThis will stop access, log them out, and remove them from the active delivery list.`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      setBlockingDeliveryId(deliverymanId)
+      console.log("[DeliverymanList] Blocking delivery partner", {
+        deliveryPartnerId: deliverymanId,
+        name: deliveryman?.name || "",
+      })
+      const response = await adminAPI.rejectDeliveryPartner(deliverymanId, "Blocked by admin")
+
+      if (!response?.data?.success) {
+        toast.error(response?.data?.message || "Failed to block delivery partner")
+        return
+      }
+
+      setDeliverymen((prev) =>
+        prev.map((item) =>
+          String(item._id) === deliverymanId
+            ? {
+                ...item,
+                status: "blocked",
+                displayStatus: "blocked",
+                rejectionReason: "Blocked by admin",
+              }
+            : item,
+        ),
+      )
+      setViewDetails((prev) =>
+        prev && String(prev._id) === deliverymanId
+          ? {
+              ...prev,
+              status: "blocked",
+              displayStatus: "blocked",
+              rejectionReason: "Blocked by admin",
+            }
+          : prev,
+      )
+      toast.success(response?.data?.message || "Delivery partner blocked successfully")
+    } catch (err) {
+      debugError("Error blocking delivery partner:", err)
+      toast.error(err?.response?.data?.message || "Failed to block delivery partner")
+    } finally {
+      setBlockingDeliveryId(null)
+    }
+  }
+
   const handleDelete = async (deliveryman) => {
     const deliverymanId = String(deliveryman?._id || "")
     if (!deliverymanId) {
@@ -509,7 +568,7 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
     }
 
     const confirmed = window.confirm(
-      `Deactivate ${deliveryman?.name || "this delivery partner"}?\n\nThis will block the account and log them out, while preserving profile, wallet, and history.`,
+      `Delete ${deliveryman?.name || "this delivery partner"} permanently?\n\nThis removes the partner record. Use Block if you only want to stop access.`,
     )
 
     if (!confirmed) {
@@ -518,10 +577,14 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
 
     try {
       setDeletingDeliveryId(deliverymanId)
+      console.log("[DeliverymanList] Deleting delivery partner", {
+        deliveryPartnerId: deliverymanId,
+        name: deliveryman?.name || "",
+      })
       const response = await adminAPI.deleteDeliveryPartner(deliverymanId)
 
       if (!response?.data?.success) {
-        toast.error(response?.data?.message || "Failed to deactivate delivery partner")
+        toast.error(response?.data?.message || "Failed to delete delivery partner")
         return
       }
 
@@ -533,10 +596,10 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
       if (wasViewingDeletedPartner) {
         setIsViewOpen(false)
       }
-      toast.success(response?.data?.message || "Delivery partner deactivated successfully")
+      toast.success(response?.data?.message || "Delivery partner deleted successfully")
     } catch (err) {
       debugError("Error deleting delivery partner:", err)
-      toast.error(err?.response?.data?.message || "Failed to deactivate delivery partner")
+      toast.error(err?.response?.data?.message || "Failed to delete delivery partner")
     } finally {
       setDeletingDeliveryId(null)
     }
@@ -801,8 +864,8 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
                         {visibleColumns.availabilityStatus && (
                           <td className="px-6 py-4">
                             <div className="flex flex-col">
-                              <span className="text-xs">
-                                Active Status: <span className={`${dm.status === 'Online' ? 'text-[#2979fb]' : 'text-slate-600'} underline`}>{dm.status}</span>
+                                <span className="text-xs">
+                                Active Status: <span className={`${String(dm.displayStatus || dm.status || '').toLowerCase() === 'blocked' ? 'text-red-600' : dm.status === 'Online' ? 'text-[#2979fb]' : 'text-slate-600'} underline`}>{dm.displayStatus || dm.status}</span>
                               </span>
                             </div>
                           </td>
@@ -823,6 +886,30 @@ availableCashLimit: deliveryman.availableCashLimit || 0,
                                 title="Assign Zone"
                               >
                                 <MapPin className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleBlock(dm)}
+                                disabled={blockingDeliveryId === String(dm._id)}
+                                className="p-1.5 rounded bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
+                                title="Block Delivery Partner"
+                              >
+                                {blockingDeliveryId === String(dm._id) ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <ShieldX className="w-4 h-4" />
+                                )}
+                              </button>
+                              <button
+                                onClick={() => handleDelete(dm)}
+                                disabled={deletingDeliveryId === String(dm._id)}
+                                className="p-1.5 rounded bg-red-50 text-red-600 hover:bg-red-100 transition-colors disabled:opacity-50"
+                                title="Delete Delivery Partner"
+                              >
+                                {deletingDeliveryId === String(dm._id) ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-4 h-4" />
+                                )}
                               </button>
                             </div>
                           </td>

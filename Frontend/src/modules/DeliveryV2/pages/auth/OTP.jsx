@@ -26,6 +26,7 @@ export default function DeliveryOTP() {
   const [verifiedOtp, setVerifiedOtp] = useState("")
   const [pendingMessage, setPendingMessage] = useState("")
   const [isRejected, setIsRejected] = useState(false)
+  const [isBlocked, setIsBlocked] = useState(false)
   const [rejectionReason, setRejectionReason] = useState("")
   const [deviceToken, setDeviceToken] = useState(null)
   const [activePlatform, setActivePlatform] = useState("web")
@@ -235,6 +236,7 @@ export default function DeliveryOTP() {
         setError("")
         setPendingMessage(data.message || "Your account is pending admin verification. You will be notified once approved.")
         setIsRejected(data.isRejected || false)
+        setIsBlocked(Boolean(data.isBlocked || data.blockedByAdmin || data.isRejected))
         setRejectionReason(data.rejectionReason || "")
         return
       }
@@ -510,15 +512,15 @@ export default function DeliveryOTP() {
 
           {/* Pending approval message – already registered, waiting for admin */}
           {pendingMessage && (
-            <div className={`rounded-xl border p-5 text-center space-y-4 shadow-sm ${isRejected ? "bg-red-50 border-red-100" : "bg-amber-50 border-amber-100"}`}>
+            <div className={`rounded-xl border p-5 text-center space-y-4 shadow-sm ${(isRejected || isBlocked) ? "bg-red-50 border-red-100" : "bg-amber-50 border-amber-100"}`}>
               <div className="space-y-2">
-                <p className={`text-sm font-semibold ${isRejected ? "text-red-800" : "text-amber-800"}`}>
-                  {isRejected ? "Application Rejected" : "Pending Verification"}
+                <p className={`text-sm font-semibold ${(isRejected || isBlocked) ? "text-red-800" : "text-amber-800"}`}>
+                  {(isRejected || isBlocked) ? "Blocked by Admin" : "Pending Verification"}
                 </p>
-                <p className={`text-sm leading-relaxed ${isRejected ? "text-red-700" : "text-amber-700"}`}>
+                <p className={`text-sm leading-relaxed ${(isRejected || isBlocked) ? "text-red-700" : "text-amber-700"}`}>
                   {pendingMessage}
                 </p>
-                {isRejected && rejectionReason && (
+                {(isRejected || isBlocked) && rejectionReason && (
                   <div className="mt-2 p-3 bg-white/50 rounded-lg border border-red-200">
                     <p className="text-xs font-medium text-red-600 uppercase tracking-wider mb-1">Reason</p>
                     <p className="text-sm text-red-800 italic">"{rejectionReason}"</p>
@@ -527,7 +529,7 @@ export default function DeliveryOTP() {
               </div>
 
               <div className="flex flex-col gap-2 pt-2">
-                {isRejected ? (
+                {(isRejected || isBlocked) ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -551,7 +553,7 @@ export default function DeliveryOTP() {
                 <button
                   type="button"
                   onClick={() => navigate("/food/delivery/login", { replace: true })}
-                  className={`text-sm font-medium underline transition-colors ${isRejected ? "text-red-600 hover:text-red-800" : "text-amber-700 hover:text-amber-900"}`}
+                  className={`text-sm font-medium underline transition-colors ${(isRejected || isBlocked) ? "text-red-600 hover:text-red-800" : "text-amber-700 hover:text-amber-900"}`}
                 >
                   Back to login
                 </button>

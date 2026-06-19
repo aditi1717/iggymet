@@ -67,6 +67,7 @@ const API_PERMISSION_MAP = [
     { methods: ["GET"], pattern: /^\/delivery\/partners(\/|$)/, permission: ADMIN_PERMISSION_PATHS.DELIVERY_PARTNERS },
     { methods: ["GET"], pattern: /^\/delivery\/join-requests$/, permission: ADMIN_PERMISSION_PATHS.DELIVERY_PARTNERS },
     { methods: ["PATCH"], pattern: /^\/delivery\/[^/]+\/(approve|reject)$/, permission: ADMIN_PERMISSION_PATHS.DELIVERY_PARTNERS },
+    { methods: ["DELETE"], pattern: /^\/delivery\/[^/]+$/, permission: ADMIN_PERMISSION_PATHS.DELIVERY_PARTNERS },
     { methods: ["GET"], pattern: /^\/delivery-cash-limit$/, permission: ADMIN_PERMISSION_PATHS.DELIVERY_CASH_LIMIT },
     { methods: ["PATCH"], pattern: /^\/delivery-cash-limit$/, permission: ADMIN_PERMISSION_PATHS.DELIVERY_CASH_LIMIT },
     { methods: ["GET"], pattern: /^\/delivery\/withdrawals$/, permission: ADMIN_PERMISSION_PATHS.DELIVERY_WITHDRAWAL },

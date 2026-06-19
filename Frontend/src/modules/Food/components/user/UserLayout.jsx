@@ -237,7 +237,7 @@ export default function UserLayout() {
                   <main className={showBottomNav ? "md:pt-40" : ""}>
                     <Outlet />
                   </main>
-                  <OrderTrackingCard otpOnly showOtpBanner hasBottomNav={showBottomNav} />
+                  <OrderTrackingCard otpOnly={!isHomeRoute} showOtpBanner hasBottomNav={showBottomNav} />
                   {showBottomNav && <BottomNavigation />}
                 </LocationSelectorProvider>
               </SearchOverlayProvider>

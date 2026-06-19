@@ -356,6 +356,10 @@ export const adminAPI = {
         contextModule: "admin",
       },
     ),
+  deleteDeliveryPartner: (id) =>
+    apiClient.delete(`/food/admin/delivery/${String(id)}`, {
+      contextModule: "admin",
+    }),
   /** GET /food/admin/delivery/support-tickets - list all delivery support tickets (query: status, priority, search, page, limit). */
   getDeliverySupportTickets: (params) =>
     apiClient.get("/food/admin/delivery/support-tickets", {

@@ -1686,6 +1686,13 @@ export default function RestaurantsList() {
                             >
                               <ShieldX className="w-4 h-4" />
                             </button>
+                            <button
+                              onClick={() => handleDeleteRestaurant(restaurant)}
+                              className="p-1.5 rounded text-red-600 hover:bg-red-50 transition-colors"
+                              title="Delete Restaurant"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </td>
                       </tr>
