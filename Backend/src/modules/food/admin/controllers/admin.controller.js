@@ -1381,6 +1381,25 @@ export async function rejectDeliveryPartner(req, res, next) {
     }
 }
 
+export async function deleteDeliveryPartner(req, res, next) {
+    try {
+        const result = await adminService.deleteDeliveryPartner(req.params.id, req.adminAuth || {});
+        if (!result) {
+            return res.status(404).json({
+                success: false,
+                message: 'Delivery partner not found'
+            });
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Delivery partner deleted successfully',
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
 export async function updateDeliveryPartnerZone(req, res, next) {
     try {
         const zoneId = req.body?.zoneId != null ? String(req.body.zoneId).trim() : '';

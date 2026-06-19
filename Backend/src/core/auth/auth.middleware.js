@@ -1,6 +1,7 @@
 import { verifyAccessToken } from './token.util.js';
 import { sendError } from '../../utils/response.js';
 import { FoodUser } from '../users/user.model.js';
+import { FoodDeliveryPartner } from '../../modules/food/delivery/models/deliveryPartner.model.js';
 
 export const requireAdmin = (req, res, next) => {
     if (req.user?.role !== 'ADMIN') {
@@ -33,6 +34,15 @@ export const authMiddleware = (req, res, next) => {
             }).catch(() => sendError(res, 401, 'Authentication failed'));
             return;
         }
+        if (decoded.role === 'DELIVERY_PARTNER') {
+            FoodDeliveryPartner.findById(decoded.userId).select('status').lean().then((doc) => {
+                if (!doc || doc.status !== 'approved') {
+                    return sendError(res, 401, 'Delivery partner account is blocked by admin');
+                }
+                next();
+            }).catch(() => sendError(res, 401, 'Authentication failed'));
+            return;
+        }
         return next();
     } catch (error) {
         return sendError(res, 401, 'Invalid or expired token');
@@ -56,6 +66,15 @@ export const optionalAuthMiddleware = (req, res, next) => {
         if (decoded.role === 'USER') {
             FoodUser.findById(decoded.userId).select('isActive').lean().then((doc) => {
                 if (!doc || doc.isActive === false) {
+                    req.user = undefined;
+                }
+                next();
+            }).catch(() => next());
+            return;
+        }
+        if (decoded.role === 'DELIVERY_PARTNER') {
+            FoodDeliveryPartner.findById(decoded.userId).select('status').lean().then((doc) => {
+                if (!doc || doc.status !== 'approved') {
                     req.user = undefined;
                 }
                 next();
