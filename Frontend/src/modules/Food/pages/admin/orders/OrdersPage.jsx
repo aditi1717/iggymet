@@ -474,7 +474,7 @@ export default function OrdersPage({ statusKey = "all" }) {
       )
       const computedTotal = subtotal + deliveryFee + platformFee + taxAmount - discountAmount
       const totalAmount = Number(
-        pricing.total != null ? pricing.total : computedTotal
+        pricing.totalPayable != null ? pricing.totalPayable : (pricing.total != null ? pricing.total : computedTotal)
       )
 
       const paymentMethod = order.payment?.method || order.paymentMethod || ""
