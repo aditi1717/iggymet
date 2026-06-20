@@ -10,6 +10,7 @@ import {
   Camera,
   Clock3,
   MessageSquareText,
+  Package,
   Phone,
   RefreshCcw,
   Square,
@@ -605,6 +606,29 @@ const ActionButton = ({ disabled, busy, onClick, children, variant = 'primary' }
 
 const ATTEMPT_TIMER_SECONDS = 30; // 30 seconds (testing)
 
+// --- Attempt state persistence helpers ---
+const getAttemptStorageKey = (orderId) => `delivery_v2_attempt_${orderId}`;
+
+const saveAttemptState = (orderId, state) => {
+  if (!orderId) return;
+  try {
+    sessionStorage.setItem(getAttemptStorageKey(orderId), JSON.stringify(state));
+  } catch { /* ignore */ }
+};
+
+const loadAttemptState = (orderId) => {
+  if (!orderId) return null;
+  try {
+    const raw = sessionStorage.getItem(getAttemptStorageKey(orderId));
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+};
+
+const clearAttemptState = (orderId) => {
+  if (!orderId) return;
+  try { sessionStorage.removeItem(getAttemptStorageKey(orderId)); } catch { /* ignore */ }
+};
+
 const OrderDetailV2 = () => {
   const { orderId } = useParams();
   const location = useLocation();
@@ -658,31 +682,84 @@ const OrderDetailV2 = () => {
   const [attemptSubmitted, setAttemptSubmitted] = useState(false);
   const timerIntervalRef = useRef(null);
   const fileInputRef = useRef(null);
+  // Track when the timer started so we can resume it correctly after a refresh
+  const timerStartedAtRef = useRef(null);
 
-  const startAttemptTimer = useCallback(() => {
-    setAttemptPhase('timer');
-    setTimerSeconds(ATTEMPT_TIMER_SECONDS);
+  // Restore attempt state from sessionStorage on mount (survives page refresh)
+  useEffect(() => {
+    const savedId = routeOrderId;
+    if (!savedId) return;
+    const saved = loadAttemptState(savedId);
+    if (!saved) return;
+
+    if (saved.attemptSubmitted) {
+      setAttemptSubmitted(true);
+      setAttemptPhase('normal');
+      return;
+    }
+
+    if (saved.phase === 'timer' && saved.timerStartedAt) {
+      // Calculate how many seconds remain based on wall-clock time
+      const elapsed = Math.floor((Date.now() - saved.timerStartedAt) / 1000);
+      const remaining = Math.max(0, ATTEMPT_TIMER_SECONDS - elapsed);
+      if (remaining <= 0) {
+        // Timer already expired while the page was reloading — jump to proof
+        setAttemptPhase('proof');
+        setTimerSeconds(0);
+        saveAttemptState(savedId, { phase: 'proof', timerStartedAt: saved.timerStartedAt });
+      } else {
+        setAttemptPhase('timer');
+        setTimerSeconds(remaining);
+        timerStartedAtRef.current = saved.timerStartedAt;
+      }
+    } else if (saved.phase === 'proof') {
+      setAttemptPhase('proof');
+      setTimerSeconds(0);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeOrderId]);
+
+  // Start a fresh interval when phase === 'timer' (covers both fresh start and restore)
+  useEffect(() => {
+    if (attemptPhase !== 'timer') return;
+    // Don't double-start if already ticking
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     timerIntervalRef.current = setInterval(() => {
       setTimerSeconds((prev) => {
         if (prev <= 1) {
           clearInterval(timerIntervalRef.current);
+          timerIntervalRef.current = null;
           setAttemptPhase('proof');
+          saveAttemptState(routeOrderId, { phase: 'proof', timerStartedAt: timerStartedAtRef.current });
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
-  }, []);
+    return () => { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attemptPhase, routeOrderId]);
+
+  const startAttemptTimer = useCallback(() => {
+    const startedAt = Date.now();
+    timerStartedAtRef.current = startedAt;
+    setTimerSeconds(ATTEMPT_TIMER_SECONDS);
+    setAttemptPhase('timer');
+    saveAttemptState(routeOrderId, { phase: 'timer', timerStartedAt: startedAt });
+  }, [routeOrderId]);
 
   const stopAttemptTimer = useCallback(() => {
     clearInterval(timerIntervalRef.current);
+    timerIntervalRef.current = null;
+    timerStartedAtRef.current = null;
     setAttemptPhase('normal');
     setTimerSeconds(ATTEMPT_TIMER_SECONDS);
-  }, []);
+    clearAttemptState(routeOrderId);
+  }, [routeOrderId]);
 
-  // Cleanup on unmount
+  // Cleanup interval on unmount
   useEffect(() => {
-    return () => clearInterval(timerIntervalRef.current);
+    return () => { clearInterval(timerIntervalRef.current); };
   }, []);
 
   const formatTimerDisplay = (seconds) => {
@@ -774,6 +851,7 @@ const OrderDetailV2 = () => {
       setAttemptPhase('normal');
       setProofPhoto(null);
       setProofPhotoPreview(null);
+      saveAttemptState(routeOrderId, { attemptSubmitted: true });
       clearActiveOrder();
     } catch (error) {
       toast.error(error?.response?.data?.message || 'Failed to submit proof');

@@ -5,6 +5,11 @@ export const getCanonicalFoodOrderStatus = (statusRaw, deliveryPhaseRaw = "") =>
   if (!status || status === "created" || status === "placed") return "pending"
   if (status === "confirmed" || status === "accepted") return "accepted"
   if (status === "preparing" || status === "processed") return "processing"
+
+  // These specific statuses must take priority over ANY delivery phase
+  if (status === "user_unavailable_review") return "user_unavailable_review"
+  if (status === "cancelled_by_user_unavailable") return "cancelled_user_unavailable"
+
   if (
     status === "ready" ||
     status === "ready_for_pickup" ||
@@ -25,12 +30,11 @@ export const getCanonicalFoodOrderStatus = (statusRaw, deliveryPhaseRaw = "") =>
     phase === "at_drop"
   ) return "reached_customer"
   if (status === "delivered" || status === "completed") return "delivered"
-  if (status === "user_unavailable_review") return "user_unavailable_review"
-  if (status === "cancelled_by_user_unavailable") return "cancelled_user_unavailable"
   if (status === "rejected") return "rejected"
   if (status.includes("cancelled") || status === "cancelled") return "cancelled"
   return status
 }
+
 
 export const getCanonicalFoodOrderStatusFromOrder = (orderLike = {}) => {
   const status = orderLike?.orderStatus || orderLike?.status || ""

@@ -200,10 +200,11 @@ export default function ViewOrderDialog({
     recipientSourceAddress.contactNumber,
   )
   const reviewProofUrl =
-    order?.userUnavailableRequest?.proofImageUrl ||
-    order?.noResponseMeta?.proofImageUrl ||
+    modalOrder?.userUnavailableRequest?.proofImageUrl ||
+    modalOrder?.noResponseMeta?.proofImageUrl ||
     ""
-  const isUserUnavailableReview = String(order?.orderStatus || "").toLowerCase() === "user unavailable review"
+  const orderStatusNormalized = String(modalOrder?.orderStatus || "").toLowerCase().trim().replace(/_/g, " ")
+  const isUserUnavailableReview = orderStatusNormalized === "user unavailable review"
   const loadingOrderId = actionLoading?.orderId || null
   const loadingActionType = actionLoading?.type || null
   const isActionLoading = loadingOrderId === (order.id || order._id || order.orderId)
@@ -310,8 +311,8 @@ export default function ViewOrderDialog({
                   <p className="text-xs font-semibold uppercase tracking-wider text-orange-700">
                     User Unavailable Proof
                   </p>
-                  {order?.userUnavailableRequest?.reason ? (
-                    <p className="text-sm text-slate-700">{order.userUnavailableRequest.reason}</p>
+                  {modalOrder?.userUnavailableRequest?.reason ? (
+                    <p className="text-sm text-slate-700">{modalOrder.userUnavailableRequest.reason}</p>
                   ) : null}
                   {reviewProofUrl ? (
                     <a href={reviewProofUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-orange-200 bg-white">
@@ -514,6 +515,75 @@ export default function ViewOrderDialog({
               </div>
             )}
           </div>
+
+          {/* User Unavailable Photo (Captured by Delivery Boy) */}
+          {reviewProofUrl && (
+            <div className="border-t border-slate-200 pt-4">
+              <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                <X className="w-4 h-4 text-rose-600" />
+                User Unavailable Photo (Captured by Delivery Boy)
+              </h3>
+              <div className="space-y-3">
+                {modalOrder?.userUnavailableRequest?.reason && (
+                  <p className="text-sm text-slate-600">
+                    <span className="font-semibold text-slate-700">Reason:</span> {modalOrder.userUnavailableRequest.reason}
+                  </p>
+                )}
+                {modalOrder?.userUnavailableRequest?.status && modalOrder.userUnavailableRequest.status !== 'none' && (
+                  <p className="text-sm text-slate-600">
+                    <span className="font-semibold text-slate-700">Request Status:</span>{" "}
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize ${
+                      modalOrder.userUnavailableRequest.status === 'approved' ? 'bg-emerald-100 text-emerald-800' :
+                      modalOrder.userUnavailableRequest.status === 'rejected' ? 'bg-rose-100 text-rose-800' :
+                      'bg-amber-100 text-amber-800'
+                    }`}>
+                      {modalOrder.userUnavailableRequest.status}
+                    </span>
+                  </p>
+                )}
+                <div className="relative w-full max-w-md border-2 border-slate-300 rounded-xl overflow-hidden bg-white shadow-sm">
+                  <img
+                    src={reviewProofUrl}
+                    alt="User Unavailable Proof"
+                    className="w-full h-auto object-contain max-h-[260px] mx-auto block"
+                    loading="lazy"
+                    onError={(e) => {
+                      debugError('? Failed to load user unavailable image:', e.target.src)
+                      e.target.style.display = 'none';
+                      const errorDiv = e.target.parentElement.querySelector('.error-message');
+                      if (errorDiv) errorDiv.style.display = 'block';
+                    }}
+                    onLoad={() => {
+                      debugLog('? User unavailable image loaded successfully')
+                    }}
+                  />
+                  <div className="error-message hidden p-6 text-center text-slate-500 text-sm bg-slate-50">
+                    <X className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+                    Failed to load user unavailable photo
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <a
+                    href={reviewProofUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors shadow-sm"
+                  >
+                    <Eye className="w-4 h-4" />
+                    View Full Size
+                  </a>
+                  <a
+                    href={reviewProofUrl}
+                    download
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                  >
+                    <Package className="w-4 h-4" />
+                    Download
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Delivery Address */}
           {(order.address || order.deliveryAddress) && (
