@@ -57,6 +57,8 @@ const DeliveryTrackingMap = ({
   const lastCameraPanRef = useRef({ time: 0, status: null });
   const initialBoundsSetRef = useRef(false);
   const updateCountRef = useRef(0);
+  const lastLiveUpdateAtRef = useRef(0);
+  const lastOrderLocStrRef = useRef('');
 
   useEffect(() => {
     latestRiderLocationRef.current = riderLocation;
@@ -121,78 +123,69 @@ const DeliveryTrackingMap = ({
     return null;
   }, []);
 
-  // 1. Initial State from Order Payload (exhaustive fallback chain)
+  // 1. Initial State and Polled Updates from Order Prop (Webview Polling Fallback)
   useEffect(() => {
-    if (riderLocation) return; // Already have location
-    
-    // A. lastRiderLocation (GeoJSON Point — primary field in order schema)
-    const lastLoc = parseLocation(order?.lastRiderLocation);
-    if (lastLoc) {
-      debugLog('📍 Initial rider location from lastRiderLocation');
-      triggerSmoothMove(lastLoc);
-      return;
-    }
-    
-    // B. deliveryState.currentLocation (if ever populated)
-    const curLoc = parseLocation(order?.deliveryState?.currentLocation);
-    if (curLoc) {
-      debugLog('📍 Initial rider location from deliveryState.currentLocation');
-      triggerSmoothMove(curLoc);
-      return;
-    }
+    let orderLoc = parseLocation(order?.lastRiderLocation);
+    let source = 'lastRiderLocation';
 
-    // C. Delivery partner's live location (from populated deliveryPartnerId)
-    const partnerLoc = parseLocation(
-      order?.deliveryPartnerId?.location ||
-      order?.deliveryPartnerId?.lastLocation ||
-      order?.deliveryPartner?.location ||
-      order?.deliveryPartner?.lastLocation ||
-      (order?.deliveryPartner?.lastLat && order?.deliveryPartner?.lastLng
-        ? { lat: order.deliveryPartner.lastLat, lng: order.deliveryPartner.lastLng }
-        : null) ||
-      (order?.deliveryPartnerId?.lastLat && order?.deliveryPartnerId?.lastLng
-        ? { lat: order.deliveryPartnerId.lastLat, lng: order.deliveryPartnerId.lastLng }
-        : null)
-    );
-    if (partnerLoc) {
-      debugLog('📍 Initial rider location from delivery partner profile');
-      triggerSmoothMove(partnerLoc);
-      return;
+    if (!orderLoc) {
+      orderLoc = parseLocation(order?.deliveryState?.currentLocation);
+      source = 'deliveryState.currentLocation';
     }
-
-    // D. STATUS-BASED FALLBACK — position rider at logical location based on order phase
-    //    This guarantees the icon is ALWAYS visible on the map
-    if (order && (order.deliveryPartnerId || order.dispatch?.deliveryPartnerId)) {
+    if (!orderLoc) {
+      orderLoc = parseLocation(
+        order?.deliveryPartnerId?.location ||
+        order?.deliveryPartnerId?.lastLocation ||
+        order?.deliveryPartner?.location ||
+        order?.deliveryPartner?.lastLocation ||
+        (order?.deliveryPartner?.lastLat && order?.deliveryPartner?.lastLng
+          ? { lat: order.deliveryPartner.lastLat, lng: order.deliveryPartner.lastLng }
+          : null) ||
+        (order?.deliveryPartnerId?.lastLat && order?.deliveryPartnerId?.lastLng
+          ? { lat: order.deliveryPartnerId.lastLat, lng: order.deliveryPartnerId.lastLng }
+          : null)
+      );
+      source = 'delivery partner profile';
+    }
+    if (!orderLoc && order && (order.deliveryPartnerId || order.dispatch?.deliveryPartnerId)) {
       const phase = order?.deliveryState?.currentPhase || '';
       const status = (order?.orderStatus || order?.status || '').toLowerCase();
       
       if (['at_drop', 'delivered', 'completed'].includes(phase) || 
           ['reached_drop', 'out_for_delivery', 'delivered'].includes(status)) {
-        // Rider is at/near customer
         if (customerCoords) {
-          debugLog('📍 Fallback: Rider at customer location (status:', phase || status, ')');
-          triggerSmoothMove({ ...customerCoords, heading: 0 });
-          return;
+          orderLoc = { ...customerCoords, heading: 0 };
+          source = `status-based customer fallback (${phase || status})`;
         }
-      }
-      
-      if (['at_pickup', 'en_route_to_pickup'].includes(phase) || 
-          ['assigned', 'accepted', 'preparing', 'ready'].includes(status)) {
-        // Rider is at/near restaurant
+      } else if (['at_pickup', 'en_route_to_pickup'].includes(phase) || 
+                 ['assigned', 'accepted', 'preparing', 'ready'].includes(status)) {
         if (restaurantCoords) {
-          debugLog('📍 Fallback: Rider at restaurant location (status:', phase || status, ')');
-          triggerSmoothMove({ ...restaurantCoords, heading: 0 });
-          return;
+          orderLoc = { ...restaurantCoords, heading: 0 };
+          source = `status-based restaurant fallback (${phase || status})`;
         }
       }
-
-      // E. Last resort — show rider at restaurant (most common starting point)
-      if (restaurantCoords) {
-        debugLog('📍 Last resort fallback: Rider at restaurant');
-        triggerSmoothMove({ ...restaurantCoords, heading: 0 });
+      if (!orderLoc && restaurantCoords) {
+        orderLoc = { ...restaurantCoords, heading: 0 };
+        source = 'last resort restaurant fallback';
       }
     }
-  }, [order, riderLocation, triggerSmoothMove, parseLocation, restaurantCoords, customerCoords]);
+
+    // Only apply location update from order prop if there has been no recent live Socket/Firebase update (throttled to 5 seconds)
+    // or if we have no current location set at all.
+    const now = Date.now();
+    const hasRecentLiveUpdate = now - lastLiveUpdateAtRef.current < 5000;
+    
+    if (orderLoc) {
+      if (!riderLocation || !hasRecentLiveUpdate) {
+        const locKey = `${orderLoc.lat.toFixed(6)},${orderLoc.lng.toFixed(6)}`;
+        if (locKey !== lastOrderLocStrRef.current) {
+          debugLog(`📍 Rider location updated from order prop (${source}):`, orderLoc);
+          lastOrderLocStrRef.current = locKey;
+          triggerSmoothMove(orderLoc);
+        }
+      }
+    }
+  }, [order, riderLocation, parseLocation, restaurantCoords, customerCoords, triggerSmoothMove]);
 
   useEffect(() => {
     const ids = trackingIdsStr.split(',').filter(Boolean);
@@ -229,6 +222,7 @@ const DeliveryTrackingMap = ({
       if (Number.isFinite(lat) && Number.isFinite(lng)) {
         const heading = Number(data?.heading ?? data?.bearing ?? 0);
         debugLog('🔥 Firebase location update:', { lat, lng, heading });
+        lastLiveUpdateAtRef.current = Date.now();
         triggerSmoothMove({ lat, lng, heading });
       }
 
@@ -262,7 +256,7 @@ const DeliveryTrackingMap = ({
       auth: { token },
       query: token ? { token } : undefined,
       reconnection: true,
-      reconnectionAttempts: 20,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 20000,
@@ -286,6 +280,7 @@ const DeliveryTrackingMap = ({
           heading: data.heading || data.bearing || 0
         };
         debugLog('⚡ Socket location update:', nextPos);
+        lastLiveUpdateAtRef.current = Date.now();
         triggerSmoothMove(nextPos);
       }
 
@@ -310,6 +305,7 @@ const DeliveryTrackingMap = ({
       );
 
       if (liveLoc) {
+        lastLiveUpdateAtRef.current = Date.now();
         triggerSmoothMove(liveLoc);
       }
     });
@@ -326,7 +322,16 @@ const DeliveryTrackingMap = ({
       });
     });
 
+    // WebView-resilient periodic connection check
+    const connectionCheckInterval = setInterval(() => {
+      if (socketRef.current && !socketRef.current.connected) {
+        debugLog('🔌 Connection check: Socket is disconnected, connecting...');
+        socketRef.current.connect();
+      }
+    }, 5000);
+
     return () => {
+      clearInterval(connectionCheckInterval);
       window.removeEventListener('focus', handleReconnection);
       document.removeEventListener('visibilitychange', handleReconnection);
       window.removeEventListener('online', handleReconnection);

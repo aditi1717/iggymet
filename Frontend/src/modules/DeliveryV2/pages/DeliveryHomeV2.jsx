@@ -852,6 +852,15 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const lastLocationSentAt = useRef(0);
   const lastCoordRef = useRef(null);
   const rollingSpeedRef = useRef([]);
+  const lastGpsErrorToastAtRef = useRef(0);
+
+  const etaRef = useRef(eta);
+  const activePolylineRef = useRef(activePolyline);
+  const emitLocationRef = useRef(emitLocation);
+
+  useEffect(() => { etaRef.current = eta; }, [eta]);
+  useEffect(() => { activePolylineRef.current = activePolyline; }, [activePolyline]);
+  useEffect(() => { emitLocationRef.current = emitLocation; }, [emitLocation]);
 
   const [zoom, setZoom] = useState(14);
   const [isSimMode, setIsSimMode] = useState(false);
@@ -1276,13 +1285,13 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
     deliveryAPI.updateOnlineStatus(isOnline).catch(() => { });
   }, [isOnline]);
 
-  // 3. Location logic (Smart Frequency Tracking)
+  // 3. Location logic (Smart Frequency Tracking with Webview Fallback)
   useEffect(() => {
     if (!isOnline) {
       return;
     }
 
-    const watchId = navigator.geolocation.watchPosition((pos) => {
+    const processNewLocation = (pos) => {
       // CRITICAL: In Simulation Mode, we disable actual GPS to prevent overwriting our test position
       if (isSimMode) return;
 
@@ -1297,13 +1306,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
         rollingSpeedRef.current = [...rollingSpeedRef.current.slice(-4), speed]; // keep last 5 points
       }
 
-      const avgSpeed = rollingSpeedRef.current.length > 0
-        ? rollingSpeedRef.current.reduce((a, b) => a + b, 0) / rollingSpeedRef.current.length
-        : speed || 0;
-
-      // ETA update is now handled by a separate globally-synchronized effect
-
-      // Check threshold for Sync (distance-based or 7s time-based)
+      // Check threshold for Sync (distance-based or 2.5s time-based)
       const distMoved = lastCoordRef.current
         ? getHaversineDistance(lat, lng, lastCoordRef.current.lat, lastCoordRef.current.lng)
         : 1000; // assume huge distance if first update
@@ -1312,17 +1315,21 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
         lastLocationSentAt.current = now;
         lastCoordRef.current = { lat, lng };
 
-        const primaryId = activeOrder?.orderId || activeOrder?._id;
-        const secondaryId = activeOrder?._id && String(activeOrder._id) !== String(primaryId) ? String(activeOrder._id) : null;
+        // Pull latest Zustand state to prevent closure stale issues
+        const currentActiveOrder = useDeliveryStore.getState().activeOrder;
+        const currentTripStatus = useDeliveryStore.getState().tripStatus;
+
+        const primaryId = currentActiveOrder?.orderId || currentActiveOrder?._id;
+        const secondaryId = currentActiveOrder?._id && String(currentActiveOrder._id) !== String(primaryId) ? String(currentActiveOrder._id) : null;
         const restaurantId =
-          activeOrder?.restaurantId?._id ||
-          activeOrder?.restaurantId?.id ||
-          activeOrder?.restaurantId ||
+          currentActiveOrder?.restaurantId?._id ||
+          currentActiveOrder?.restaurantId?.id ||
+          currentActiveOrder?.restaurantId ||
           null;
         const userId =
-          activeOrder?.userId?._id ||
-          activeOrder?.userId?.id ||
-          activeOrder?.userId ||
+          currentActiveOrder?.userId?._id ||
+          currentActiveOrder?.userId?.id ||
+          currentActiveOrder?.userId ||
           null;
 
         const payload = {
@@ -1335,7 +1342,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
           userId,
           restaurantId,
           status: 'on_the_way',
-          polyline: activePolyline
+          polyline: activePolylineRef.current
         };
 
         // A. HTTP Backup
@@ -1346,10 +1353,10 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
         }).catch(() => { });
 
         // B. SOCKET LIVE (SILKY SMOOTH)
-        if (payload.orderId) {
-          emitLocation(payload);
+        if (payload.orderId && emitLocationRef.current) {
+          emitLocationRef.current(payload);
           if (secondaryId) {
-            emitLocation({ ...payload, orderId: secondaryId });
+            emitLocationRef.current({ ...payload, orderId: secondaryId });
           }
         }
 
@@ -1359,9 +1366,9 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
             lat,
             lng,
             heading: heading || 0,
-            polyline: activePolyline,
-            status: tripStatus,
-            eta: eta // Publish live ETA to Firebase for customer
+            polyline: activePolylineRef.current,
+            status: currentTripStatus,
+            eta: etaRef.current
           };
           writeOrderTracking(payload.orderId, fbPayload).catch(() => { });
           if (secondaryId) {
@@ -1369,13 +1376,47 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
           }
         }
       }
-    }, () => toast.error('GPS Needed!'), {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 5000
-    });
+    };
 
-    return () => navigator.geolocation.clearWatch(watchId);
+    const handleLocationError = (err) => {
+      const now = Date.now();
+      // Throttle GPS needed warning to 30s to avoid spamming the user
+      if (now - lastGpsErrorToastAtRef.current >= 30000) {
+        lastGpsErrorToastAtRef.current = now;
+        toast.error('GPS Needed!');
+      }
+      console.warn('[Geolocation] Tracking error:', err);
+    };
+
+    // Native watchPosition listener
+    const watchId = navigator.geolocation.watchPosition(
+      processNewLocation,
+      handleLocationError,
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 5000
+      }
+    );
+
+    // WebView-resilient periodic poll fallback
+    const fallbackInterval = setInterval(() => {
+      if (isSimMode) return;
+      navigator.geolocation.getCurrentPosition(
+        processNewLocation,
+        handleLocationError,
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 4000
+        }
+      );
+    }, 4000);
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+      clearInterval(fallbackInterval);
+    };
   }, [isOnline, setRiderLocation, isSimMode]);
 
   // 3.5. Background Ping / Heartbeat
