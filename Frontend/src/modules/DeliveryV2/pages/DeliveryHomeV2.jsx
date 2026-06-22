@@ -854,14 +854,6 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const rollingSpeedRef = useRef([]);
   const lastGpsErrorToastAtRef = useRef(0);
 
-  const etaRef = useRef(eta);
-  const activePolylineRef = useRef(activePolyline);
-  const emitLocationRef = useRef(emitLocation);
-
-  useEffect(() => { etaRef.current = eta; }, [eta]);
-  useEffect(() => { activePolylineRef.current = activePolyline; }, [activePolyline]);
-  useEffect(() => { emitLocationRef.current = emitLocation; }, [emitLocation]);
-
   const [zoom, setZoom] = useState(14);
   const [isSimMode, setIsSimMode] = useState(false);
   const [isSimPlaying, setIsSimPlaying] = useState(false);
@@ -869,6 +861,14 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const [simIndex, setSimIndex] = useState(0);
   const [simProgress, setSimProgress] = useState(0); // 0 to 1 between points
   const [activePolyline, setActivePolyline] = useState(null);
+
+  const etaRef = useRef(eta);
+  const activePolylineRef = useRef(activePolyline);
+  const emitLocationRef = useRef(emitLocation);
+
+  useEffect(() => { etaRef.current = eta; }, [eta]);
+  useEffect(() => { activePolylineRef.current = activePolyline; }, [activePolyline]);
+  useEffect(() => { emitLocationRef.current = emitLocation; }, [emitLocation]);
   const mapRef = useRef(null);
   const lastAnnouncedOrderIdRef = useRef('');
   const lastIncomingToastOrderIdRef = useRef('');
