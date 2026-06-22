@@ -173,7 +173,7 @@ const DeliveryTrackingMap = ({
     // Only apply location update from order prop if there has been no recent live Socket/Firebase update (throttled to 5 seconds)
     // or if we have no current location set at all.
     const now = Date.now();
-    const hasRecentLiveUpdate = now - lastLiveUpdateAtRef.current < 5000;
+    const hasRecentLiveUpdate = now - lastLiveUpdateAtRef.current < 2500;
     
     if (orderLoc) {
       if (!riderLocation || !hasRecentLiveUpdate) {
@@ -350,7 +350,7 @@ const DeliveryTrackingMap = ({
     const update = () => {
       const { lastPos, nextPos, startTime } = interpStateRef.current;
       if (lastPos && nextPos) {
-        const duration = 3000; // 3s glide between updates
+        const duration = 2200; // 2.2s glide between updates (tuned for 2s polling)
         const elapsed = Date.now() - startTime;
         // Ease-out cubic for natural deceleration
         const rawProgress = Math.min(elapsed / duration, 1);

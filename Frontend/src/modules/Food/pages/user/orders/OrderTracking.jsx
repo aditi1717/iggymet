@@ -1157,11 +1157,11 @@ function OrderTrackingContent() {
       if (pollRef.current) pollRef.current(false);
     };
     
-    const pollInterval = (isSocketConnected || window.orderSocketConnected) ? 15000 : 8000;
+    const pollInterval = 2000;
     const interval = setInterval(tick, pollInterval);
 
     return () => clearInterval(interval);
-  }, [orderId, isSocketConnected]);
+  }, [orderId]);
 
   useEffect(() => {
     if (!order) return
