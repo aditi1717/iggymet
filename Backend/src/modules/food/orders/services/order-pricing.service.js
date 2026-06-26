@@ -152,19 +152,36 @@ const findApplicableRestaurantAutoOffer = async (restaurantId, items = [], userI
         offerId: offer._id,
         userId,
       }).lean();
-      
+      const usageCount = usage ? Number(usage.count) : 0;
+
+      const activeOrderCount = await FoodOrder.countDocuments({
+        userId: new mongoose.Types.ObjectId(userId),
+        orderStatus: {
+          $in: [
+            'created',
+            'placed',
+            'confirmed',
+            'preparing',
+            'ready_for_pickup',
+            'picked_up',
+            'user_unavailable_review'
+          ]
+        },
+        appliedRestaurantOfferId: offer._id
+      });
+
       console.log('🔍 Checking offer usage:', {
         offerTitle: offer.title,
         offerId: offer._id,
         userId,
         perUserLimit: offer.perUserLimit,
-        currentUsage: usage?.count || 0,
-        shouldSkip: usage && Number(usage.count) >= Number(offer.perUserLimit)
+        currentUsage: usageCount,
+        activeOrders: activeOrderCount,
+        shouldSkip: usageCount + activeOrderCount >= Number(offer.perUserLimit)
       });
-      
-      if (usage && Number(usage.count) >= Number(offer.perUserLimit)) {
-        console.log('⏭️  Skipping offer - user already used it');
-        // Don't show this offer at all - return null immediately
+
+      if (usageCount + activeOrderCount >= Number(offer.perUserLimit)) {
+        console.log('⏭️  Skipping offer - user already used it (including pending orders)');
         return null;
       }
     }
@@ -307,7 +324,25 @@ export async function calculateOrderPricing(userId, dto) {
           offerId: offer._id,
           userId,
         }).lean();
-        if (usage && Number(usage.count) >= Number(offer.perUserLimit)) {
+        const usageCount = usage ? Number(usage.count) : 0;
+
+        const activeOrderCount = await FoodOrder.countDocuments({
+          userId: new mongoose.Types.ObjectId(userId),
+          orderStatus: {
+            $in: [
+              'created',
+              'placed',
+              'confirmed',
+              'preparing',
+              'ready_for_pickup',
+              'picked_up',
+              'user_unavailable_review'
+            ]
+          },
+          appliedCouponOfferId: offer._id
+        });
+
+        if (usageCount + activeOrderCount >= Number(offer.perUserLimit)) {
           perUserOk = false;
         }
       }

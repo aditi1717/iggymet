@@ -913,36 +913,66 @@ export default function Cart() {
               ? backendPricing.autoOfferFeedback
               : null
 
-          // Update applied coupon if backend returns one
-          if (backendAutoAppliedOffer) {
-            const hasManualCouponApplied =
-              appliedCoupon &&
-              appliedCoupon?.type !== "restaurant-auto-offer" &&
-              Boolean(appliedCoupon?.code)
-            const hasSameAutoOffer =
-              appliedCoupon?.type === "restaurant-auto-offer" &&
-              String(appliedCoupon.offerId || "") === String(backendAutoAppliedOffer.offerId || "") &&
-              Number(appliedCoupon.discount || 0) === Number(backendAutoAppliedOffer.discount || 0)
-            if (!hasSameAutoOffer && !hasManualCouponApplied) {
-              setAppliedCoupon(backendAutoAppliedOffer)
-            }
-            lastAutoOfferToastRef.current = ""
-          } else if (backendPricing.appliedCoupon && !appliedCoupon) {
+          // Update applied coupon/offer from backend pricing response
+          if (backendPricing.appliedCoupon) {
             const backendAppliedCoupon = backendPricing.appliedCoupon
             if (backendAppliedCoupon?.type === "restaurant-auto-offer") {
-              setAppliedCoupon(backendAppliedCoupon)
+              const hasSameAutoOffer =
+                appliedCoupon?.type === "restaurant-auto-offer" &&
+                String(appliedCoupon.offerId || "") === String(backendAppliedCoupon.offerId || "") &&
+                Number(appliedCoupon.discount || 0) === Number(backendAppliedCoupon.discount || 0)
+              if (!hasSameAutoOffer) {
+                setAppliedCoupon(backendAppliedCoupon)
+              }
             } else {
-              const coupon = availableCoupons.find(c => c.code === backendAppliedCoupon.code)
-              if (coupon) {
-                setAppliedCoupon(coupon)
+              const hasSameCoupon =
+                appliedCoupon &&
+                appliedCoupon?.type !== "restaurant-auto-offer" &&
+                appliedCoupon?.code === backendAppliedCoupon.code
+              if (!hasSameCoupon) {
+                const coupon = availableCoupons.find(c => c.code === backendAppliedCoupon.code)
+                setAppliedCoupon(
+                  coupon || {
+                    code: backendAppliedCoupon.code,
+                    discount: backendAppliedCoupon.discount || 0,
+                    minOrder: 0,
+                    customerGroup: "all",
+                  },
+                )
               }
             }
-          } else if (!backendPricing.appliedCoupon && appliedCoupon?.type === "restaurant-auto-offer") {
-            setAppliedCoupon(null)
+          } else {
+            // Backend has no applied coupon. Clear manually applied coupon if any.
+            if (appliedCoupon && appliedCoupon.type !== "restaurant-auto-offer") {
+              setAppliedCoupon(null)
+              setCouponCode("")
+              setManualCouponCode("")
+            } else if (appliedCoupon && appliedCoupon.type === "restaurant-auto-offer" && !backendAutoAppliedOffer) {
+              setAppliedCoupon(null)
+            }
+          }
+
+          // Sync auto-applied offer if backend returns one and no manual coupon is applied
+          if (backendAutoAppliedOffer) {
+            const hasManualCoupon = backendPricing.appliedCoupon && backendPricing.appliedCoupon.type !== "restaurant-auto-offer"
+            if (!hasManualCoupon) {
+              const hasSameAutoOffer =
+                appliedCoupon?.type === "restaurant-auto-offer" &&
+                String(appliedCoupon.offerId || "") === String(backendAutoAppliedOffer.offerId || "") &&
+                Number(appliedCoupon.discount || 0) === Number(backendAutoAppliedOffer.discount || 0)
+              if (!hasSameAutoOffer) {
+                setAppliedCoupon(backendAutoAppliedOffer)
+              }
+            }
+            lastAutoOfferToastRef.current = ""
+          } else {
+            if (appliedCoupon && appliedCoupon.type === "restaurant-auto-offer" && !backendPricing.appliedCoupon) {
+              setAppliedCoupon(null)
+            }
           }
 
           if (backendAutoOfferFeedback?.reason === "max_items_exceeded") {
-            const feedbackKey = `${backendAutoOfferFeedback.offerId || "offer"}:${backendAutoOfferFeedback.eligibleItemCount || 0}:${backendAutoOfferFeedback.maxOfferQuantityPerOrder || 0}`
+            const feedbackKey = `${backendAutoOfferFeedback.offerId || "offer"}:${backendAutoOfferFeedback.maxOfferQuantityPerOrder || 0}`
             if (lastAutoOfferToastRef.current !== feedbackKey) {
               lastAutoOfferToastRef.current = feedbackKey
               toast.error(
@@ -1041,7 +1071,7 @@ export default function Cart() {
   }, [])
 
   // Use backend pricing if available, otherwise fallback to database fee settings
-  const subtotal = pricing?.subtotal || cart.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0)
+  const subtotal = pricing?.subtotal ?? cart.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0)
   const fallbackDeliveryFee = (() => {
     if (appliedCoupon?.freeDelivery) {
       return 0
@@ -1057,16 +1087,16 @@ export default function Cart() {
   const deliveryFeeBreakdownText = hasDistanceDeliveryBreakdown
     ? `Distance ${Number(deliveryFeeBreakdown.distanceKm).toFixed(1)} km: ${RUPEE_SYMBOL}${Number(deliveryFeeBreakdown.basePayout || 0).toFixed(0)} base + ${Number(deliveryFeeBreakdown.extraDistanceKm || 0).toFixed(1)} km x ${RUPEE_SYMBOL}${Number(deliveryFeeBreakdown.commissionPerKm || 0).toFixed(0)}`
     : null
-  const platformFee = pricing?.platformFee || feeSettings.platformFee
-  const gstCharges = pricing?.tax || Math.round(subtotal * (feeSettings.gstRate / 100))
-  const discount = pricing?.discount || (appliedCoupon ? Math.min(appliedCoupon.discount, subtotal * 0.5) : 0)
+  const platformFee = pricing?.platformFee ?? feeSettings.platformFee
+  const gstCharges = pricing?.tax ?? Math.round(subtotal * (feeSettings.gstRate / 100))
+  const discount = pricing?.discount ?? (appliedCoupon ? Math.min(appliedCoupon.discount, subtotal * 0.5) : 0)
   const displayedAppliedCoupon = appliedCoupon?.type !== "restaurant-auto-offer" ? appliedCoupon : null
-  const couponDiscount = pricing?.couponDiscount || (displayedAppliedCoupon ? (appliedCoupon?.discount || 0) : 0)
-  const autoOfferDiscount = displayedAppliedCoupon ? 0 : (pricing?.autoOfferDiscount || (
+  const couponDiscount = pricing?.couponDiscount ?? (displayedAppliedCoupon ? (appliedCoupon?.discount || 0) : 0)
+  const autoOfferDiscount = displayedAppliedCoupon ? 0 : (pricing?.autoOfferDiscount ?? (
     pricing?.autoAppliedOffer?.type === "restaurant-auto-offer"
       ? pricing.autoAppliedOffer.discount || 0
       : pricing?.appliedCoupon?.type === "restaurant-auto-offer"
-        ? pricing.appliedCoupon.discount || 0
+        ? pricing.couponDiscount || pricing.appliedCoupon.discount || 0
         : appliedCoupon?.type === "restaurant-auto-offer"
           ? appliedCoupon.discount || 0
           : 0
@@ -1095,9 +1125,9 @@ export default function Cart() {
   const effectiveDiscount = displayedAppliedCoupon ? couponDiscount : autoOfferDiscount
   
   const total = displayedAppliedCoupon 
-    ? (pricing?.total ? (Number(pricing.total) + Number(pricing.autoOfferDiscount || 0)) : totalBeforeDiscount - effectiveDiscount)
-    : (pricing?.total || totalBeforeDiscount - effectiveDiscount)
-  const previousDue = Number(pricing?.previousDue || 0)
+    ? (pricing?.total !== undefined && pricing?.total !== null ? (Number(pricing.total) + Number(pricing.autoOfferDiscount ?? 0)) : totalBeforeDiscount - effectiveDiscount)
+    : (pricing?.total ?? totalBeforeDiscount - effectiveDiscount)
+  const previousDue = Number(pricing?.previousDue ?? 0)
   const totalPayable = Number(pricing?.totalPayable ?? (total + previousDue))
     
   const savings = displayedAppliedCoupon ? couponDiscount : (pricing?.savings ?? Math.max(0, totalBeforeDiscount - total))

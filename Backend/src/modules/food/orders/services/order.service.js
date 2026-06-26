@@ -124,7 +124,25 @@ const findApplicableRestaurantAutoOffer = async (restaurantId, items = [], userI
         offerId: offer._id,
         userId,
       }).lean();
-      if (usage && Number(usage.count) >= Number(offer.perUserLimit)) continue;
+      const usageCount = usage ? Number(usage.count) : 0;
+
+      const activeOrderCount = await FoodOrder.countDocuments({
+        userId: new mongoose.Types.ObjectId(userId),
+        orderStatus: {
+          $in: [
+            'created',
+            'placed',
+            'confirmed',
+            'preparing',
+            'ready_for_pickup',
+            'picked_up',
+            'user_unavailable_review'
+          ]
+        },
+        appliedRestaurantOfferId: offer._id
+      });
+
+      if (usageCount + activeOrderCount >= Number(offer.perUserLimit)) continue;
     }
 
     const allowedProducts = new Set(productIds);
@@ -574,9 +592,35 @@ async function getUnpaidDebtSummary(userId) {
     (sum, row) => sum + Math.max(0, Number(row?.amount || 0)),
     0,
   );
+
+  // Find all active orders for this user that already have previousDue applied
+  const activeOrders = await FoodOrder.find({
+    userId: new mongoose.Types.ObjectId(userId),
+    orderStatus: {
+      $in: [
+        'created',
+        'placed',
+        'confirmed',
+        'preparing',
+        'ready_for_pickup',
+        'picked_up',
+        'user_unavailable_review'
+      ]
+    }
+  })
+    .select("pricing.previousDue")
+    .lean();
+
+  const inFlightDue = activeOrders.reduce(
+    (sum, order) => sum + Math.max(0, Number(order?.pricing?.previousDue || 0)),
+    0
+  );
+
+  const finalDue = Math.max(0, Math.round(totalDue - inFlightDue));
+
   return {
-    totalDue: Math.round(totalDue),
-    count: rows.length,
+    totalDue: finalDue,
+    count: finalDue > 0 ? rows.length : 0,
   };
 }
 
@@ -1193,8 +1237,27 @@ export async function calculateOrder(userId, dto) {
           offerId: offer._id,
           userId,
         }).lean();
-        if (usage && Number(usage.count) >= Number(offer.perUserLimit))
+        const usageCount = usage ? Number(usage.count) : 0;
+
+        const activeOrderCount = await FoodOrder.countDocuments({
+          userId: new mongoose.Types.ObjectId(userId),
+          orderStatus: {
+            $in: [
+              'created',
+              'placed',
+              'confirmed',
+              'preparing',
+              'ready_for_pickup',
+              'picked_up',
+              'user_unavailable_review'
+            ]
+          },
+          appliedCouponOfferId: offer._id
+        });
+
+        if (usageCount + activeOrderCount >= Number(offer.perUserLimit)) {
           perUserOk = false;
+        }
       }
       let firstOrderOk = true;
       if (userId && offer.customerScope === "first-time") {
