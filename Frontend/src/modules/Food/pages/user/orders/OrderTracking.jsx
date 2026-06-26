@@ -638,6 +638,7 @@ function OrderTrackingContent() {
 
   const [orderStatus, setOrderStatus] = useState('placed')
   const [estimatedTime, setEstimatedTime] = useState(null)
+  const [mapEta, setMapEta] = useState(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showCancelDialog, setShowCancelDialog] = useState(false)
   const [showOrderDetails, setShowOrderDetails] = useState(false)
@@ -1025,8 +1026,20 @@ function OrderTrackingContent() {
       ].includes(normalizedBackendOrderStatus),
     [normalizedBackendOrderStatus],
   )
+  const cleanMapEta = useMemo(() => {
+    if (!mapEta) return null;
+    const str = String(mapEta).trim();
+    if (!str) return null;
+    if (/^\d+$/.test(str)) {
+      return `${str} mins`;
+    }
+    return str;
+  }, [mapEta]);
+
   const liveRestaurantEtaText =
-    !isRestaurantReadyForPickup && typeof estimatedTime === "number"
+    cleanMapEta && !isRestaurantReadyForPickup
+      ? `Arriving in ${cleanMapEta}`
+      : !isRestaurantReadyForPickup && typeof estimatedTime === "number"
       ? `Arriving in ${estimatedTime} mins`
       : null
 
@@ -1398,7 +1411,9 @@ function OrderTrackingContent() {
     [trackingMapCoords.restaurant, trackingMapCoords.customer],
   )
   const liveDeliveryEtaText =
-    isRestaurantReadyForPickup && typeof deliveryDistanceEtaMinutes === "number"
+    cleanMapEta && isRestaurantReadyForPickup
+      ? `Delivery in ${cleanMapEta}`
+      : isRestaurantReadyForPickup && typeof deliveryDistanceEtaMinutes === "number"
       ? `Delivery in ${deliveryDistanceEtaMinutes} mins`
       : null
 
@@ -1638,6 +1653,7 @@ function OrderTrackingContent() {
                 restaurantCoords={trackingMapCoords.restaurant}
                 customerCoords={trackingMapCoords.customer}
                 order={order}
+                onEtaUpdate={setMapEta}
               />
             </div>
           </div>

@@ -4971,8 +4971,13 @@ export async function updateDeliverySupportTicket(id, body = {}) {
 
 // ----- Delivery partners (approved list) -----
 export async function getDeliveryPartners(query, adminScope = {}) {
-    const { page = 1, limit = 1000, search } = query;
-    const filter = { status: { $in: ['approved', 'rejected'] } };
+    const { page = 1, limit = 1000, search, status } = query;
+    const filter = {};
+    if (status) {
+        filter.status = status;
+    } else {
+        filter.status = { $in: ['approved', 'rejected'] };
+    }
     const includeAvailability = String(query?.includeAvailability || '').toLowerCase() === 'true';
     const scope = normalizeAdminScope(adminScope);
 

@@ -35,6 +35,7 @@ const CookingAnimation = memo(() => (
 
 import { useOrders } from "@food/context/OrdersContext";
 import { orderAPI } from "@food/api";
+import { subscribeOrderTracking } from "@food/realtimeTracking";
 
 const RATING_CARD_DISMISS_STORAGE_KEY = "food_user_dismissed_rating_cards_v1";
 
@@ -160,6 +161,7 @@ function OrderTrackingCardInner({ hasBottomNav = true, otpOnly = false, showOtpB
   const { orders: contextOrders } = useOrders();
   const hasCustomerAuth = !!getCustomerToken();
   const [timeRemaining, setTimeRemaining] = useState(null);
+  const [firebaseEta, setFirebaseEta] = useState(null);
   const [apiOrders, setApiOrders] = useState([]);
   const [hasFetchedApi, setHasFetchedApi] = useState(false);
   const [activeOrderOverride, setActiveOrderOverride] = useState(null);
@@ -351,6 +353,35 @@ function OrderTrackingCardInner({ hasBottomNav = true, otpOnly = false, showOtpB
 
     return () => clearInterval(interval);
   }, [activeOrder]);
+
+  useEffect(() => {
+    const key = getOrderKey(activeOrder);
+    if (!key) {
+      setFirebaseEta(null);
+      return;
+    }
+
+    const unsubscribe = subscribeOrderTracking(key, (data) => {
+      if (data?.eta) {
+        setFirebaseEta(data.eta);
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [activeOrder]);
+
+  const liveTimeRemaining = useMemo(() => {
+    if (firebaseEta) {
+      const str = String(firebaseEta).trim();
+      const match = str.match(/^(\d+)/);
+      if (match) {
+        return Math.max(1, Number(match[1]));
+      }
+    }
+    return timeRemaining;
+  }, [firebaseEta, timeRemaining]);
 
   // Proactive verification for active orders not found in recent API list
   useEffect(() => {
@@ -585,8 +616,8 @@ function OrderTrackingCardInner({ hasBottomNav = true, otpOnly = false, showOtpB
                   arriving in
                 </p>
                 <p className="text-white text-base md:text-[17px] font-black leading-tight drop-shadow-sm">
-                  {timeRemaining !== null
-                    ? `${Math.max(1, timeRemaining)} mins`
+                  {liveTimeRemaining !== null
+                    ? `${Math.max(1, liveTimeRemaining)} mins`
                     : "--"}
                 </p>
               </div>

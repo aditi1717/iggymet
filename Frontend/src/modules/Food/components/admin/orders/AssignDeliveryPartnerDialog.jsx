@@ -126,11 +126,12 @@ export default function AssignDeliveryPartnerDialog({
           limit: 1000,
           zoneId: resolvedZoneId,
           includeAvailability: true,
+          status: 'approved',
         })
 
         const zoneScopedList = response?.data?.data?.deliveryPartners || []
         const strictZonePartners = zoneScopedList.filter(
-          (partner) => getPartnerZoneId(partner) === resolvedZoneId,
+          (partner) => getPartnerZoneId(partner) === resolvedZoneId && partner.status === 'approved',
         )
         const strictOnlineZonePartners = strictZonePartners.filter((partner) =>
           isPartnerOnline(partner),
