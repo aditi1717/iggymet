@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { getPublicGourmetRestaurants } from '../services/gourmet.service.js';
 import { getLandingSettings } from '../services/landingSettings.service.js';
 import { FoodHeroBanner } from '../models/heroBanner.model.js';
@@ -31,10 +32,14 @@ export const getPublicHeroBannersController = async (req, res, next) => {
         const { zoneId } = req.query;
         banners = banners.filter((b) => {
             if (b.hasOriginalLinks && b.linkedRestaurants.length === 0) return false;
-            if (zoneId && zoneId !== 'undefined' && zoneId !== 'null' && b.linkedRestaurants.length > 0) {
-                return b.linkedRestaurants.some((r) => r.zoneId && r.zoneId.toString() === zoneId.toString());
+            if (zoneId && zoneId !== 'undefined' && zoneId !== 'null') {
+                if (b.linkedRestaurants.length > 0) {
+                    return b.linkedRestaurants.some((r) => r.zoneId && r.zoneId.toString() === zoneId.toString());
+                }
+                return true; // global banners are kept
             }
-            return true;
+            // If zoneId is not provided or is invalid, do not show banners linked to restaurants
+            return !b.hasOriginalLinks;
         });
         return sendResponse(res, 200, 'Hero banners fetched', { banners });
     } catch (error) {
@@ -82,10 +87,18 @@ export const getPublicLandingSettingsController = async (req, res, next) => {
         const settings = await getLandingSettings();
         const ids = settings?.recommendedRestaurantIds || [];
         let recommendedRestaurants = [];
-        if (Array.isArray(ids) && ids.length > 0) {
-            recommendedRestaurants = await FoodRestaurant.find({ _id: { $in: ids }, status: 'approved' })
-                .select('restaurantName area city profileImage coverImages menuImages slug rating cuisines pureVegRestaurant')
+        
+        const { zoneId } = req.query;
+        if (zoneId && zoneId !== 'undefined' && zoneId !== 'null' && mongoose.Types.ObjectId.isValid(String(zoneId))) {
+            if (Array.isArray(ids) && ids.length > 0) {
+                recommendedRestaurants = await FoodRestaurant.find({ 
+                    _id: { $in: ids }, 
+                    status: 'approved',
+                    zoneId: new mongoose.Types.ObjectId(String(zoneId))
+                })
+                .select('restaurantName area city profileImage coverImages menuImages slug rating cuisines pureVegRestaurant zoneId')
                 .lean();
+            }
         }
         const payload = {
             ...settings,

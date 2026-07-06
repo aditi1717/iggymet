@@ -23,6 +23,13 @@ export const listUnder250Banners = async ({ priceLimit = null, isActive = null, 
             { zoneId: "" },
             { zoneId: zoneId }
         ];
+    } else {
+        // If zoneId is not provided (or is null/undefined/empty), only return global banners
+        filter.$or = [
+            { zoneId: { $exists: false } },
+            { zoneId: null },
+            { zoneId: "" }
+        ];
     }
     return FoodUnder250Banner.find(filter).sort({ sortOrder: 1, createdAt: -1 }).lean();
 };

@@ -914,10 +914,13 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
     setLoadingLandingConfig(true);
+    const settingsUrl = resolvedZoneId
+      ? `/food/landing/settings/public?zoneId=${resolvedZoneId}`
+      : "/food/landing/settings/public";
     Promise.all([
       publicGetOnce("/food/explore-icons/public")
         .catch(() => ({ data: { data: {} } })),
-      publicGetOnce("/food/landing/settings/public")
+      publicGetOnce(settingsUrl)
         .catch(() => ({ data: { data: {} } })),
     ])
       .then(([exploreRes, settingsRes]) => {
@@ -968,7 +971,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [resolvedZoneId]);
 
   // Keep index within current banner bounds after admin updates/reloads.
   useEffect(() => {

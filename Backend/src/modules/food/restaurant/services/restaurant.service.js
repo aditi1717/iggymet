@@ -980,10 +980,10 @@ export const updateRestaurantProfile = async (restaurantId, body = {}, files = {
                     'ownerEmail',
                     'ownerPhone',
                     'primaryContactNumber',
-                'pureVegRestaurant',
-                'profileImage',
-                'coverImages',
-                'menuImages', 'featuredDish', 'offer', 'featuredPrice',
+                    'pureVegRestaurant',
+                    'profileImage',
+                    'coverImages',
+                    'menuImages', 'featuredDish', 'offer', 'featuredPrice',
                     'openingTime',
                     'closingTime',
                     'openDays',
@@ -1476,8 +1476,8 @@ export const listPublicOffers = async (query = {}, userId = null) => {
     if (query?.zoneId && mongoose.Types.ObjectId.isValid(String(query.zoneId))) {
         const reqZoneId = String(query.zoneId);
         list = list.filter(o => {
-            if (o.restaurantScope === 'selected') {
-                const restaurant = o.restaurantId && typeof o.restaurantId === 'object' ? o.restaurantId : null;
+            const restaurant = o.restaurantId && typeof o.restaurantId === 'object' ? o.restaurantId : null;
+            if (o.restaurantScope === 'selected' || restaurant) {
                 const rZoneId = restaurant?.zoneId ? String(restaurant.zoneId?._id || restaurant.zoneId) : '';
                 return rZoneId === reqZoneId;
             }
@@ -1505,12 +1505,12 @@ export const listPublicOffers = async (query = {}, userId = null) => {
     }
 
     const allOffers = list.map((o) => {
-        const isSelected = o.restaurantScope === 'selected';
-        const restaurant = isSelected && o.restaurantId && typeof o.restaurantId === 'object' ? o.restaurantId : null;
+        const restaurant = o.restaurantId && typeof o.restaurantId === 'object' ? o.restaurantId : null;
         const restaurantSlug = restaurant?.restaurantNameNormalized || undefined;
-        const restaurantName = isSelected
-            ? (restaurant?.restaurantName || 'Selected Restaurant')
-            : 'All Restaurants';
+        const restaurantName =
+            (o.restaurantScope === 'selected' || restaurant)
+                ? (restaurant?.restaurantName || 'Selected Restaurant')
+                : 'All Restaurants';
 
         const title =
             o.discountType === 'percentage'
@@ -1527,7 +1527,7 @@ export const listPublicOffers = async (query = {}, userId = null) => {
             maxDiscount: o.maxDiscount ?? null,
             customerScope: o.customerScope,
             restaurantScope: o.restaurantScope,
-            restaurantId: restaurant?._id ? String(restaurant._id) : null,
+            restaurantId: restaurant?._id ? String(restaurant._id) : (o.restaurantScope === 'selected' ? String(o.restaurantId) : null),
             restaurantName,
             restaurantSlug,
             restaurantImage: restaurant?.profileImage || null,
@@ -1598,8 +1598,8 @@ export const listPublicOffers = async (query = {}, userId = null) => {
     productOffers = productOffers.filter(offer => {
         const approvedPrimaryProduct =
             offer?.productId &&
-            String(offer.productId.approvalStatus || '') === 'approved' &&
-            offer.productId.isAvailable !== false
+                String(offer.productId.approvalStatus || '') === 'approved' &&
+                offer.productId.isAvailable !== false
                 ? offer.productId
                 : null;
         const approvedProducts = Array.isArray(offer?.productIds)
