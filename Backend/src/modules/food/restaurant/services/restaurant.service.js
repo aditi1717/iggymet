@@ -7,6 +7,8 @@ import { FoodRestaurantCommission } from '../../admin/models/restaurantCommissio
 import { FoodOffer } from '../../admin/models/offer.model.js';
 import { FoodOfferUsage } from '../../admin/models/offerUsage.model.js';
 import { FoodItem } from '../../admin/models/food.model.js';
+import { RestaurantOffer } from '../models/restaurantOffer.model.js';
+import { RestaurantOfferUsage } from '../models/restaurantOfferUsage.model.js';
 
 const normalizeName = (value) =>
     String(value || '')
@@ -1438,7 +1440,7 @@ export const listPublicOffers = async (query = {}, userId = null) => {
 
     let list = await FoodOffer.find(filter)
         .sort({ createdAt: -1 })
-        .populate({ path: 'restaurantId', select: 'restaurantName restaurantNameNormalized profileImage estimatedDeliveryTime rating' })
+        .populate({ path: 'restaurantId', select: 'restaurantName restaurantNameNormalized profileImage estimatedDeliveryTime rating zoneId' })
         .lean();
 
     // 1. Filter expired/not-started coupons (endDate valid till end-of-day) and globally exhausted coupons
@@ -1470,6 +1472,19 @@ export const listPublicOffers = async (query = {}, userId = null) => {
         return used < o.usageLimit;
     });
 
+    // Filter coupons by zoneId if provided
+    if (query?.zoneId && mongoose.Types.ObjectId.isValid(String(query.zoneId))) {
+        const reqZoneId = String(query.zoneId);
+        list = list.filter(o => {
+            if (o.restaurantScope === 'selected') {
+                const restaurant = o.restaurantId && typeof o.restaurantId === 'object' ? o.restaurantId : null;
+                const rZoneId = restaurant?.zoneId ? String(restaurant.zoneId?._id || restaurant.zoneId) : '';
+                return rZoneId === reqZoneId;
+            }
+            return true; // global offers are kept
+        });
+    }
+
     // 2. If userId is provided, filter based on personal usage limits
     if (userId && list.length > 0) {
         const offerIds = list.map((o) => o._id);
@@ -1490,12 +1505,12 @@ export const listPublicOffers = async (query = {}, userId = null) => {
     }
 
     const allOffers = list.map((o) => {
-        const restaurant = o.restaurantId && typeof o.restaurantId === 'object' ? o.restaurantId : null;
+        const isSelected = o.restaurantScope === 'selected';
+        const restaurant = isSelected && o.restaurantId && typeof o.restaurantId === 'object' ? o.restaurantId : null;
         const restaurantSlug = restaurant?.restaurantNameNormalized || undefined;
-        const restaurantName =
-            o.restaurantScope === 'selected'
-                ? (restaurant?.restaurantName || 'Selected Restaurant')
-                : 'All Restaurants';
+        const restaurantName = isSelected
+            ? (restaurant?.restaurantName || 'Selected Restaurant')
+            : 'All Restaurants';
 
         const title =
             o.discountType === 'percentage'
@@ -1512,7 +1527,7 @@ export const listPublicOffers = async (query = {}, userId = null) => {
             maxDiscount: o.maxDiscount ?? null,
             customerScope: o.customerScope,
             restaurantScope: o.restaurantScope,
-            restaurantId: restaurant?._id ? String(restaurant._id) : (o.restaurantScope === 'selected' ? String(o.restaurantId) : null),
+            restaurantId: restaurant?._id ? String(restaurant._id) : null,
             restaurantName,
             restaurantSlug,
             restaurantImage: restaurant?.profileImage || null,
@@ -1524,7 +1539,142 @@ export const listPublicOffers = async (query = {}, userId = null) => {
         };
     });
 
-    return { allOffers, groupedByOffer: {} };
+    // 3. Fetch active and approved restaurant product-specific offers (RestaurantOffer)
+    const productOfferFilter = {
+        status: 'active',
+        approvalStatus: 'approved',
+        $and: [
+            { $or: [{ startDate: { $exists: false } }, { startDate: null }, { startDate: { $lte: endOfToday } }] },
+            { $or: [{ endDate: { $exists: false } }, { endDate: null }, { endDate: { $gte: todayStart } }] }
+        ]
+    };
+    if (hasRestaurantFilter) {
+        productOfferFilter.restaurantId = new mongoose.Types.ObjectId(restaurantIdRaw);
+    }
+
+    let productOffers = await RestaurantOffer.find(productOfferFilter)
+        .sort({ createdAt: -1 })
+        .populate({ path: 'restaurantId', select: 'restaurantName restaurantNameNormalized profileImage estimatedDeliveryTime rating zoneId' })
+        .populate({ path: 'productId', select: 'name image coverImage photos price discountedPrice foodType preparationTime description approvalStatus isAvailable' })
+        .populate({ path: 'productIds', select: 'name image coverImage photos price discountedPrice foodType preparationTime description approvalStatus isAvailable' })
+        .lean();
+
+    // Filter productOffers by zoneId if provided
+    if (query?.zoneId && mongoose.Types.ObjectId.isValid(String(query.zoneId))) {
+        const reqZoneId = String(query.zoneId);
+        productOffers = productOffers.filter(o => {
+            const rZoneId = o.restaurantId?.zoneId ? String(o.restaurantId.zoneId?._id || o.restaurantId.zoneId) : '';
+            return rZoneId === reqZoneId;
+        });
+    }
+
+    // Filter expired general usages on productOffers
+    productOffers = productOffers.filter(o => {
+        if (!o.usageLimit) return true;
+        const used = o.usedCount || 0;
+        return used < o.usageLimit;
+    });
+
+    // Filter by personal usage limits on productOffers
+    if (userId && productOffers.length > 0) {
+        const pOfferIds = productOffers.map((o) => o._id);
+        const usages = await RestaurantOfferUsage.find({
+            userId: new mongoose.Types.ObjectId(String(userId)),
+            offerId: { $in: pOfferIds }
+        }).lean();
+
+        const pUsageMap = new Map(usages.map((u) => [String(u.offerId), u.count]));
+
+        productOffers = productOffers.filter((o) => {
+            if (o.perUserLimit != null && o.perUserLimit > 0) {
+                const userCount = pUsageMap.get(String(o._id)) || 0;
+                return userCount < o.perUserLimit;
+            }
+            return true;
+        });
+    }
+
+    // Filter out invalid/unapproved/unavailable products in productOffers
+    productOffers = productOffers.filter(offer => {
+        const approvedPrimaryProduct =
+            offer?.productId &&
+            String(offer.productId.approvalStatus || '') === 'approved' &&
+            offer.productId.isAvailable !== false
+                ? offer.productId
+                : null;
+        const approvedProducts = Array.isArray(offer?.productIds)
+            ? offer.productIds.filter(
+                (product) =>
+                    product &&
+                    String(product.approvalStatus || '') === 'approved' &&
+                    product.isAvailable !== false,
+            )
+            : [];
+
+        if (!approvedPrimaryProduct && approvedProducts.length === 0) {
+            return false;
+        }
+
+        offer.productId = approvedPrimaryProduct;
+        offer.productIds = approvedProducts;
+        return true;
+    });
+
+    // Group product offers by title
+    const groupedByOffer = {};
+    for (const offer of productOffers) {
+        const offerText = offer.title || '';
+        if (!offerText) continue;
+
+        if (!groupedByOffer[offerText]) {
+            groupedByOffer[offerText] = [];
+        }
+
+        const restaurant = offer.restaurantId && typeof offer.restaurantId === 'object' ? offer.restaurantId : null;
+        const restaurantSlug = restaurant?.restaurantNameNormalized || undefined;
+        const restaurantName = restaurant?.restaurantName || 'Restaurant';
+        const restaurantImage = restaurant?.profileImage || null;
+        const deliveryTime = restaurant?.estimatedDeliveryTime || null;
+        const restaurantRating = typeof restaurant?.rating === 'number' ? restaurant.rating : 0;
+
+        const productsToMap = Array.isArray(offer.productIds) && offer.productIds.length > 0
+            ? offer.productIds
+            : offer.productId
+                ? [offer.productId]
+                : [];
+
+        for (const product of productsToMap) {
+            let discountedPrice = product.price || 0;
+            if (offer.discountType === 'percentage') {
+                let discount = (product.price * offer.discountValue) / 100;
+                if (offer.maxDiscount != null && discount > offer.maxDiscount) {
+                    discount = offer.maxDiscount;
+                }
+                discountedPrice = Math.max(0, product.price - discount);
+            } else if (offer.discountType === 'flat-price') {
+                discountedPrice = Math.max(0, product.price - offer.discountValue);
+            }
+            discountedPrice = Math.round(discountedPrice);
+
+            groupedByOffer[offerText].push({
+                id: `${String(offer._id)}_${String(product._id)}`,
+                offerId: String(offer._id),
+                dishId: String(product._id),
+                dishName: product.name || '',
+                dishImage: product.image || product.coverImage || (Array.isArray(product.photos) && product.photos[0]) || null,
+                restaurantImage,
+                restaurantSlug,
+                restaurantName,
+                restaurantRating,
+                deliveryTime,
+                offer: offerText,
+                discountedPrice,
+                originalPrice: product.price || 0
+            });
+        }
+    }
+
+    return { allOffers, groupedByOffer };
 };
 
 /**

@@ -364,6 +364,14 @@ export default function Under250() {
   const sortedAndFilteredRestaurants = useMemo(() => {
     let filtered = under250Restaurants.map(r => ({ ...r, menuItems: [...(r.menuItems || [])] }))
 
+    // Filter to show only zoned restaurants (matching the active zoneId)
+    if (zoneId) {
+      filtered = filtered.filter(restaurant => {
+        const rZoneId = restaurant.zoneId ? String(restaurant.zoneId) : "";
+        return rZoneId === String(zoneId);
+      });
+    }
+
     const effectiveVegMode = vegMode || profileVegMode || storedUserVegMode
     const effectiveVegModePreference =
       profileVegModePreference === "pure-veg" ||
@@ -681,6 +689,7 @@ export default function Under250() {
                 id: String(restaurantId),
                 restaurantId: String(restaurantId),
                 mongoId: restaurant?._id || restaurantId,
+                zoneId: restaurant?.zoneId ? String(restaurant.zoneId?._id || restaurant.zoneId || "") : "",
                 slug:
                   restaurant?.slug ||
                   String(restaurant?.restaurantName || restaurant?.name || "")

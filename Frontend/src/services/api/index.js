@@ -1456,8 +1456,15 @@ export const adminAPI = {
         { contextModule: "user", ...config },
       )
     }
+    const params = { ...(restaurantIdOrParams || {}) };
+    if (!params.zoneId && typeof window !== "undefined") {
+      const storedZoneId = window.localStorage?.getItem("userZoneId");
+      if (storedZoneId) {
+        params.zoneId = storedZoneId;
+      }
+    }
     return apiClient.get("/food/restaurant/offers", {
-      params: restaurantIdOrParams || {},
+      params,
       contextModule: "user",
       ...config,
     })

@@ -82,7 +82,7 @@ export const validateCreateOfferDto = (body) => {
         discountValue: result.data.discountValue,
         customerScope: result.data.customerScope,
         restaurantScope: result.data.restaurantScope,
-        restaurantId: result.data.restaurantScope === 'selected' ? result.data.restaurantId : undefined,
+        restaurantId: result.data.restaurantScope === 'selected' ? result.data.restaurantId : null,
         endDate,
         startDate,
         minOrderValue: result.data.minOrderValue,
