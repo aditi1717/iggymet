@@ -442,6 +442,25 @@ export default function Home() {
     }
   }, [searchParams, setSearchParams, navigate]);
 
+  const { addToCart, cart } = useCart();
+  const { location, loading, requestLocation } = useLocation();
+  const {
+    zoneId,
+    zoneStatus,
+    isInService,
+    isOutOfService,
+    loading: zoneLoading,
+    error: zoneError,
+  } = useZone(location);
+  const cachedZoneId = useMemo(() => {
+    try {
+      return localStorage.getItem("userZoneId") || null;
+    } catch {
+      return null;
+    }
+  }, [zoneId, zoneStatus, location?.latitude, location?.longitude]);
+  const resolvedZoneId = zoneId || cachedZoneId;
+
   const { openLocationSelector } = useLocationSelector();
   const { vegMode, setVegMode: setVegModeContext, vegModePreference, setVegModePreference } = useProfile();
   const [prevVegMode, setPrevVegMode] = useState(vegMode);
@@ -1175,24 +1194,6 @@ export default function Home() {
     isFavorite,
     getFavorites,
   } = profileContext;
-  const { addToCart, cart } = useCart();
-  const { location, loading, requestLocation } = useLocation();
-  const {
-    zoneId,
-    zoneStatus,
-    isInService,
-    isOutOfService,
-    loading: zoneLoading,
-    error: zoneError,
-  } = useZone(location);
-  const cachedZoneId = useMemo(() => {
-    try {
-      return localStorage.getItem("userZoneId") || null;
-    } catch {
-      return null;
-    }
-  }, [zoneId, zoneStatus, location?.latitude, location?.longitude]);
-  const resolvedZoneId = zoneId || cachedZoneId;
 
   // Fetch hero banners from public API (no auth required)
   useEffect(() => {
