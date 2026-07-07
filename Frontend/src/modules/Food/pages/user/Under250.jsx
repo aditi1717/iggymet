@@ -11,7 +11,7 @@ import { useLocation } from "@food/hooks/useLocation"
 import { useZone } from "@food/hooks/useZone"
 import { useCart } from "@food/context/CartContext"
 import { useProfile } from "@food/context/ProfileContext"
-import offerImage from "@food/assets/offerimage.png"
+const offerImage = "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=200&h=200&fit=crop"
 import AddToCartAnimation from "@food/components/user/AddToCartAnimation"
 import OptimizedImage from "@food/components/OptimizedImage"
 import FoodHeroHeaderShell from "@food/components/user/home/FoodHeroHeaderShell"
@@ -175,7 +175,29 @@ export default function Under250() {
     dragging: false,
   })
   const [categories, setCategories] = useState([])
+  const [allCategoryImg, setAllCategoryImg] = useState(offerImage)
   const [bannerImages, setBannerImages] = useState([])
+
+  useEffect(() => {
+    let cancelled = false
+    api.get("/food/explore-icons/public")
+      .then((res) => {
+        if (cancelled) return
+        const dataPayload = res.data?.data
+        const items = Array.isArray(dataPayload)
+          ? dataPayload
+          : (Array.isArray(dataPayload?.items) ? dataPayload.items : [])
+        const underPriceIcon = items.find(
+          (item) => String(item.label || "").toLowerCase() === "under price"
+        )
+        const imgUrl = underPriceIcon?.imageUrl || underPriceIcon?.iconUrl
+        if (imgUrl) {
+          setAllCategoryImg(imgUrl)
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
   const [loadingBanner, setLoadingBanner] = useState(true)
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0)
   const [under250Restaurants, setUnder250Restaurants] = useState([])
@@ -486,23 +508,40 @@ export default function Under250() {
   useEffect(() => {
     let cancelled = false
     setLoadingBanner(true)
-    const url = zoneId ? `/food/hero-banners/under-250/public?zoneId=${zoneId}` : '/food/hero-banners/under-250/public'
-    api.get(url)
-      .then((res) => {
+    
+    const fetchBanners = async () => {
+      let customBanner = ""
+      try {
+        const settingsRes = await api.get('/food/landing/settings/public')
+        if (settingsRes.data?.underPriceBannerUrl) {
+          customBanner = settingsRes.data.underPriceBannerUrl
+        }
+      } catch (e) {}
+
+      try {
+        const url = zoneId ? `/food/hero-banners/under-250/public?zoneId=${zoneId}` : '/food/hero-banners/under-250/public'
+        const res = await api.get(url)
         if (cancelled) return
         const data = res?.data?.data
         const list = Array.isArray(data?.banners) ? data.banners : (Array.isArray(data) ? data : [])
-        const images = list
+        let images = list
           .map((banner) => (typeof banner?.imageUrl === "string" ? banner.imageUrl.trim() : ""))
           .filter(Boolean)
+
+        if (customBanner) {
+          images = [customBanner, ...images]
+        }
         setBannerImages(images)
-      })
-      .catch(() => {
-        if (!cancelled) setBannerImages([])
-      })
-      .finally(() => {
+      } catch (err) {
+        if (!cancelled) {
+          setBannerImages(customBanner ? [customBanner] : [])
+        }
+      } finally {
         if (!cancelled) setLoadingBanner(false)
-      })
+      }
+    }
+
+    fetchBanners()
     return () => { cancelled = true }
   }, [zoneId])
 
@@ -1264,13 +1303,10 @@ export default function Under250() {
                 <div
                   className={`w-14 h-14 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full overflow-hidden shadow-md transition-all ${!activeCategory ? '' : ''}`}
                   style={!activeCategory ? { boxShadow: `0 0 0 4px ${BRAND_THEME.colors.brand.primary}33`, borderColor: BRAND_THEME.colors.brand.primary } : undefined}>
-                  <OptimizedImage
-                    src={offerImage}
+                  <img
+                    src={allCategoryImg}
                     alt="All"
-                    className="w-full h-full bg-white rounded-full"
-                    objectFit="cover"
-                    sizes="(max-width: 640px) 62px, (max-width: 768px) 96px, 112px"
-                    placeholder="blur"
+                    className="w-full h-full bg-white rounded-full object-cover"
                   />
                 </div>
                 <span
@@ -1294,13 +1330,10 @@ export default function Under250() {
                         className="w-14 h-14 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full overflow-hidden shadow-md transition-all flex-shrink-0"
                         style={isActive ? { boxShadow: `0 0 0 4px ${BRAND_THEME.colors.brand.primary}33`, borderColor: BRAND_THEME.colors.brand.primary } : undefined}>
                         {category.image ? (
-                          <OptimizedImage
+                          <img
                             src={category.image}
                             alt={category.name}
-                            className="w-full h-full bg-white rounded-full"
-                            objectFit="cover"
-                            sizes="(max-width: 640px) 62px, (max-width: 768px) 96px, 112px"
-                            placeholder="blur"
+                            className="w-full h-full bg-white rounded-full object-cover"
                           />
                         ) : (
                           <div

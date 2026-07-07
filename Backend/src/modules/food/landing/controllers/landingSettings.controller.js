@@ -6,7 +6,9 @@ import {
     uploadGourmetBanner,
     deleteGourmetBanner,
     uploadOffersBanner,
-    deleteOffersBanner
+    deleteOffersBanner,
+    uploadUnderPriceBanner,
+    deleteUnderPriceBanner
 } from '../services/landingSettings.service.js';
 import { sendResponse } from '../../../../utils/response.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
@@ -89,6 +91,24 @@ export const deleteAdminOffersBannerController = async (req, res, next) => {
     try {
         const updated = await deleteOffersBanner();
         return sendResponse(res, 200, 'Offers page banner removed successfully', { settings: updated });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const uploadAdminUnderPriceBannerController = async (req, res, next) => {
+    try {
+        const updated = await uploadUnderPriceBanner(req.file);
+        return sendResponse(res, 200, 'Under-price page banner uploaded successfully', { settings: updated });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const deleteAdminUnderPriceBannerController = async (req, res, next) => {
+    try {
+        const updated = await deleteUnderPriceBanner();
+        return sendResponse(res, 200, 'Under-price page banner removed successfully', { settings: updated });
     } catch (error) {
         next(error);
     }

@@ -59,7 +59,7 @@ export default function LandingPageManagement() {
   const under250BannersFileInputRef = useRef(null)
 
   // Settings
-  const [settings, setSettings] = useState({ exploreMoreHeading: "Explore More", recommendedRestaurantIds: [], headerVideoUrl: "", gourmetBannerUrl: "", offersBannerUrl: "", defaultUnderPriceLimit: DEFAULT_PRICE_LIMIT })
+  const [settings, setSettings] = useState({ exploreMoreHeading: "Explore More", recommendedRestaurantIds: [], headerVideoUrl: "", gourmetBannerUrl: "", offersBannerUrl: "", underPriceBannerUrl: "", defaultUnderPriceLimit: DEFAULT_PRICE_LIMIT })
   const [settingsLoading, setSettingsLoading] = useState(true)
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [headerVideoUploading, setHeaderVideoUploading] = useState(false)
@@ -932,6 +932,7 @@ export default function LandingPageManagement() {
           headerVideoUrl: nextSettings.headerVideoUrl || "",
           gourmetBannerUrl: nextSettings.gourmetBannerUrl || "",
           offersBannerUrl: nextSettings.offersBannerUrl || "",
+          underPriceBannerUrl: nextSettings.underPriceBannerUrl || "",
           defaultUnderPriceLimit: normalizePriceLimit(nextSettings.defaultUnderPriceLimit, DEFAULT_PRICE_LIMIT),
         })
         setUnder250UploadPriceLimit(String(normalizePriceLimit(nextSettings.defaultUnderPriceLimit, DEFAULT_PRICE_LIMIT)))
@@ -939,7 +940,7 @@ export default function LandingPageManagement() {
     } catch (err) {
       // Silently handle 401/404 errors - endpoints may not exist yet, use default settings
       if (err.response?.status === 401 || err.response?.status === 404) {
-        setSettings({ exploreMoreHeading: "Explore More", recommendedRestaurantIds: [], headerVideoUrl: "", gourmetBannerUrl: "", offersBannerUrl: "", defaultUnderPriceLimit: DEFAULT_PRICE_LIMIT }) // Use default settings
+        setSettings({ exploreMoreHeading: "Explore More", recommendedRestaurantIds: [], headerVideoUrl: "", gourmetBannerUrl: "", offersBannerUrl: "", underPriceBannerUrl: "", defaultUnderPriceLimit: DEFAULT_PRICE_LIMIT }) // Use default settings
         setError(null) // Clear any previous error
       } else {
         // Filter out token-related errors
@@ -1080,7 +1081,9 @@ export default function LandingPageManagement() {
 
       const endpoint = type === 'gourmet' 
         ? '/food/hero-banners/landing/settings/gourmet-banner' 
-        : '/food/hero-banners/landing/settings/offers-banner'
+        : type === 'offers'
+          ? '/food/hero-banners/landing/settings/offers-banner'
+          : '/food/hero-banners/landing/settings/under-price-banner'
 
       const response = await api.post(endpoint, formData, getAuthConfig())
       if (response.data.success) {
@@ -1088,9 +1091,10 @@ export default function LandingPageManagement() {
         setSettings((prev) => ({
           ...prev,
           gourmetBannerUrl: savedSettings.gourmetBannerUrl || "",
-          offersBannerUrl: savedSettings.offersBannerUrl || ""
+          offersBannerUrl: savedSettings.offersBannerUrl || "",
+          underPriceBannerUrl: savedSettings.underPriceBannerUrl || ""
         }))
-        setSuccess(`${type === 'gourmet' ? 'Gourmet' : 'Offers'} page banner uploaded successfully!`)
+        setSuccess(`${type === 'gourmet' ? 'Gourmet' : type === 'offers' ? 'Offers' : 'Under Price'} page banner uploaded successfully!`)
         setTimeout(() => setSuccess(null), 3000)
       }
     } catch (err) {
@@ -1103,7 +1107,7 @@ export default function LandingPageManagement() {
   }
 
   const handleRemovePageBanner = async (type) => {
-    if (!window.confirm(`Remove the current ${type === 'gourmet' ? 'Gourmet' : 'Offers'} page banner?`)) return
+    if (!window.confirm(`Remove the current ${type === 'gourmet' ? 'Gourmet' : type === 'offers' ? 'Offers' : 'Under Price'} page banner?`)) return
 
     try {
       setBannerRemoving(true)
@@ -1111,15 +1115,17 @@ export default function LandingPageManagement() {
       setSuccess(null)
       const endpoint = type === 'gourmet' 
         ? '/food/hero-banners/landing/settings/gourmet-banner' 
-        : '/food/hero-banners/landing/settings/offers-banner'
+        : type === 'offers'
+          ? '/food/hero-banners/landing/settings/offers-banner'
+          : '/food/hero-banners/landing/settings/under-price-banner'
 
       const response = await api.delete(endpoint, getAuthConfig())
       if (response.data.success) {
         setSettings((prev) => ({
           ...prev,
-          [type === 'gourmet' ? 'gourmetBannerUrl' : 'offersBannerUrl']: ""
+          [type === 'gourmet' ? 'gourmetBannerUrl' : type === 'offers' ? 'offersBannerUrl' : 'underPriceBannerUrl']: ""
         }))
-        setSuccess(`${type === 'gourmet' ? 'Gourmet' : 'Offers'} page banner removed successfully!`)
+        setSuccess(`${type === 'gourmet' ? 'Gourmet' : type === 'offers' ? 'Offers' : 'Under Price'} page banner removed successfully!`)
         setTimeout(() => setSuccess(null), 3000)
       }
     } catch (err) {
@@ -1818,6 +1824,7 @@ export default function LandingPageManagement() {
                   {[
                     { id: 'offers', label: 'Offers', link: '/user/offers' },
                     { id: 'gourmet', label: 'Gourmet', link: '/user/gourmet' },
+                    { id: 'under-price', label: 'Under Price', link: '/user/under-price' },
                     { id: 'collection', label: 'Collections', link: '/user/profile/favorites' }
                   ].map((item) => {
                     // Find matching item from DB
@@ -2173,10 +2180,10 @@ export default function LandingPageManagement() {
           <DialogContent className="max-w-xl max-h-[85vh] overflow-hidden flex flex-col p-0">
             <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-200">
               <DialogTitle className="text-2xl font-bold text-slate-900">
-                Manage {bannerManageType === 'gourmet' ? 'Gourmet' : 'Offers'} Page Banner
+                Manage {bannerManageType === 'gourmet' ? 'Gourmet' : bannerManageType === 'offers' ? 'Offers' : 'Under Price'} Page Banner
               </DialogTitle>
               <DialogDescription className="text-slate-600 mt-2">
-                Upload or change the banner image displayed at the top of the public {bannerManageType === 'gourmet' ? 'Gourmet' : 'Offers'} page.
+                Upload or change the banner image displayed at the top of the public {bannerManageType === 'gourmet' ? 'Gourmet' : bannerManageType === 'offers' ? 'Offers' : 'Under Price'} page.
               </DialogDescription>
             </DialogHeader>
 
@@ -2208,13 +2215,22 @@ export default function LandingPageManagement() {
                         <span className="text-xs text-slate-500">Using default static Gourmet banner</span>
                       </div>
                     )
-                  ) : (
+                  ) : bannerManageType === 'offers' ? (
                     settings.offersBannerUrl ? (
                       <img src={settings.offersBannerUrl} alt="Offers Banner" className="w-full h-full object-cover" />
                     ) : (
                       <div className="text-center p-4">
                         <ImageIcon className="w-8 h-8 text-slate-400 mx-auto mb-1" />
                         <span className="text-xs text-slate-500">Using default static Offers banner</span>
+                      </div>
+                    )
+                  ) : (
+                    settings.underPriceBannerUrl ? (
+                      <img src={settings.underPriceBannerUrl} alt="Under Price Banner" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-center p-4">
+                        <ImageIcon className="w-8 h-8 text-slate-400 mx-auto mb-1" />
+                        <span className="text-xs text-slate-500">Using default static Under Price banner</span>
                       </div>
                     )
                   )}
@@ -2236,10 +2252,10 @@ export default function LandingPageManagement() {
                   className="flex-1 bg-brand-500 hover:bg-brand-600 text-white"
                 >
                   <Upload className="w-4 h-4 mr-2" />
-                  {((bannerManageType === 'gourmet' ? settings.gourmetBannerUrl : settings.offersBannerUrl)) ? 'Replace Banner' : 'Upload Banner'}
+                  {((bannerManageType === 'gourmet' ? settings.gourmetBannerUrl : bannerManageType === 'offers' ? settings.offersBannerUrl : settings.underPriceBannerUrl)) ? 'Replace Banner' : 'Upload Banner'}
                 </Button>
 
-                {((bannerManageType === 'gourmet' ? settings.gourmetBannerUrl : settings.offersBannerUrl)) && (
+                {((bannerManageType === 'gourmet' ? settings.gourmetBannerUrl : bannerManageType === 'offers' ? settings.offersBannerUrl : settings.underPriceBannerUrl)) && (
                   <Button
                     type="button"
                     variant="outline"

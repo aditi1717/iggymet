@@ -23,7 +23,9 @@ import {
     uploadAdminGourmetBannerController,
     deleteAdminGourmetBannerController,
     uploadAdminOffersBannerController,
-    deleteAdminOffersBannerController
+    deleteAdminOffersBannerController,
+    uploadAdminUnderPriceBannerController,
+    deleteAdminUnderPriceBannerController
 } from '../controllers/landingSettings.controller.js';
 import {
     listExploreMoreController,
@@ -124,6 +126,8 @@ router.post('/hero-banners/landing/settings/gourmet-banner', upload.single('imag
 router.delete('/hero-banners/landing/settings/gourmet-banner', deleteAdminGourmetBannerController);
 router.post('/hero-banners/landing/settings/offers-banner', upload.single('image'), uploadAdminOffersBannerController);
 router.delete('/hero-banners/landing/settings/offers-banner', deleteAdminOffersBannerController);
+router.post('/hero-banners/landing/settings/under-price-banner', upload.single('image'), uploadAdminUnderPriceBannerController);
+router.delete('/hero-banners/landing/settings/under-price-banner', deleteAdminUnderPriceBannerController);
 
 export default router;
 

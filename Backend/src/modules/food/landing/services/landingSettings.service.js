@@ -132,3 +132,41 @@ export const deleteOffersBanner = async () => {
     });
 };
 
+export const uploadUnderPriceBanner = async (file) => {
+    if (!file?.buffer) {
+        throw new Error('Image file is required');
+    }
+
+    const existing = await getLandingSettings();
+    const uploaded = await uploadBufferDetailed(file.buffer, {
+        folder: 'food/landing/under-price-banner',
+        resourceType: 'image'
+    });
+
+    if (existing?.underPriceBannerPublicId) {
+        await cloudinary.uploader
+            .destroy(existing.underPriceBannerPublicId)
+            .catch(() => {});
+    }
+
+    return updateLandingSettings({
+        underPriceBannerUrl: uploaded?.secure_url || '',
+        underPriceBannerPublicId: uploaded?.public_id || ''
+    });
+};
+
+export const deleteUnderPriceBanner = async () => {
+    const existing = await getLandingSettings();
+
+    if (existing?.underPriceBannerPublicId) {
+        await cloudinary.uploader
+            .destroy(existing.underPriceBannerPublicId)
+            .catch(() => {});
+    }
+
+    return updateLandingSettings({
+        underPriceBannerUrl: '',
+        underPriceBannerPublicId: ''
+    });
+};
+

@@ -1440,7 +1440,7 @@ export const listPublicOffers = async (query = {}, userId = null) => {
 
     let list = await FoodOffer.find(filter)
         .sort({ createdAt: -1 })
-        .populate({ path: 'restaurantId', select: 'restaurantName restaurantNameNormalized profileImage estimatedDeliveryTime rating zoneId' })
+        .populate({ path: 'restaurantId', select: 'restaurantName restaurantNameNormalized profileImage estimatedDeliveryTime rating zoneId cuisines' })
         .lean();
 
     // 1. Filter expired/not-started coupons (endDate valid till end-of-day) and globally exhausted coupons
@@ -1533,6 +1533,7 @@ export const listPublicOffers = async (query = {}, userId = null) => {
             restaurantImage: restaurant?.profileImage || null,
             deliveryTime: restaurant?.estimatedDeliveryTime || null,
             restaurantRating: typeof restaurant?.rating === 'number' ? restaurant.rating : 0,
+            restaurantCuisines: Array.isArray(restaurant?.cuisines) ? restaurant.cuisines : [],
             endDate: o.endDate || null,
             showInCart: o.showInCart !== false,
             minOrderValue: o.minOrderValue ?? 0
@@ -1669,7 +1670,8 @@ export const listPublicOffers = async (query = {}, userId = null) => {
                 deliveryTime,
                 offer: offerText,
                 discountedPrice,
-                originalPrice: product.price || 0
+                originalPrice: product.price || 0,
+                foodType: product.foodType || 'Non-Veg'
             });
         }
     }
