@@ -1525,9 +1525,17 @@ export function useLocation() {
 
   /* ===================== INIT ===================== */
   useEffect(() => {
+    // Check if this is a brand new session (fresh app open / tab open)
+    const isNewSession = typeof window !== "undefined" && !sessionStorage.getItem("sessionLocationInitialized")
+    if (isNewSession) {
+      sessionStorage.setItem("sessionLocationInitialized", "true")
+      // Reset deliveryAddressMode to allow fresh live location fetch on app start
+      localStorage.removeItem("deliveryAddressMode")
+    }
+
     // Load stored location first for IMMEDIATE display (no loading state)
     const stored = localStorage.getItem("userLocation")
-    let shouldForceRefresh = false
+    let shouldForceRefresh = isNewSession // Force fresh GPS fetch on new session
     let hasInitialLocation = false
 
     if (stored) {
@@ -1535,7 +1543,6 @@ export function useLocation() {
         const parsedLocation = JSON.parse(stored)
 
         // Show cached location immediately.
-        // Requirement: only geocode again on explicit manual change.
         const lat = Number(parsedLocation?.latitude)
         const lng = Number(parsedLocation?.longitude)
         const hasLatLng = Number.isFinite(lat) && Number.isFinite(lng)
@@ -1545,11 +1552,14 @@ export function useLocation() {
           setPermissionGranted(true)
           setLoading(false) // Set loading to false immediately
           hasInitialLocation = true
-          shouldForceRefresh = false
-          debugLog("?? Loaded stored location instantly (no auto-refresh):", parsedLocation)
+          // If it's not a new session, we don't need to force refresh
+          if (!isNewSession) {
+            shouldForceRefresh = false
+          }
+          debugLog("🔄 Loaded stored location instantly:", parsedLocation)
         } else {
           // If we don't have usable coordinates, we must fetch once on first open.
-          debugLog("?? Stored location missing coordinates; will fetch once")
+          debugLog("⚠️ Stored location missing coordinates; will fetch once")
           shouldForceRefresh = true
         }
       } catch (err) {
@@ -1567,7 +1577,7 @@ export function useLocation() {
             setPermissionGranted(true)
             setLoading(false)
             hasInitialLocation = true
-            debugLog("?? Loaded location from DB:", dbLoc)
+            debugLog("🔄 Loaded location from DB:", dbLoc)
           } else {
             // No location found - set loading to false and show fallback
             setLoading(false)
@@ -1585,7 +1595,7 @@ export function useLocation() {
     const loadingTimeout = setTimeout(() => {
       setLoading((currentLoading) => {
         if (currentLoading) {
-          debugWarn("?? Loading timeout - setting loading to false")
+          debugWarn("⚠️ Loading timeout - setting loading to false")
           // Only set fallback if we still don't have a location
           setLocation((currentLocation) => {
             if (!currentLocation ||
@@ -1621,14 +1631,14 @@ export function useLocation() {
             if (result.state === 'granted') {
               permissionGranted = true;
             } else {
-              debugLog(`?? Geolocation permission is '${result.state}' - Waiting for user action (avoiding prompt on load)`);
+              debugLog(`⚠️ Geolocation permission is '${result.state}' - Waiting for user action (avoiding prompt on load)`);
             }
           } catch (permErr) {
-            debugWarn("?? Permission query failed:", permErr);
+            debugWarn("⚠️ Permission query failed:", permErr);
           }
         } else {
           // Fallback for browsers without permissions API - assume not granted to be safe
-          debugLog("?? Permissions API not available - Skipping auto-start");
+          debugLog("⚠️ Permissions API not available - Skipping auto-start");
         }
 
         // If permission NOT granted, and we don't have a specific user request (this is page load),
@@ -1646,11 +1656,10 @@ export function useLocation() {
 
         debugLog("🔄 Permission granted! Fetching/Watching location...", shouldForceRefresh ? "(FORCE REFRESH)" : "")
 
-        // ALWAYS fetch fresh GPS on app open when permission is already granted.
-        // Even if we have a cached location, we refresh it silently in the background
-        // so the user's current location is up-to-date every session.
-        // The cached location is shown immediately for instant UI, then replaced by the fresh one.
-        const shouldFetch = true // Always fetch fresh GPS when permission is granted
+        const isSavedAddressMode = localStorage.getItem("deliveryAddressMode") === "saved"
+        // Only fetch fresh GPS if it is a new session, or if we don't have an initial location.
+        // Never auto-fetch GPS if the user explicitly set a saved address (unless it's a new session).
+        const shouldFetch = (isNewSession || shouldForceRefresh || !hasInitialLocation) && (!isSavedAddressMode || isNewSession)
 
         if (shouldFetch) {
           debugLog("📍 Fetching live GPS location on app open...")
@@ -1692,28 +1701,30 @@ export function useLocation() {
     // Cleanup timeout and watcher
     return () => {
       clearTimeout(loadingTimeout)
-      debugLog("?? Cleaning up location watcher")
+      debugLog("⚠️ Cleaning up location watcher")
       stopWatchingLocation()
     }
   }, [])
 
   const requestLocation = async () => {
-    debugLog("?????? User requested location update - clearing cache and fetching fresh")
+    debugLog("🔄 User requested location update - clearing cache and fetching fresh")
     setLoading(true)
     setError(null)
 
     try {
       // Clear cached location to force fresh fetch
       localStorage.removeItem("userLocation")
-      debugLog("??? Cleared cached location from localStorage")
+      // Reset deliveryAddressMode to 'current' since user is manually requesting detection
+      localStorage.setItem("deliveryAddressMode", "current")
+      debugLog("🔄 Cleared cached location and reset address mode to current")
 
       // Show loading, so pass showLoading = true
       // forceFresh = true, updateDB = true, showLoading = true
       // This ensures we get fresh GPS coordinates and reverse geocode
       const location = await getLocation(true, true, true)
 
-      debugLog("??? Fresh location requested successfully:", location)
-      debugLog("??? Complete Location details:", {
+      debugLog("🔄 Fresh location requested successfully:", location)
+      debugLog("🔄 Complete Location details:", {
         formattedAddress: location?.formattedAddress,
         address: location?.address,
         city: location?.city,
@@ -1734,20 +1745,20 @@ export function useLocation() {
         location.formattedAddress === "Select location" ||
         location.formattedAddress.match(/^-?\d+\.\d+,\s*-?\d+\.\d+$/) ||
         location.formattedAddress.split(',').length < 4) {
-        debugWarn("?????? Location received but address is incomplete!")
-        debugWarn("?? Address parts count:", location?.formattedAddress?.split(',').length || 0)
-        debugWarn("?? This might be due to:")
+        debugWarn("⚠️ Location received but address is incomplete!")
+        debugWarn("⚠️ Address parts count:", location?.formattedAddress?.split(',').length || 0)
+        debugWarn("⚠️ This might be due to:")
         debugWarn("   1. Geocoding service unavailable or rate-limited")
         debugWarn("   2. Location permission not granted")
         debugWarn("   3. GPS accuracy too low (try on mobile device)")
       } else {
-        debugLog("??? SUCCESS: Complete detailed address received!")
-        debugLog("? Full address:", location.formattedAddress)
+        debugLog("🔄 SUCCESS: Complete detailed address received!")
+        debugLog("✅ Full address:", location.formattedAddress)
       }
 
       return location
     } catch (err) {
-      debugError("? Failed to request location:", err)
+      debugError("⚠️ Failed to request location:", err)
       setError(err.message || "Failed to get location")
       throw err
     } finally {

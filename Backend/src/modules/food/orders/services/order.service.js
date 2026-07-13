@@ -2072,7 +2072,19 @@ export async function processDispatchTimeout(orderId, partnerId) {
 // ----- User: list, get, cancel -----
 export async function listOrdersUser(userId, query) {
   const { page, limit, skip } = buildPaginationOptions(query);
-  const filter = { userId: new mongoose.Types.ObjectId(userId) };
+  // Exclude orders where online payment was initiated but never completed.
+  // If payment.method is 'razorpay' and payment.status is still 'created',
+  // it means the user cancelled/closed the payment modal without paying.
+  // All other orders (cash, wallet, or razorpay that was actually paid) are included.
+  const filter = {
+    userId: new mongoose.Types.ObjectId(userId),
+    $nor: [
+      {
+        'payment.method': 'razorpay',
+        'payment.status': 'created',
+      },
+    ],
+  };
   const [docs, total] = await Promise.all([
     FoodOrder.find(filter)
       .populate(
