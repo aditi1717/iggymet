@@ -27,11 +27,18 @@ const zoneKeyFromCoords = (lat, lng) => {
 
 const applyZonePayload = (data, { setZoneId, setZone, setZoneStatus }) => {
   if (data?.status === 'IN_SERVICE' && data.zoneId) {
+    const prevZoneId = localStorage.getItem('userZoneId')
     setZoneId(data.zoneId)
     setZone(data.zone || null)
     setZoneStatus('IN_SERVICE')
     localStorage.setItem('userZoneId', data.zoneId)
     localStorage.setItem('userZone', JSON.stringify(data.zone))
+    // Notify same-tab listeners (e.g. CartContext) that the zone changed
+    if (prevZoneId && prevZoneId !== data.zoneId) {
+      window.dispatchEvent(new CustomEvent('zone-changed', {
+        detail: { prevZoneId, newZoneId: data.zoneId }
+      }))
+    }
   } else {
     setZoneId(null)
     setZone(null)

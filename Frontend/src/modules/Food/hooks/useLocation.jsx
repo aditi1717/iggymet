@@ -1644,39 +1644,34 @@ export function useLocation() {
           return;
         }
 
-        debugLog("?? Permission granted! Fetching/Watching location...", shouldForceRefresh ? "(FORCE REFRESH)" : "");
+        debugLog("🔄 Permission granted! Fetching/Watching location...", shouldForceRefresh ? "(FORCE REFRESH)" : "")
 
-        // Only fetch once on initial app open if we have no stored coordinates yet.
-        // Do not keep re-geocoding just because the address text is placeholder.
-        const shouldFetch = shouldForceRefresh || !hasInitialLocation
+        // ALWAYS fetch fresh GPS on app open when permission is already granted.
+        // Even if we have a cached location, we refresh it silently in the background
+        // so the user's current location is up-to-date every session.
+        // The cached location is shown immediately for instant UI, then replaced by the fresh one.
+        const shouldFetch = true // Always fetch fresh GPS when permission is granted
 
         if (shouldFetch) {
-          debugLog("?? Fetching location - shouldForceRefresh:", shouldForceRefresh, "hasInitialLocation:", hasInitialLocation)
-          getLocation(true, shouldForceRefresh) // forceFresh = true if cached location is incomplete
+          debugLog("📍 Fetching live GPS location on app open...")
+          getLocation(true, true) // forceFresh = true: always get fresh GPS coords
             .then((location) => {
               if (location &&
                 location.formattedAddress !== "Select location" &&
                 location.city !== "Current Location") {
-                debugLog("? Fresh location fetched:", location)
-                debugLog("? Location details:", {
-                  formattedAddress: location?.formattedAddress,
-                  address: location?.address,
-                  city: location?.city,
-                  state: location?.state,
-                  area: location?.area
-                })
-                // CRITICAL: Update state with fresh location so PageNavbar displays it
+                debugLog("✅ Fresh location fetched:", location)
+                // Update state with fresh location so PageNavbar displays it
                 setLocation(location)
                 setPermissionGranted(true)
                 if (AUTO_START_LIVE_WATCH) startWatchingLocation()
               } else {
                 // Placeholder result means reverse-geocode failed or was unavailable.
                 // Requirement: no more automatic retries; user can trigger manual refresh.
-                debugWarn("?? Location fetch returned placeholder; not retrying automatically")
+                debugWarn("⚠️ Location fetch returned placeholder; not retrying automatically")
               }
             })
             .catch((err) => {
-              debugWarn("?? Background location fetch failed (using cached):", err.message)
+              debugWarn("⚠️ Background location fetch failed (using cached):", err.message)
               // Don't auto-start live watching; keep cached/localStorage behavior.
               if (AUTO_START_LIVE_WATCH) startWatchingLocation()
             })

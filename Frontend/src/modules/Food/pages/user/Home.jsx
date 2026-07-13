@@ -1141,6 +1141,11 @@ export default function Home() {
   const [activeFilterTab, setActiveFilterTab] = useState("sort");
   const categoryScrollRef = useRef(null);
 
+  // State for banner linked restaurants modal
+  const [showBannerRestaurantsModal, setShowBannerRestaurantsModal] = useState(false);
+  const [bannerRestaurants, setBannerRestaurants] = useState([]);
+  const [bannerTitle, setBannerTitle] = useState("");
+
   // Body scroll lock effect
   useEffect(() => {
     const isAnyModalOpen =
@@ -1148,7 +1153,8 @@ export default function Home() {
       showVegModePopup ||
       showSwitchOffPopup ||
       showAllCategoriesModal ||
-      isApplyingVegMode;
+      isApplyingVegMode ||
+      showBannerRestaurantsModal;
 
     if (isAnyModalOpen) {
       document.body.style.overflow = "hidden";
@@ -1165,6 +1171,7 @@ export default function Home() {
     showSwitchOffPopup,
     showAllCategoriesModal,
     isApplyingVegMode,
+    showBannerRestaurantsModal,
   ]);
   const gsapAnimationsRef = useRef([]);
   // Show skeletons immediately while loading â€” delayed toggles caused visible layout swap (CLS).
@@ -1234,7 +1241,6 @@ export default function Home() {
   const [showToast, setShowToast] = useState(false);
   const [showManageCollections, setShowManageCollections] = useState(false);
   const [selectedRestaurantSlug, setSelectedRestaurantSlug] = useState(null);
-
   // Fetch categories (zone-aware) for the homepage category rail.
   useEffect(() => {
     let cancelled = false
@@ -2535,10 +2541,14 @@ export default function Home() {
             onClick={() => {
               const bannerData = heroBannersData[currentBannerIndex];
               const linkedRestaurants = bannerData?.linkedRestaurants || [];
-              if (linkedRestaurants.length > 0) {
+              if (linkedRestaurants.length === 1) {
                 const firstRestaurant = linkedRestaurants[0];
                 const restaurantSlug = firstRestaurant.slug || firstRestaurant.restaurantId || firstRestaurant._id;
                 navigate(`/food/user/restaurants/${restaurantSlug}`);
+              } else if (linkedRestaurants.length > 1) {
+                setBannerRestaurants(linkedRestaurants);
+                setBannerTitle(bannerData.title || bannerData.restaurantName || "Featured Restaurants");
+                setShowBannerRestaurantsModal(true);
               }
             }}
             aria-label={`Open hero banner ${currentBannerIndex + 1}`}
@@ -2562,7 +2572,7 @@ export default function Home() {
         </div>
       </section>
     );
-  }, [heroBannerImages, currentBannerIndex, showBannerSkeleton, heroBannersData, navigate]);
+  }, [heroBannerImages, currentBannerIndex, showBannerSkeleton, heroBannersData, navigate, setBannerRestaurants, setBannerTitle, setShowBannerRestaurantsModal]);
 
   // Memoized Category Rail Component
   const homeUnderRoute = useMemo(
@@ -4269,6 +4279,119 @@ export default function Home() {
                       }}>
                       Done
                     </Button>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
+
+      {/* Banner Linked Restaurants Modal */}
+      {typeof window !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {showBannerRestaurantsModal && (
+              <>
+                {/* Backdrop */}
+                <motion.div
+                  className="fixed inset-0 bg-black/60 z-[9999] backdrop-blur-sm"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  onClick={() => setShowBannerRestaurantsModal(false)}
+                />
+
+                {/* Bottom Sheet / Modal */}
+                <motion.div
+                  className="fixed left-0 right-0 bottom-0 z-[10000] bg-white dark:bg-[#1a1a1a] rounded-t-3xl shadow-2xl overflow-hidden max-h-[80vh] flex flex-col"
+                  initial={{ y: "100%" }}
+                  animate={{ y: 0 }}
+                  exit={{ y: "100%" }}
+                  transition={{
+                    duration: 0.3,
+                    type: "spring",
+                    damping: 30,
+                    stiffness: 350,
+                  }}>
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-150 dark:border-gray-800">
+                    <div>
+                      <h2 className="text-xl font-extrabold text-gray-900 dark:text-white">
+                        {bannerTitle}
+                      </h2>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Select a restaurant to order from
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowBannerRestaurantsModal(false)}
+                      className="h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center hover:opacity-80 transition-all">
+                      <X className="h-4.5 w-4.5 text-gray-700 dark:text-gray-300" />
+                    </button>
+                  </div>
+
+                  {/* Restaurants List */}
+                  <div className="px-6 py-4 space-y-3 overflow-y-auto flex-1 pb-10">
+                    {bannerRestaurants.map((restaurant, index) => {
+                      const restaurantSlug =
+                        restaurant.slug ||
+                        restaurant.restaurantName?.toLowerCase().replace(/\s+/g, "-") ||
+                        restaurant._id;
+
+                      const cuisines = Array.isArray(restaurant.cuisines)
+                        ? restaurant.cuisines.join(", ")
+                        : "";
+                      
+                      const resolvedImage =
+                        normalizeImageUrl(restaurant.profileImage || restaurant.image) ||
+                        foodImages[index % foodImages.length];
+
+                      return (
+                        <div
+                          key={restaurant._id || index}
+                          onClick={() => {
+                            setShowBannerRestaurantsModal(false);
+                            navigate(`/food/user/restaurants/${restaurantSlug}`);
+                          }}
+                          className="w-full flex items-center gap-4 p-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-800/80 transition-all duration-300 cursor-pointer group hover:scale-[1.01] hover:shadow-sm"
+                        >
+                          <div className="h-16 w-16 rounded-xl overflow-hidden bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shrink-0">
+                            <img
+                              src={resolvedImage}
+                              alt={restaurant.restaurantName}
+                              className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              onError={(e) => {
+                                e.target.src = "https://via.placeholder.com/64";
+                              }}
+                            />
+                          </div>
+                          <div className="flex-1 text-left min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-base font-semibold text-gray-900 dark:text-white group-hover:text-brand-600 transition-colors truncate">
+                                {restaurant.restaurantName}
+                              </span>
+                              {Number(restaurant.rating) > 0 && (
+                                <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 text-xs font-semibold shrink-0">
+                                  <Star className="h-3 w-3 fill-emerald-500 text-emerald-500" strokeWidth={0} />
+                                  <span>{Number(restaurant.rating).toFixed(1)}</span>
+                                </div>
+                              )}
+                            </div>
+                            {cuisines && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                                {cuisines}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-1.5 mt-2 text-[11px] text-gray-400">
+                              <MapPin className="h-3.5 w-3.5" />
+                              <span>{restaurant.area || restaurant.city || "Nearby"}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </motion.div>
               </>

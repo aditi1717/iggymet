@@ -167,12 +167,28 @@ const resolveCartEntryId = (items, itemId, variantId = "", variantName = "") => 
 
 export function CartProvider({ children }) {
   // Safe init (works with SSR and bad JSON)
+  // ZONE-AWARE: Clear cart if saved zone differs from current zone
   const [cart, setCart] = useState(() => {
     if (typeof window === "undefined") return []
     try {
       const saved = localStorage.getItem("cart")
       const parsed = saved ? JSON.parse(saved) : []
-      return normalizeCartData(parsed)
+      const normalized = normalizeCartData(parsed)
+
+      // If cart is non-empty, validate zone
+      if (normalized.length > 0) {
+        const cartZoneId = localStorage.getItem("cartZoneId")
+        const currentZoneId = localStorage.getItem("userZoneId")
+        // Both must be truthy and matching; otherwise the cart belongs to a different zone
+        if (cartZoneId && currentZoneId && cartZoneId !== currentZoneId) {
+          // Zone mismatch — wipe stale cart
+          localStorage.removeItem("cart")
+          localStorage.removeItem("cartZoneId")
+          return []
+        }
+      }
+
+      return normalized
     } catch {
       return []
     }
@@ -190,11 +206,56 @@ export function CartProvider({ children }) {
       const isAuthenticated = localStorage.getItem("user_authenticated") === "true" || !!localStorage.getItem("user_accessToken");
       if (cart.length > 0 || isAuthenticated) {
         localStorage.setItem("cart", JSON.stringify(normalizeCartData(cart)))
+        // Persist the current zone alongside the cart so we can detect zone changes later
+        const currentZoneId = localStorage.getItem("userZoneId")
+        if (currentZoneId) {
+          localStorage.setItem("cartZoneId", currentZoneId)
+        } else if (cart.length === 0) {
+          localStorage.removeItem("cartZoneId")
+        }
+      }
+      if (cart.length === 0) {
+        localStorage.removeItem("cartZoneId")
       }
     } catch {
       // ignore storage errors (private mode, quota, etc.)
     }
   }, [cart])
+
+  // ZONE-AWARE: Listen for zone changes at runtime.
+  // When the user switches location/zone, clear the cart immediately so stale
+  // items from the old zone are not shown in the new zone.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    // Cross-tab: fires when localStorage.userZoneId changes in another tab
+    const handleStorageChange = (e) => {
+      if (e.key !== "userZoneId") return
+      const newZoneId = e.newValue
+      const cartZoneId = localStorage.getItem("cartZoneId")
+      if (cartZoneId && newZoneId && cartZoneId !== newZoneId) {
+        setCart([])
+        localStorage.removeItem("cartZoneId")
+      }
+    }
+
+    // Same-tab: fires from useZone when zone changes within the same page session
+    const handleZoneChanged = (e) => {
+      const { prevZoneId, newZoneId } = e.detail || {}
+      const cartZoneId = localStorage.getItem("cartZoneId")
+      if (cartZoneId && prevZoneId && newZoneId && cartZoneId !== newZoneId) {
+        setCart([])
+        localStorage.removeItem("cartZoneId")
+      }
+    }
+
+    window.addEventListener("storage", handleStorageChange)
+    window.addEventListener("zone-changed", handleZoneChanged)
+    return () => {
+      window.removeEventListener("storage", handleStorageChange)
+      window.removeEventListener("zone-changed", handleZoneChanged)
+    }
+  }, [])
 
   const addToCart = (item, sourcePosition = null) => {
     const safeCart = normalizeCartData(cart)

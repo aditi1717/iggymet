@@ -3458,11 +3458,11 @@ export async function deleteRestaurant(id) {
             // Delete addons
             FoodAddon.deleteMany({ restaurantId: id }),
             // Delete timings (if they are in a separate collection, check outletTimings.service.js)
-            // Looking at the code, timings are managed via outletTimings.service.js which uses FoodRestaurantOutletTiming model
+            // Looking at the code, timings are managed via outletTimings.service.js which uses FoodRestaurantOutletTimings model
         ]);
         
         // Let's check the timing model name to be sure
-        const TimingModel = mongoose.model('FoodRestaurantOutletTiming');
+        const TimingModel = mongoose.model('FoodRestaurantOutletTimings');
         if (TimingModel) {
             await TimingModel.deleteMany({ restaurantId: id });
         }

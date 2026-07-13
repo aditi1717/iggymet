@@ -347,7 +347,7 @@ export async function deleteRestaurantById(req, res, next) {
         if (!id || !mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ success: false, message: 'Invalid restaurant id' });
         }
-        const result = await adminService.deleteRestaurantById(id, req.adminAuth || {});
+        const result = await adminService.deleteRestaurant(id);
         if (!result) {
             return res.status(404).json({ success: false, message: 'Restaurant not found' });
         }
