@@ -430,6 +430,12 @@ export default function AddressSelectorPage() {
   }
 
   const handleAddAddressClick = () => {
+    // Redirect to login if not authenticated
+    const isAuthenticated = localStorage.getItem("user_authenticated") === "true" || !!localStorage.getItem("user_accessToken")
+    if (!isAuthenticated) {
+      navigate("/user/auth/login", { state: { from: window.location.pathname } })
+      return
+    }
     setEditingAddressId(null)
     setAddressFormData({
       street: "",
