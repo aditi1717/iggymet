@@ -203,7 +203,7 @@ export default function HomeHeader({
   return (
     <motion.div
       className={`relative overflow-hidden transition-all duration-700 ${
-        isFood ? (compact || !bannerContent ? "min-h-[110px]" : "min-h-[450px]") : "min-h-[90px]"
+        isFood ? (compact || !bannerContent ? "min-h-[110px]" : "min-h-[110px] h-auto") : "min-h-[90px]"
       }`}
       style={{
         background: isFood ? stickyFoodBackground : theme.topBg,
@@ -213,10 +213,10 @@ export default function HomeHeader({
       }}
     >
       {isFood && !compact && bannerContent && (
-        <div className="absolute inset-0 z-0 flex justify-center overflow-hidden">
+        <div className="relative w-full z-0 overflow-hidden">
           {bannerContent}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#7f2d25]/88 via-[#7f2d25]/18 via-[28%] to-black/22" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/18 via-transparent to-black/16" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#7f2d25]/88 via-[#7f2d25]/18 via-[28%] to-black/22 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/18 via-transparent to-black/16 pointer-events-none" />
         </div>
       )}
 
@@ -243,7 +243,7 @@ export default function HomeHeader({
         </div>
       )}
 
-      <div className="relative z-10 pt-0 pb-3">
+      <div className={`${isFood && !compact && bannerContent ? "absolute top-0 left-0 right-0" : "relative"} z-10 pt-0 pb-3`}>
         {isFood && !compact && <div className="absolute inset-0 bg-gradient-to-b from-black/25 to-transparent pointer-events-none" />}
         <div
           className={`rounded-none border-none px-3 pt-2 pb-3 backdrop-blur-[4px] ${

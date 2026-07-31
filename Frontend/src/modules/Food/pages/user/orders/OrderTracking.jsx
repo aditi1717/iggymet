@@ -1410,12 +1410,16 @@ function OrderTrackingContent() {
       ),
     [trackingMapCoords.restaurant, trackingMapCoords.customer],
   )
-  const liveDeliveryEtaText =
-    cleanMapEta && isRestaurantReadyForPickup
+  const liveDeliveryEtaText = useMemo(() => {
+    if (orderStatus === "at_drop") {
+      return "Arrived at your location";
+    }
+    return cleanMapEta && isRestaurantReadyForPickup
       ? `Delivery in ${cleanMapEta}`
       : isRestaurantReadyForPickup && typeof deliveryDistanceEtaMinutes === "number"
       ? `Delivery in ${deliveryDistanceEtaMinutes} mins`
-      : null
+      : null;
+  }, [orderStatus, cleanMapEta, isRestaurantReadyForPickup, deliveryDistanceEtaMinutes]);
 
   const trackingIds = useMemo(() => {
     const ids = [orderId, resolvedLookupId, order?.orderId, order?.mongoId, order?._id, order?.id]

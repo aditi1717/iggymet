@@ -104,15 +104,19 @@ export function getCurrentUserRole(module = null) {
   // If module is specified, check that module's token
   if (module) {
     const token = getModuleToken(module);
-    if (!token) return null;
-    
-    if (isTokenExpired(token)) {
-      // Token expired, clear it
-      clearModuleAuth(module);
-      return null;
+    if (token && !isTokenExpired(token)) {
+      return getRoleFromToken(token);
     }
-    
-    return getRoleFromToken(token);
+
+    const refreshToken = getModuleRefreshToken(module);
+    if (refreshToken && !isTokenExpired(refreshToken)) {
+      return getRoleFromToken(refreshToken);
+    }
+
+    if (token || refreshToken) {
+      clearModuleAuth(module);
+    }
+    return null;
   }
   
   // Legacy: check all modules and return the first valid role found
@@ -122,6 +126,10 @@ export function getCurrentUserRole(module = null) {
     const token = getModuleToken(mod);
     if (token && !isTokenExpired(token)) {
       return getRoleFromToken(token);
+    }
+    const rToken = getModuleRefreshToken(mod);
+    if (rToken && !isTokenExpired(rToken)) {
+      return getRoleFromToken(rToken);
     }
   }
   
@@ -135,14 +143,17 @@ export function getCurrentUserRole(module = null) {
  */
 export function isModuleAuthenticated(module) {
   const token = getModuleToken(module);
-  if (!token) return false;
-  
-  if (isTokenExpired(token)) {
-    clearModuleAuth(module);
-    return false;
+  if (token && !isTokenExpired(token)) {
+    return true;
   }
-  
-  return true;
+
+  const refreshToken = getModuleRefreshToken(module);
+  if (refreshToken && !isTokenExpired(refreshToken)) {
+    return true;
+  }
+
+  clearModuleAuth(module);
+  return false;
 }
 
 /**

@@ -63,6 +63,68 @@ axiosInstance.interceptors.request.use(
     }
 );
 
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+const subscribeToRefresh = (cb) => {
+    refreshSubscribers.push(cb);
+};
+
+const onRefreshed = (newToken) => {
+    refreshSubscribers.forEach((cb) => cb(newToken));
+    refreshSubscribers = [];
+};
+
+const getRefreshTokenForModule = (module) => {
+    if (module === 'seller') {
+        return localStorage.getItem('restaurant_refreshToken') || localStorage.getItem('seller_refreshToken') || localStorage.getItem('refreshToken');
+    }
+    if (module === 'delivery') {
+        return localStorage.getItem('delivery_refreshToken') || localStorage.getItem('refreshToken');
+    }
+    if (module === 'admin') {
+        return localStorage.getItem('admin_refreshToken') || localStorage.getItem('refreshToken');
+    }
+    return localStorage.getItem('user_refreshToken') || localStorage.getItem('refreshToken');
+};
+
+const setNewAccessTokenForModule = (module, token) => {
+    if (module === 'seller') {
+        localStorage.setItem('auth_seller', token);
+        localStorage.setItem('seller_accessToken', token);
+        localStorage.setItem('restaurant_accessToken', token);
+    } else if (module === 'delivery') {
+        localStorage.setItem('auth_delivery', token);
+        localStorage.setItem('delivery_accessToken', token);
+    } else if (module === 'admin') {
+        localStorage.setItem('auth_admin', token);
+        localStorage.setItem('admin_accessToken', token);
+    } else {
+        localStorage.setItem('auth_customer', token);
+        localStorage.setItem('user_accessToken', token);
+        localStorage.setItem('accessToken', token);
+    }
+};
+
+const onRefreshFailed = (module) => {
+    refreshSubscribers.forEach((cb) => cb(null));
+    refreshSubscribers = [];
+
+    const moduleStorageKeys = {
+        seller: ['auth_seller', 'seller_accessToken', 'restaurant_accessToken', 'restaurant_refreshToken', 'seller_refreshToken', 'token'],
+        admin: ['auth_admin', 'admin_accessToken', 'admin_refreshToken', 'token'],
+        delivery: ['auth_delivery', 'delivery_accessToken', 'delivery_refreshToken', 'token'],
+        customer: ['auth_customer', 'user_accessToken', 'accessToken', 'user_refreshToken', 'token'],
+    };
+    const keysToClear = moduleStorageKeys[module] || ['token'];
+    keysToClear.forEach((key) => localStorage.removeItem(key));
+
+    if (module === 'seller') window.location.href = '/seller/auth';
+    else if (module === 'admin') window.location.href = '/admin/auth';
+    else if (module === 'delivery') window.location.href = '/delivery/auth';
+    else window.location.href = '/login';
+};
+
 // Response interceptor for API calls
 axiosInstance.interceptors.response.use(
     (response) => response,
@@ -71,16 +133,7 @@ axiosInstance.interceptors.response.use(
         if (error.response?.status === 401 && !originalRequest._retry) {
             originalRequest._retry = true;
 
-            // Only reload when we had a token that's now invalid (expired/logged out elsewhere).
-            // If no token exists, skip reload to avoid infinite loop on public pages.
-            const hasToken = ['auth_seller', 'auth_admin', 'auth_delivery', 'auth_customer', 'user_accessToken', 'accessToken', 'token'].some(
-                (key) => localStorage.getItem(key)
-            );
-            if (!hasToken) {
-                return Promise.reject(error);
-            }
             const path = window.location.pathname;
-            const requestUrl = String(originalRequest?.url || '');
             const currentModule = path.startsWith('/seller')
                 ? 'seller'
                 : path.startsWith('/admin')
@@ -88,35 +141,49 @@ axiosInstance.interceptors.response.use(
                     : path.startsWith('/delivery')
                         ? 'delivery'
                         : 'customer';
-            const requestModule = requestUrl.startsWith('/seller')
-                ? 'seller'
-                : requestUrl.startsWith('/admin')
-                    ? 'admin'
-                    : requestUrl.startsWith('/delivery')
-                        ? 'delivery'
-                        : requestUrl.startsWith('/user') || requestUrl.startsWith('/customer') || requestUrl.startsWith('/auth')
-                            ? 'customer'
-                            : null;
 
-            // Prevent cross-module 401s from logging out the active session
-            // (e.g. seller page accidentally calling an admin endpoint).
-            if (requestModule && requestModule !== currentModule) {
+            const refreshToken = getRefreshTokenForModule(currentModule);
+            if (!refreshToken) {
+                onRefreshFailed(currentModule);
                 return Promise.reject(error);
             }
 
-            const moduleStorageKeys = {
-                seller: ['auth_seller', 'seller_accessToken', 'token'],
-                admin: ['auth_admin', 'admin_accessToken', 'token'],
-                delivery: ['auth_delivery', 'delivery_accessToken', 'token'],
-                customer: ['auth_customer', 'user_accessToken', 'accessToken', 'token'],
-            };
-            const keysToClear = moduleStorageKeys[currentModule] || ['token'];
-            keysToClear.forEach((key) => localStorage.removeItem(key));
+            if (isRefreshing) {
+                return new Promise((resolve, reject) => {
+                    subscribeToRefresh((newToken) => {
+                        if (newToken) {
+                            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                            resolve(axiosInstance(originalRequest));
+                        } else {
+                            reject(error);
+                        }
+                    });
+                });
+            }
 
-            if (currentModule === 'seller') window.location.href = '/seller/auth';
-            else if (currentModule === 'admin') window.location.href = '/admin/auth';
-            else if (currentModule === 'delivery') window.location.href = '/delivery/auth';
-            else window.location.href = '/login';
+            isRefreshing = true;
+
+            try {
+                const baseURL = axiosInstance.defaults.baseURL || '';
+                const refreshUrl = baseURL ? `${baseURL.replace(/\/$/, '')}/food/auth/refresh-token` : '/api/v1/food/auth/refresh-token';
+                const { data } = await axios.post(refreshUrl, { refreshToken }, { timeout: 10000 });
+                const newAccessToken = data?.data?.accessToken || data?.accessToken;
+
+                if (newAccessToken) {
+                    setNewAccessTokenForModule(currentModule, newAccessToken);
+                    onRefreshed(newAccessToken);
+                    originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+                    return axiosInstance(originalRequest);
+                }
+            } catch (refreshErr) {
+                onRefreshFailed(currentModule);
+                return Promise.reject(refreshErr);
+            } finally {
+                isRefreshing = false;
+            }
+
+            onRefreshFailed(currentModule);
+            return Promise.reject(error);
         }
         return Promise.reject(error);
     }

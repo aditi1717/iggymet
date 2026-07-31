@@ -2678,16 +2678,16 @@ export default function Home() {
           }}
           bannerContent={
             headerVideoUrl ? (
-              <div className="relative h-[450px] w-full overflow-hidden">
+              <div className="relative w-full overflow-hidden">
                 <video
                   src={headerVideoUrl}
                   autoPlay
                   loop
                   muted
                   playsInline
-                  className="h-full w-full object-cover object-center"
+                  className="w-full h-auto block"
                 />
-                <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/10" />
+                <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/10 pointer-events-none" />
               </div>
             ) : null
           }

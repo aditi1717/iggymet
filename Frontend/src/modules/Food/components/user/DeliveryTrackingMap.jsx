@@ -49,6 +49,11 @@ const DeliveryTrackingMap = ({
   const [currentEta, setCurrentEta] = useState(null);
   const [cloudPolyline, setCloudPolyline] = useState(null);
   const [smoothLocation, setSmoothLocation] = useState(null);
+  const isArrivedAtDrop = useMemo(() => {
+    const status = String(order?.status || order?.orderStatus || '').toLowerCase();
+    const phase = String(order?.deliveryState?.currentPhase || '').toLowerCase();
+    return ['reached_drop', 'at_drop'].includes(status) || ['reached_drop', 'at_drop'].includes(phase);
+  }, [order?.status, order?.orderStatus, order?.deliveryState?.currentPhase]);
   const socketRef = useRef(null);
   const joinedTrackingIdsRef = useRef([]);
   const interpStateRef = useRef({ lastPos: null, nextPos: null, startTime: 0 });
@@ -712,7 +717,7 @@ const DeliveryTrackingMap = ({
 
       {/* ── LIVE ARRIVAL BADGE ── */}
       <AnimatePresence>
-        {riderLocation && currentEta && (
+        {riderLocation && (currentEta || isArrivedAtDrop) && (
           <motion.div 
             initial={{ x: -20, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
@@ -722,15 +727,19 @@ const DeliveryTrackingMap = ({
             <div className="bg-orange-500/95 backdrop-blur-xl rounded-2xl p-3 shadow-[0_10px_30px_rgba(249,115,22,0.4)] border border-orange-400/50 flex flex-col min-w-[90px] overflow-hidden relative">
               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none" />
               <div className="flex flex-col z-10">
-                <span className="text-[9px] text-white/80 font-black uppercase tracking-[0.2em] mb-0.5">Arrival</span>
+                <span className="text-[9px] text-white/80 font-black uppercase tracking-[0.2em] mb-0.5">
+                  {isArrivedAtDrop ? "Status" : "Arrival"}
+                </span>
                 <div className="flex items-center gap-2">
                   <span className="text-xl font-black text-white leading-none tracking-tighter">
-                    {currentEta}
+                    {isArrivedAtDrop ? "Arrived" : currentEta}
                   </span>
-                  <div className="flex items-center gap-1.5 opacity-80">
-                     <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                     <Navigation className="w-3 h-3 text-white rotate-45" />
-                  </div>
+                  {!isArrivedAtDrop && (
+                    <div className="flex items-center gap-1.5 opacity-80">
+                       <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                       <Navigation className="w-3 h-3 text-white rotate-45" />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
