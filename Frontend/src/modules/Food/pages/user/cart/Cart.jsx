@@ -24,6 +24,7 @@ import { useCompanyName } from "@food/hooks/useCompanyName"
 import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
 import iggymetSound from "@food/assets/audio/iggymet_sms.mp3"
 import BRAND_THEME from "@/config/brandTheme"
+import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
 const debugLog = (...args) => { }
 const debugWarn = (...args) => { }
 const debugError = (...args) => { }
@@ -185,6 +186,7 @@ export default function Cart() {
   const { createOrder } = useOrders()
   const { openLocationSelector } = useLocationSelector()
   const { location: currentLocation, loading: currentLocationLoading } = useUserLocation() // Get live location address
+  const { zoneId: userZoneId } = useZone(currentLocation)
 
   const [showCoupons, setShowCoupons] = useState(false)
   const [appliedCoupon, setAppliedCoupon] = useState(null)
@@ -661,6 +663,30 @@ export default function Cart() {
 
     fetchRestaurantData()
   }, [cart.length, cart[0]?.restaurantId, cart[0]?.restaurant])
+
+  // Validate restaurant zone and availability status (open/closed)
+  useEffect(() => {
+    if (!restaurantData || cart.length === 0) return
+
+    // 1. Zone Check
+    const activeZone = userZoneId || localStorage.getItem("userZoneId")
+    const restZone = restaurantData.zoneId?._id || restaurantData.zoneId || ""
+
+    if (activeZone && restZone && String(activeZone) !== String(restZone)) {
+      toast.error("Restaurant is not available in your current zone. Cart cleared.")
+      clearCart()
+      setRestaurantData(null)
+      return
+    }
+
+    // 2. Closed / Availability Check
+    const availability = getRestaurantAvailabilityStatus(restaurantData, new Date())
+    if (availability && !availability.isOpen) {
+      toast.error("Restaurant is currently closed. Cart cleared.")
+      clearCart()
+      setRestaurantData(null)
+    }
+  }, [restaurantData, userZoneId, cart.length, clearCart])
 
   // Fetch approved addons for the restaurant
   useEffect(() => {

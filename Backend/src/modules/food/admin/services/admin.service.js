@@ -699,7 +699,7 @@ export async function getRestaurants(query, adminScope = {}) {
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
-            .select('restaurantName location area city profileImage coverImages menuImages status ownerName ownerPhone zoneId rating totalRatings')
+            .select('restaurantName location area city profileImage coverImages menuImages status ownerName ownerPhone zoneId rating totalRatings pureVegRestaurant')
             .populate('zoneId', 'name zoneName')
             .lean(),
         FoodRestaurant.countDocuments(filter)
@@ -3530,6 +3530,7 @@ export async function getCategories(query) {
             .sort({ sortOrder: 1, createdAt: -1 })
             .skip(skip)
             .limit(limit)
+            .populate('zoneId', 'name zoneName')
             .lean(),
         FoodCategory.countDocuments(filter)
     ]);

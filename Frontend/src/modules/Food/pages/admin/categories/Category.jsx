@@ -371,6 +371,14 @@ export default function Category() {
                               <span>{category?.type || "No type"}</span>
                               <span className="text-slate-300">•</span>
                               <span>Items linked: {category?.itemCount || 0}</span>
+                              {category?.zoneId && (
+                                <>
+                                  <span className="text-slate-300">•</span>
+                                  <span className="text-brand-600 font-semibold">
+                                    Zone: {category.zoneId?.name || category.zoneId?.zoneName || "Zone Scoped"}
+                                  </span>
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>

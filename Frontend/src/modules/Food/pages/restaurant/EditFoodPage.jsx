@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import Lenis from "lenis"
@@ -19,7 +19,6 @@ import { Button } from "@food/components/ui/button"
 import BottomNavOrders from "@food/components/restaurant/BottomNavOrders"
 import { restaurantAPI } from "@food/api"
 import { findItemInSections, flattenMenuItems, getMenuFromResponse } from "@food/utils/menuItems"
-import { useRef } from "react"
 import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
 import DocumentUploadActions from "@food/components/DocumentUploadActions"
 import { isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
@@ -60,6 +59,20 @@ export default function EditFoodPage() {
   const isNewFood = id === "new" || !id
   const [menuSections, setMenuSections] = useState([])
   const [availableCategories, setAvailableCategories] = useState([])
+  const [restaurantInfo, setRestaurantInfo] = useState(null)
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await restaurantAPI.getCurrentRestaurant()
+        const restaurant = res?.data?.data?.restaurant || res?.data?.restaurant || null
+        setRestaurantInfo(restaurant)
+      } catch (err) {
+        console.error("Error fetching restaurant profile:", err)
+      }
+    }
+    fetchProfile()
+  }, [])
 
   // Lenis smooth scrolling
   useEffect(() => {
@@ -82,6 +95,12 @@ export default function EditFoodPage() {
   }, [])
 
   const [formData, setFormData] = useState(defaultFormData)
+
+  useEffect(() => {
+    if (restaurantInfo?.pureVegRestaurant === true && formData.foodType !== "Veg") {
+      setFormData(prev => ({ ...prev, foodType: "Veg" }))
+    }
+  }, [restaurantInfo, formData.foodType])
 
   // Reload food data from backend menu when id changes
   useEffect(() => {
@@ -148,8 +167,15 @@ export default function EditFoodPage() {
             id: category?._id || category?.id,
             name: String(category?.name || "").trim(),
             foodTypeScope: category?.foodTypeScope || "Both",
+            zoneId: category?.zoneId?._id || category?.zoneId || "",
+            approvalStatus: category?.approvalStatus || "",
+            isApproved: category?.isApproved ?? true,
           }))
-          .filter((category) => category.id && category.name)
+          .filter((category) => {
+            if (!category.id || !category.name) return false
+            const isApproved = category.approvalStatus === "approved" || (!category.approvalStatus && category.isApproved !== false)
+            return isApproved
+          })
 
         setAvailableCategories(normalized)
 
@@ -290,9 +316,40 @@ export default function EditFoodPage() {
 
   const fileInputRef = useRef(null)
   const [isPhotoPickerOpen, setIsPhotoPickerOpen] = useState(false)
+  const filteredAvailableCategories = useMemo(() => {
+    const zoneId = restaurantInfo?.zoneId?._id || restaurantInfo?.zoneId || ""
+    const isPureVeg = restaurantInfo?.pureVegRestaurant === true
+
+    return availableCategories.filter((c) => {
+      // 1. Filter by zone: Category's zone must match the restaurant's zone (or category must be global)
+      if (c.zoneId) {
+        if (String(c.zoneId) !== String(zoneId)) {
+          return false
+        }
+      }
+
+      // 2. Filter by Pure Veg: if pure veg, only show Veg categories
+      if (isPureVeg && c.foodTypeScope !== "Veg") {
+        return false
+      }
+
+      return true
+    })
+  }, [availableCategories, restaurantInfo])
+
+  const filteredFallbackCategoryOptions = useMemo(() => {
+    const isPureVeg = restaurantInfo?.pureVegRestaurant === true
+    return fallbackCategoryOptions.filter((c) => {
+      if (isPureVeg && c.foodTypeScope !== "Veg") {
+        return false
+      }
+      return true
+    })
+  }, [restaurantInfo])
+
   const categoryOptions = (() => {
     const currentCategory = String(formData.category || "").trim()
-    const source = availableCategories.length > 0 ? availableCategories : fallbackCategoryOptions
+    const source = filteredAvailableCategories.length > 0 ? filteredAvailableCategories : filteredFallbackCategoryOptions
     if (!currentCategory) return source
 
     const alreadyPresent = source.some(
@@ -587,10 +644,17 @@ export default function EditFoodPage() {
                   <select
                     value={formData.foodType}
                     onChange={(e) => handleInputChange("foodType", e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff8100] focus:border-transparent outline-none"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff8100] focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-500"
+                    disabled={restaurantInfo?.pureVegRestaurant === true}
                   >
-                    <option value="Veg">Veg</option>
-                    <option value="Non-Veg">Non-Veg</option>
+                    {restaurantInfo?.pureVegRestaurant === true ? (
+                      <option value="Veg">Veg Only</option>
+                    ) : (
+                      <>
+                        <option value="Veg">Veg</option>
+                        <option value="Non-Veg">Non-Veg</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </div>

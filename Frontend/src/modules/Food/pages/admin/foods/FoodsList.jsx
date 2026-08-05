@@ -105,6 +105,8 @@ export default function FoodsList() {
           .map((restaurant) => ({
             id: String(restaurant?._id || restaurant?.id || ""),
             name: restaurant?.name || restaurant?.restaurantName || "Unknown Restaurant",
+            pureVegRestaurant: restaurant?.pureVegRestaurant === true,
+            zoneId: restaurant?.zoneId?._id || restaurant?.zoneId || "",
           }))
           .filter((restaurant) => restaurant.id)
           .sort((a, b) => a.name.localeCompare(b.name))
@@ -252,9 +254,13 @@ export default function FoodsList() {
   const openAddFoodModal = () => {
     setFoodFormMode("add")
     setEditingFood(null)
+    const initialRestroId = selectedRestaurant !== "all" ? selectedRestaurant : ""
+    const selectedRestro = restaurantOptions.find(r => r.id === initialRestroId)
+    const isPureVeg = selectedRestro ? selectedRestro.pureVegRestaurant === true : false
     setFoodForm({
       ...createFoodForm(),
-      restaurantId: selectedRestaurant !== "all" ? selectedRestaurant : "",
+      restaurantId: initialRestroId,
+      foodType: isPureVeg ? "Veg" : "Non-Veg",
     })
     setSelectedImageFile(null)
     setImagePreviewUrl("")
@@ -266,8 +272,11 @@ export default function FoodsList() {
   const openEditFoodModal = (food) => {
     setFoodFormMode("edit")
     setEditingFood(food)
+    const rId = String(food.restaurantId || "")
+    const selectedRestro = restaurantOptions.find(r => r.id === rId)
+    const isPureVeg = selectedRestro ? selectedRestro.pureVegRestaurant === true : false
     setFoodForm({
-      restaurantId: String(food.restaurantId || ""),
+      restaurantId: rId,
       categoryId: String(food.categoryId || ""),
       categoryName: String(food.categoryName || ""),
       name: String(food.name || ""),
@@ -275,7 +284,7 @@ export default function FoodsList() {
       variants: getFoodVariants(food).map(createVariantDraft),
       description: String(food.description || ""),
       image: String(food.image || ""),
-      foodType: String(food.foodType || "Non-Veg"),
+      foodType: isPureVeg ? "Veg" : String(food.foodType || "Non-Veg"),
       isAvailable: food.isAvailable !== false,
       preparationTime: String(food.preparationTime || ""),
     })
@@ -285,6 +294,12 @@ export default function FoodsList() {
     setCategoryPopoverOpen(false)
     setShowFoodFormModal(true)
   }
+
+  const isPureVegRestro = useMemo(() => {
+    if (!foodForm.restaurantId) return false
+    const selectedRestro = restaurantOptions.find(r => r.id === String(foodForm.restaurantId))
+    return selectedRestro ? selectedRestro.pureVegRestaurant === true : false
+  }, [foodForm.restaurantId, restaurantOptions])
 
   useEffect(() => {
     if (!showFoodFormModal) {
@@ -304,6 +319,10 @@ export default function FoodsList() {
 
         const res = await adminAPI.getCategories(params)
         const list = res?.data?.data?.categories || res?.data?.categories || []
+        
+        const selectedRestro = restaurantOptions.find(r => r.id === String(foodForm.restaurantId))
+        const isPureVeg = selectedRestro ? selectedRestro.pureVegRestaurant === true : false
+
         const options = Array.isArray(list)
           ? list
               .map((c) => {
@@ -314,10 +333,34 @@ export default function FoodsList() {
                   name: String(c.name || "").trim(),
                   isGlobal,
                   restaurantId: rId,
+                  foodTypeScope: c.foodTypeScope || "Both",
+                  zoneId: c.zoneId?._id || c.zoneId || "",
+                  approvalStatus: c.approvalStatus || "",
+                  isApproved: c.isApproved ?? true,
                 }
               })
               .filter((c) => {
                 if (!c.name) return false
+
+                // Filter by approval: Category must be approved
+                const isApproved = c.approvalStatus === "approved" || (!c.approvalStatus && c.isApproved !== false)
+                if (!isApproved) {
+                  return false
+                }
+
+                // Filter by zone: category's zone must match selected restaurant's zone (or category must be global)
+                if (c.zoneId) {
+                  const restoZoneId = selectedRestro ? String(selectedRestro.zoneId || "") : ""
+                  if (String(c.zoneId) !== restoZoneId) {
+                    return false
+                  }
+                }
+
+                // If pure veg restaurant, we only allow categories with foodTypeScope === "Veg"
+                if (isPureVeg && c.foodTypeScope !== "Veg") {
+                  return false
+                }
+
                 // If a restaurant is selected, strictly show only its private categories + global ones
                 if (foodForm.restaurantId) {
                   return c.isGlobal || c.restaurantId === String(foodForm.restaurantId)
@@ -339,7 +382,7 @@ export default function FoodsList() {
     return () => {
       cancelled = true
     }
-  }, [showFoodFormModal, foodForm.restaurantId])
+  }, [showFoodFormModal, foodForm.restaurantId, restaurantOptions])
 
   const handleVariantChange = (variantId, field, value) => {
     setFoodForm((prev) => ({
@@ -795,7 +838,18 @@ export default function FoodsList() {
                 <label className="block text-sm font-medium text-slate-700 mb-1">Restaurant</label>
                 <select
                   value={foodForm.restaurantId}
-                  onChange={(e) => setFoodForm((prev) => ({ ...prev, restaurantId: e.target.value, categoryId: "", categoryName: "" }))}
+                  onChange={(e) => {
+                    const rId = e.target.value
+                    const selectedRestro = restaurantOptions.find(r => r.id === rId)
+                    const isPureVeg = selectedRestro ? selectedRestro.pureVegRestaurant === true : false
+                    setFoodForm((prev) => ({
+                      ...prev,
+                      restaurantId: rId,
+                      categoryId: "",
+                      categoryName: "",
+                      foodType: isPureVeg ? "Veg" : prev.foodType
+                    }))
+                  }}
                   disabled={foodFormMode === "edit"}
                   className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white disabled:bg-slate-100"
                 >
@@ -893,10 +947,11 @@ export default function FoodsList() {
                 <select
                   value={foodForm.foodType}
                   onChange={(e) => setFoodForm((prev) => ({ ...prev, foodType: e.target.value }))}
-                  className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white"
+                  disabled={isPureVegRestro}
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white disabled:bg-slate-100 disabled:text-slate-500"
                 >
                   <option value="Veg">Veg</option>
-                  <option value="Non-Veg">Non-Veg</option>
+                  {!isPureVegRestro && <option value="Non-Veg">Non-Veg</option>}
                 </select>
               </div>
               <div>

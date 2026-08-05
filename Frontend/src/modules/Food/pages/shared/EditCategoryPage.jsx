@@ -22,6 +22,7 @@ const defaultFormData = {
   image: "",
   isActive: true,
   sortOrder: 0,
+  zoneId: "",
 }
 
 export default function EditCategoryPage() {
@@ -41,6 +42,26 @@ export default function EditCategoryPage() {
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
   const fileInputRef = useRef(null)
   const [isPureVeg, setIsPureVeg] = useState(false)
+  const [zonesList, setZonesList] = useState([])
+  const [hasLinkedFoods, setHasLinkedFoods] = useState(false)
+
+  useEffect(() => {
+    if (isAdmin) {
+      const fetchZones = async () => {
+        try {
+          const res = await adminAPI.getZones({ limit: 1000 })
+          console.log("Fetched zones response:", res.data)
+          const zones = res?.data?.data?.zones || res?.data?.zones || []
+          console.log("Mapped zones list:", zones)
+          setZonesList(zones)
+        } catch (err) {
+          console.error("Error fetching zones:", err)
+          toast.error("Error fetching zones: " + (err.response?.data?.message || err.message))
+        }
+      }
+      fetchZones()
+    }
+  }, [isAdmin])
 
   useEffect(() => {
     if (!isAdmin) {
@@ -104,6 +125,7 @@ export default function EditCategoryPage() {
       }
 
       if (category) {
+        setHasLinkedFoods((category.itemCount || 0) > 0)
         setFormData({
           name: category.name || "",
           type: category.type || "",
@@ -111,6 +133,7 @@ export default function EditCategoryPage() {
           image: category.image || "",
           isActive: category.isActive ?? category.status ?? true,
           sortOrder: category.sortOrder || 0,
+          zoneId: category.zoneId?._id || category.zoneId || "",
         })
         setImagePreview(category.image || "")
       } else {
@@ -177,6 +200,7 @@ export default function EditCategoryPage() {
         isActive: formData.isActive,
         visibilityStartTime: "00:00",
         visibilityEndTime: "23:59",
+        ...(isAdmin ? { zoneId: formData.zoneId || "global" } : {}),
       }
 
       if (isAdmin) {
@@ -356,6 +380,36 @@ export default function EditCategoryPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Zone Scope Dropdown (Admin only) */}
+              {isAdmin && (
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-700 ml-1">Zone Scope</label>
+                  <div className="relative">
+                    <select
+                      value={formData.zoneId || ""}
+                      onChange={(e) => setFormData({ ...formData, zoneId: e.target.value })}
+                      className="w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 transition-all font-medium appearance-none disabled:opacity-60 disabled:cursor-not-allowed"
+                      disabled={hasLinkedFoods}
+                    >
+                      <option value="">Global (All Zones)</option>
+                      {zonesList.map((z) => (
+                        <option key={z._id || z.id} value={z._id || z.id}>
+                          {z.name || z.zoneName}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                      <ArrowLeft className="h-4 w-4 -rotate-90" />
+                    </div>
+                  </div>
+                  {hasLinkedFoods && (
+                    <p className="text-xs font-semibold text-rose-500 mt-1 ml-1">
+                      This category is linked to active foods. Zone scope cannot be changed.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Status Toggle */}
               <div className="flex items-center justify-between p-5 rounded-2xl bg-slate-50/50 border border-slate-200">
