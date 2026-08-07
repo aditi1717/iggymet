@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import { Input } from "@food/components/ui/input"
 import { Button } from "@food/components/ui/button"
 import { Label } from "@food/components/ui/label"
-import { Image as ImageIcon, Upload, Clock, Calendar as CalendarIcon, Sparkles, X, LogOut } from "lucide-react"
+import { Image as ImageIcon, Upload, Clock, Calendar as CalendarIcon, Sparkles, X, LogOut, MapPin, AlertCircle } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@food/components/ui/popover"
 import { Calendar } from "@food/components/ui/calendar"
 import {
@@ -646,6 +646,13 @@ export default function RestaurantOnboarding() {
   const [zonesLoading, setZonesLoading] = useState(false)
   const [isAutocompleteReady, setIsAutocompleteReady] = useState(false)
 
+  // Nominatim Search Fallback & Zone Validation States
+  const [addressSearchQuery, setAddressSearchQuery] = useState("")
+  const [nominatimSuggestions, setNominatimSuggestions] = useState([])
+  const [isSearchingNominatim, setIsSearchingNominatim] = useState(false)
+  const [showNominatimDropdown, setShowNominatimDropdown] = useState(false)
+  const [locationZoneError, setLocationZoneError] = useState("")
+
   // Browser/device back should move between onboarding steps first.
   useEffect(() => {
     if (step > 1) {
@@ -1155,7 +1162,7 @@ export default function RestaurantOnboarding() {
       )
       setIsAutocompleteReady(true)
 
-      placesAutocompleteRef.current.addListener("place_changed", () => {
+      placesAutocompleteRef.current.addListener("place_changed", async () => {
         const place = placesAutocompleteRef.current.getPlace()
         if (!place.geometry) return
 
@@ -1176,6 +1183,32 @@ export default function RestaurantOnboarding() {
         const lat = place?.geometry?.location?.lat?.()
         const lng = place?.geometry?.location?.lng?.()
 
+        const selectedZone = zones.find((z) => String(z?._id || z?.id || "") === String(step1.zoneId))
+        const validation = await validateLocationInZone(lat, lng, selectedZone)
+        if (!validation.valid) {
+          setLocationZoneError(validation.message)
+          toast.error(validation.message)
+          if (locationSearchInputRef.current) locationSearchInputRef.current.value = ""
+          setAddressSearchQuery("")
+          setStep1((prev) => ({
+            ...prev,
+            location: {
+              formattedAddress: "",
+              addressLine1: "",
+              addressLine2: "",
+              area: "",
+              city: "",
+              state: "",
+              pincode: "",
+              landmark: "",
+              latitude: "",
+              longitude: "",
+            },
+          }))
+          return
+        }
+
+        setLocationZoneError("")
         const locationData = {
           formattedAddress,
           area,
@@ -1211,6 +1244,198 @@ export default function RestaurantOnboarding() {
       setIsAutocompleteReady(false)
     }
   }, [step])
+
+  // OpenStreetMap (Nominatim) Search Fallback Effect
+  useEffect(() => {
+    if (step !== 1) return
+    const q = addressSearchQuery.trim()
+    if (q.length < 3) {
+      setNominatimSuggestions([])
+      setShowNominatimDropdown(false)
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearchingNominatim(true)
+        const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=6&countrycodes=in&q=${encodeURIComponent(q)}`
+        const res = await fetch(url, { headers: { Accept: "application/json" } })
+        const json = await res.json()
+        if (Array.isArray(json)) {
+          const suggestions = json.map((item) => {
+            const addr = item.address || {}
+            const area = addr.suburb || addr.neighbourhood || addr.city_district || addr.locality || addr.residential || ""
+            const city = addr.city || addr.town || addr.village || addr.county || ""
+            const state = addr.state || ""
+            const pincode = addr.postcode || ""
+            return {
+              id: item.place_id || item.osm_id || Math.random(),
+              formattedAddress: item.display_name || "",
+              area,
+              city,
+              state,
+              pincode,
+              latitude: item.lat ? Number(item.lat) : "",
+              longitude: item.lon ? Number(item.lon) : "",
+            }
+          })
+          setNominatimSuggestions(suggestions)
+          setShowNominatimDropdown(true)
+        } else {
+          setNominatimSuggestions([])
+        }
+      } catch (err) {
+        debugWarn("Nominatim search error:", err)
+        setNominatimSuggestions([])
+      } finally {
+        setIsSearchingNominatim(false)
+      }
+    }, 400)
+
+    return () => clearTimeout(timer)
+  }, [addressSearchQuery, step])
+
+  const isPointInPolygon = (lat, lng, polygonPoints) => {
+    if (!Array.isArray(polygonPoints) || polygonPoints.length < 3) return true
+    const x = Number(lat)
+    const y = Number(lng)
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return false
+    let inside = false
+    for (let i = 0, j = polygonPoints.length - 1; i < polygonPoints.length; j = i++) {
+      const xi = Number(polygonPoints[i].lat)
+      const yi = Number(polygonPoints[i].lng)
+      const xj = Number(polygonPoints[j].lat)
+      const yj = Number(polygonPoints[j].lng)
+      const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)
+      if (intersect) inside = !inside
+    }
+    return inside
+  }
+
+  const validateLocationInZone = async (lat, lng, selectedZone) => {
+    if (!selectedZone) {
+      return {
+        valid: false,
+        message: "Please select a Service Zone first before choosing a location."
+      }
+    }
+
+    const zoneName = selectedZone.name || selectedZone.zoneName || "Selected Zone"
+
+    let polygonPoints = []
+    const geoCoords = selectedZone?.location?.coordinates?.[0]
+    if (Array.isArray(geoCoords) && geoCoords.length >= 3) {
+      polygonPoints = geoCoords.map(pt => ({ lat: parseFloat(pt[1]), lng: parseFloat(pt[0]) }))
+    } else if (Array.isArray(selectedZone?.coordinates) && selectedZone.coordinates.length >= 3) {
+      polygonPoints = selectedZone.coordinates.map(pt => ({
+        lat: parseFloat(pt?.latitude ?? pt?.lat),
+        lng: parseFloat(pt?.longitude ?? pt?.lng)
+      }))
+    }
+
+    if (polygonPoints.length >= 3 && Number.isFinite(lat) && Number.isFinite(lng)) {
+      const inside = isPointInPolygon(lat, lng, polygonPoints)
+      if (!inside) {
+        return {
+          valid: false,
+          message: `Selected location does not belong to service zone "${zoneName}". Please select a location within "${zoneName}".`
+        }
+      }
+    }
+
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      try {
+        const res = await zoneAPI.detectZone(lat, lng)
+        if (res?.data?.success && res?.data?.data?.zoneId) {
+          const detectedZoneId = String(res.data.data.zoneId)
+          const currentZoneId = String(selectedZone._id || selectedZone.id || "")
+          if (currentZoneId && detectedZoneId !== currentZoneId) {
+            const detectedZoneName = res?.data?.data?.zone?.name || "another zone"
+            return {
+              valid: false,
+              message: `Selected location belongs to "${detectedZoneName}", not "${zoneName}". Please select a location in "${zoneName}".`
+            }
+          }
+        }
+      } catch (err) {
+        debugWarn("Zone detect validation error:", err)
+      }
+    }
+
+    return { valid: true }
+  }
+
+  const handleSelectNominatimSuggestion = async (sug) => {
+    setShowNominatimDropdown(false)
+    const selectedZone = zones.find((z) => String(z?._id || z?.id || "") === String(step1.zoneId))
+
+    if (!step1.zoneId || !selectedZone) {
+      const errMsg = "Please select a Service Zone first before choosing a location."
+      setLocationZoneError(errMsg)
+      toast.error(errMsg)
+      if (locationSearchInputRef.current) locationSearchInputRef.current.value = ""
+      setAddressSearchQuery("")
+      setStep1((prev) => ({
+        ...prev,
+        location: {
+          formattedAddress: "",
+          addressLine1: "",
+          addressLine2: "",
+          area: "",
+          city: "",
+          state: "",
+          pincode: "",
+          landmark: "",
+          latitude: "",
+          longitude: "",
+        },
+      }))
+      return
+    }
+
+    const validation = await validateLocationInZone(sug.latitude, sug.longitude, selectedZone)
+    if (!validation.valid) {
+      setLocationZoneError(validation.message)
+      toast.error(validation.message)
+      if (locationSearchInputRef.current) locationSearchInputRef.current.value = ""
+      setAddressSearchQuery("")
+      setStep1((prev) => ({
+        ...prev,
+        location: {
+          formattedAddress: "",
+          addressLine1: "",
+          addressLine2: "",
+          area: "",
+          city: "",
+          state: "",
+          pincode: "",
+          landmark: "",
+          latitude: "",
+          longitude: "",
+        },
+      }))
+      return
+    }
+
+    setLocationZoneError("")
+    setStep1((prev) => ({
+      ...prev,
+      location: {
+        ...prev.location,
+        formattedAddress: sug.formattedAddress,
+        area: sug.area || prev.location.area,
+        city: sug.city || prev.location.city,
+        state: sug.state || prev.location.state,
+        pincode: sug.pincode || prev.location.pincode,
+        latitude: sug.latitude || prev.location.latitude,
+        longitude: sug.longitude || prev.location.longitude,
+      },
+    }))
+    if (locationSearchInputRef.current) {
+      locationSearchInputRef.current.value = sug.formattedAddress
+    }
+    setAddressSearchQuery(sug.formattedAddress)
+  }
 
   // Update Google Places Autocomplete restrictions when zone changes
   useEffect(() => {
@@ -2065,7 +2290,7 @@ export default function RestaurantOnboarding() {
               Choose the service zone where your restaurant will be available.
             </p>
           </div>
-          <div className="p-3 bg-brand-50/50 rounded-lg border-2 border-brand-200 shadow-sm ring-2 ring-brand-100/50">
+          <div className="p-3 bg-brand-50/50 rounded-lg border-2 border-brand-200 shadow-sm ring-2 ring-brand-100/50 relative">
             <Label className="text-xs font-bold text-brand-700 mb-1.5 block">Search & Set Restaurant Location*</Label>
             <Input
               ref={locationSearchInputRef}
@@ -2075,7 +2300,11 @@ export default function RestaurantOnboarding() {
               defaultValue={step1.location?.formattedAddress || ""}
               disabled={!isEditing}
               onChange={(e) => {
-                if (!e.target.value.trim()) {
+                const val = e.target.value
+                setAddressSearchQuery(val)
+                setLocationZoneError("")
+                if (!val.trim()) {
+                  setShowNominatimDropdown(false)
                   setStep1((prev) => ({
                     ...prev,
                     location: {
@@ -2093,7 +2322,41 @@ export default function RestaurantOnboarding() {
                   }))
                 }
               }}
+              onFocus={() => {
+                if (nominatimSuggestions.length > 0) setShowNominatimDropdown(true)
+              }}
             />
+            {isSearchingNominatim && (
+              <p className="text-[11px] text-brand-600 mt-1 animate-pulse font-medium">Searching locations...</p>
+            )}
+            {showNominatimDropdown && nominatimSuggestions.length > 0 && (
+              <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-brand-300 rounded-lg shadow-xl max-h-60 overflow-y-auto divide-y divide-gray-100">
+                {nominatimSuggestions.map((sug) => (
+                  <button
+                    key={sug.id}
+                    type="button"
+                    onClick={() => handleSelectNominatimSuggestion(sug)}
+                    className="w-full text-left p-2.5 hover:bg-brand-50 transition-colors flex items-start space-x-2"
+                  >
+                    <MapPin className="w-4 h-4 text-brand-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-semibold text-gray-900">{sug.formattedAddress}</p>
+                      {(sug.area || sug.city) && (
+                        <p className="text-[10px] text-gray-500">
+                          {[sug.area, sug.city, sug.state].filter(Boolean).join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {locationZoneError && (
+              <p className="text-xs font-bold text-red-600 mt-1.5 flex items-center gap-1">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                {locationZoneError}
+              </p>
+            )}
             <p className="text-[10px] text-brand-600 mt-2 font-medium">
               Start typing and select from the list to auto-fill details below.
             </p>
