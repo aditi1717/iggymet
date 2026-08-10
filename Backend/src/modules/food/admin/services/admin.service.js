@@ -37,7 +37,9 @@ import { FoodRestaurantWithdrawal } from '../../restaurant/models/foodRestaurant
 import { FoodDeliveryWithdrawal } from '../../delivery/models/foodDeliveryWithdrawal.model.js';
 import { FoodDeliveryWallet } from '../../delivery/models/deliveryWallet.model.js';
 import { FoodDeliveryCashDeposit } from '../../delivery/models/foodDeliveryCashDeposit.model.js';
+import { FoodDailyIncentiveCredit } from '../models/dailyIncentiveCredit.model.js';
 import { FoodPayoutSettlement } from '../models/foodPayoutSettlement.model.js';
+import { FoodDailyIncentiveCampaign } from '../models/dailyIncentiveCampaign.model.js';
 import {
     backfillLegacyCategoryWorkflow,
     categoryAllowsFoodType,
@@ -5321,6 +5323,7 @@ export async function addDeliveryPartnerBonus(body, adminUser) {
         transactionId,
         amount: body.amount,
         reference: body.reference || '',
+        status: 'paid',
         createdByAdminId: adminUser?._id
     });
 
@@ -5511,6 +5514,122 @@ export async function getDeliveryEarnings(query = {}) {
             pages: Math.ceil(total / limit) || 1
         }
     };
+}
+
+const normalizeDailyIncentiveSlabs = (slabs = []) => {
+    if (!Array.isArray(slabs)) return [];
+    return slabs
+        .map((slab) => ({
+            trips: Math.max(1, Number(slab?.trips) || 0),
+            amount: Math.max(0, Number(slab?.amount) || 0),
+            label: String(slab?.label || '').trim()
+        }))
+        .filter((slab) => slab.trips > 0)
+        .sort((a, b) => a.trips - b.trips);
+};
+
+const serializeDailyIncentiveCampaign = (doc) => {
+    if (!doc) return null;
+    const slabs = normalizeDailyIncentiveSlabs(doc.slabs || []);
+    const maxTrips = slabs.length ? Math.max(...slabs.map((s) => s.trips)) : Number(doc.maxTrips) || 0;
+    const maxReward = slabs.length ? Math.max(...slabs.map((s) => s.amount)) : Number(doc.maxReward) || 0;
+    return {
+        ...doc,
+        slabs,
+        maxTrips,
+        maxReward
+    };
+};
+
+export async function getDailyIncentiveCampaigns() {
+    const campaign = await FoodDailyIncentiveCampaign.findOne({})
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .lean();
+
+    return {
+        campaigns: campaign ? [serializeDailyIncentiveCampaign(campaign)].filter(Boolean) : []
+    };
+}
+
+export async function createDailyIncentiveCampaign(body = {}, adminUser = null) {
+    const slabs = normalizeDailyIncentiveSlabs(body.slabs);
+    if (!slabs.length) {
+        throw new ValidationError('At least one incentive slab is required');
+    }
+
+    const zoneIds = Array.isArray(body.zoneIds)
+        ? body.zoneIds.filter((id) => mongoose.Types.ObjectId.isValid(String(id))).map((id) => new mongoose.Types.ObjectId(String(id)))
+        : [];
+
+    const payload = {
+        title: String(body.title || '').trim(),
+        description: String(body.description || '').trim(),
+        status: body.status === 'inactive' ? 'inactive' : 'active',
+        resetType: 'daily',
+        timezone: String(body.timezone || 'Asia/Kolkata').trim() || 'Asia/Kolkata',
+        zoneIds,
+        isAllZones: body.isAllZones !== false,
+        slabs,
+        maxTrips: slabs.length ? Math.max(...slabs.map((s) => s.trips)) : null,
+        maxReward: slabs.length ? Math.max(...slabs.map((s) => s.amount)) : null,
+        createdByAdminId: adminUser?._id || null,
+        updatedByAdminId: adminUser?._id || null
+    };
+
+    const existing = await FoodDailyIncentiveCampaign.findOne({}).sort({ updatedAt: -1, createdAt: -1 });
+    if (existing) {
+        existing.set(payload);
+        await existing.save();
+        return serializeDailyIncentiveCampaign(existing.toObject());
+    }
+
+    const created = await FoodDailyIncentiveCampaign.create(payload);
+
+    return serializeDailyIncentiveCampaign(created.toObject());
+}
+
+export async function updateDailyIncentiveCampaign(id, body = {}, adminUser = null) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const doc = await FoodDailyIncentiveCampaign.findById(id);
+    if (!doc) return null;
+
+    const slabs = normalizeDailyIncentiveSlabs(body.slabs);
+    if (!slabs.length) {
+        throw new ValidationError('At least one incentive slab is required');
+    }
+
+    doc.title = String(body.title || '').trim();
+    doc.description = String(body.description || '').trim();
+    doc.status = body.status === 'inactive' ? 'inactive' : 'active';
+    doc.timezone = String(body.timezone || doc.timezone || 'Asia/Kolkata').trim() || 'Asia/Kolkata';
+    doc.zoneIds = Array.isArray(body.zoneIds)
+        ? body.zoneIds.filter((zoneId) => mongoose.Types.ObjectId.isValid(String(zoneId))).map((zoneId) => new mongoose.Types.ObjectId(String(zoneId)))
+        : [];
+    doc.isAllZones = body.isAllZones !== false;
+    doc.slabs = slabs;
+    doc.maxTrips = slabs.length ? Math.max(...slabs.map((s) => s.trips)) : null;
+    doc.maxReward = slabs.length ? Math.max(...slabs.map((s) => s.amount)) : null;
+    doc.updatedByAdminId = adminUser?._id || null;
+
+    await doc.save();
+    return serializeDailyIncentiveCampaign(doc.toObject());
+}
+
+export async function deleteDailyIncentiveCampaign(id) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const deleted = await FoodDailyIncentiveCampaign.findByIdAndDelete(id).lean();
+    return deleted ? { id } : null;
+}
+
+export async function toggleDailyIncentiveCampaignStatus(id, status) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const nextStatus = String(status || '').toLowerCase() === 'inactive' ? 'inactive' : 'active';
+    const updated = await FoodDailyIncentiveCampaign.findByIdAndUpdate(
+        id,
+        { $set: { status: nextStatus } },
+        { new: true }
+    ).lean();
+    return serializeDailyIncentiveCampaign(updated);
 }
 
 // ----- Earning Addon Offers (admin) -----
@@ -6655,7 +6774,7 @@ export async function getDeliveryWallets(query = {}) {
 
     const partnerIds = partners.map((p) => p?._id).filter(Boolean);
 
-    const [cashCollectedAgg, payoutSettlementsAgg] = await Promise.all([
+    const [cashCollectedAgg, payoutSettlementsAgg, incentiveAggMap] = await Promise.all([
         FoodOrder.aggregate([
             {
                 $match: {
@@ -6686,7 +6805,8 @@ export async function getDeliveryWallets(query = {}) {
                     totalPaidAmount: { $sum: { $ifNull: ['$paidAmount', 0] } }
                 }
             }
-        ])
+        ]),
+        aggregateDeliveryIncentives({ partnerIds })
     ]);
 
     const allCodOrderIds = (cashCollectedAgg || [])
@@ -6754,6 +6874,11 @@ export async function getDeliveryWallets(query = {}) {
         const cashInHand = Math.max(0, grossCashCollected - totalSubmittedToAdmin);
         const totalEarning = Number(wallet?.totalEarnings || 0);
         const totalWithdrawn = settlementPaidAmount;
+        const incentiveTotals = incentiveAggMap.get(key) || {
+            totalIncentive: 0,
+            incentivePaid: 0,
+            incentiveUnpaid: 0
+        };
         
         return {
             walletId: wallet?._id,
@@ -6769,6 +6894,9 @@ export async function getDeliveryWallets(query = {}) {
             totalSubmittedToAdmin,
             totalEarning,
             bonus: Number(wallet?.totalBonus || 0),
+            incentiveTotal: incentiveTotals.totalIncentive,
+            incentivePaid: incentiveTotals.incentivePaid,
+            incentiveUnpaid: incentiveTotals.incentiveUnpaid,
             totalWithdrawn,
             paidAmount: totalWithdrawn,
             unpaidAmount: Math.max(0, totalEarning - totalWithdrawn),
@@ -6992,6 +7120,71 @@ const resolveDeliveryScopeIds = async (query = {}, adminScope = {}) => {
 
     const partners = await FoodDeliveryPartner.find(partnerFilter).select('_id').lean();
     return partners.map((p) => p._id);
+};
+
+const aggregateDeliveryIncentives = async ({ partnerIds = [], start = null, end = null } = {}) => {
+    const ids = Array.isArray(partnerIds)
+        ? partnerIds.filter((id) => mongoose.Types.ObjectId.isValid(String(id))).map((id) => new mongoose.Types.ObjectId(String(id)))
+        : [];
+    if (!ids.length) return new Map();
+
+    const match = {
+        deliveryPartnerId: { $in: ids }
+    };
+
+    const rows = await FoodDailyIncentiveCredit.aggregate([
+        {
+            $addFields: {
+                effectiveIncentiveAt: {
+                    $ifNull: ['$creditedAt', '$createdAt']
+                }
+            }
+        },
+        { $match: match },
+        ...(start || end ? [{
+            $match: {
+                effectiveIncentiveAt: {
+                    ...(start ? { $gte: start } : {}),
+                    ...(end ? { $lte: end } : {})
+                }
+            }
+        }] : []),
+        {
+            $group: {
+                _id: '$deliveryPartnerId',
+                totalIncentive: { $sum: { $ifNull: ['$rewardAmount', 0] } },
+                incentivePaid: {
+                    $sum: {
+                        $cond: [
+                            { $eq: ['$status', 'paid'] },
+                            { $ifNull: ['$rewardAmount', 0] },
+                            0
+                        ]
+                    }
+                },
+                incentiveUnpaid: {
+                    $sum: {
+                        $cond: [
+                            {
+                                $and: [
+                                    { $ne: ['$status', 'paid'] },
+                                    { $ne: ['$status', 'void'] }
+                                ]
+                            },
+                            { $ifNull: ['$rewardAmount', 0] },
+                            0
+                        ]
+                    }
+                }
+            }
+        }
+    ]);
+
+    return new Map(rows.map((row) => [String(row._id), {
+        totalIncentive: Number(row.totalIncentive || 0),
+        incentivePaid: Number(row.incentivePaid || 0),
+        incentiveUnpaid: Number(row.incentiveUnpaid || 0)
+    }]));
 };
 
 export async function getRestaurantPayoutSettlementPreview(query = {}, adminScope = {}) {
@@ -7802,11 +7995,34 @@ export async function getDeliveryPayoutSettlementPreview(query = {}, adminScope 
         };
     });
 
-    const summary = rowsWithSettlement.reduce(
+    const incentiveMap = await aggregateDeliveryIncentives({
+        partnerIds: rowsWithSettlement.map((row) => row.beneficiaryId),
+        start,
+        end
+    });
+
+    const rowsWithIncentive = rowsWithSettlement.map((row) => {
+        const incentive = incentiveMap.get(String(row.beneficiaryId)) || {
+            totalIncentive: 0,
+            incentivePaid: 0,
+            incentiveUnpaid: 0
+        };
+        return {
+            ...row,
+            incentiveTotal: incentive.totalIncentive,
+            incentivePaid: incentive.incentivePaid,
+            incentiveUnpaid: incentive.incentiveUnpaid
+        };
+    });
+
+    const summary = rowsWithIncentive.reduce(
         (acc, row) => {
             acc.totalEarning += Number(row.totalEarning || 0);
             acc.totalPaid += Number(row.alreadyPaid || 0);
             acc.totalPending += Number(row.payableNow || 0);
+            acc.incentiveTotal += Number(row.incentiveTotal || 0);
+            acc.incentivePaid += Number(row.incentivePaid || 0);
+            acc.incentiveUnpaid += Number(row.incentiveUnpaid || 0);
             acc.rowsCount += 1;
             return acc;
         },
@@ -7814,12 +8030,15 @@ export async function getDeliveryPayoutSettlementPreview(query = {}, adminScope 
             totalEarning: 0,
             totalPaid: 0,
             totalPending: 0,
+            incentiveTotal: 0,
+            incentivePaid: 0,
+            incentiveUnpaid: 0,
             rowsCount: 0
         }
     );
 
-    const total = rowsWithSettlement.length;
-    const rows = rowsWithSettlement.slice(skip, skip + limit);
+    const total = rowsWithIncentive.length;
+    const rows = rowsWithIncentive.slice(skip, skip + limit);
 
     return {
         rows,
@@ -7945,6 +8164,7 @@ export async function getDeliveryPayoutSettlementHistory(query = {}, adminScope 
                         beneficiaryName: '$beneficiaryName'
                     }
                 },
+                partnerIds: { $addToSet: '$beneficiaryId' },
                 settlementsCount: { $sum: 1 }
             }
         },
@@ -7967,6 +8187,7 @@ export async function getDeliveryPayoutSettlementHistory(query = {}, adminScope 
                 totalCodPaidAmount: 1,
                 settlementsCount: 1,
                 partnersCount: { $size: '$partnersSet' },
+                partnerIds: 1,
                 beneficiaries: { $slice: ['$beneficiaries', 5] }
             }
         },
@@ -8010,8 +8231,31 @@ export async function getDeliveryPayoutSettlementHistory(query = {}, adminScope 
         };
     });
 
+    const rowsWithIncentive = await Promise.all(rows.map(async (row) => {
+        const incentiveMap = await aggregateDeliveryIncentives({
+            partnerIds: Array.isArray(row.partnerIds) ? row.partnerIds : [],
+            start: row.fromAt ? new Date(row.fromAt) : null,
+            end: row.toAt ? new Date(row.toAt) : null
+        });
+        const incentiveSummary = Array.from(incentiveMap.values()).reduce(
+            (acc, item) => {
+                acc.totalIncentive += Number(item.totalIncentive || 0);
+                acc.incentivePaid += Number(item.incentivePaid || 0);
+                acc.incentiveUnpaid += Number(item.incentiveUnpaid || 0);
+                return acc;
+            },
+            { totalIncentive: 0, incentivePaid: 0, incentiveUnpaid: 0 }
+        );
+        return {
+            ...row,
+            incentiveTotal: incentiveSummary.totalIncentive,
+            incentivePaid: incentiveSummary.incentivePaid,
+            incentiveUnpaid: incentiveSummary.incentiveUnpaid
+        };
+    }));
+
     return {
-        rows,
+        rows: rowsWithIncentive,
         pagination: {
             total,
             page,
@@ -8088,6 +8332,9 @@ export async function getDeliveryPayoutSettlementHistoryBatchDetails(batchId, ad
             grossAmount: Number(doc.grossAmount || 0),
             codAmount: Number(doc.codAmount || 0),
             codPaidAmount: Number(doc.codPaidAmount || 0),
+            incentiveTotal: Number(doc.incentiveTotal || 0),
+            incentivePaid: Number(doc.incentivePaid || 0),
+            incentiveUnpaid: Number(doc.incentiveUnpaid || 0),
             paidAmount: Number(doc.paidAmount || 0),
             adjustmentAmount: Number(doc.adjustmentAmount || 0),
             note: String(doc.note || ''),
@@ -8113,6 +8360,9 @@ export async function getDeliveryPayoutSettlementHistoryBatchDetails(batchId, ad
             totalGrossAmount: rows.reduce((sum, item) => sum + Number(item.grossAmount || 0), 0),
             totalCodAmount: rows.reduce((sum, item) => sum + Number(item.codAmount || 0), 0),
             totalCodPaidAmount: rows.reduce((sum, item) => sum + Number(item.codPaidAmount || 0), 0),
+            totalIncentiveAmount: rows.reduce((sum, item) => sum + Number(item.incentiveTotal || 0), 0),
+            totalIncentivePaid: rows.reduce((sum, item) => sum + Number(item.incentivePaid || 0), 0),
+            totalIncentiveUnpaid: rows.reduce((sum, item) => sum + Number(item.incentiveUnpaid || 0), 0),
             totalPaidAmount: rows.reduce((sum, item) => sum + Number(item.paidAmount || 0), 0)
         },
         rows
@@ -8303,6 +8553,62 @@ export async function markAllDeliveryPayoutSettled(payload = {}, adminScope = {}
     }
 
     await FoodPayoutSettlement.insertMany(settlementDocs);
+
+    const settledPartnerIds = Array.from(new Set(
+        settlementDocs
+            .map((doc) => String(doc.beneficiaryId || '').trim())
+            .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    )).map((id) => new mongoose.Types.ObjectId(id));
+
+    if (settledPartnerIds.length) {
+        const incentiveStart = new Date(start);
+        incentiveStart.setHours(0, 0, 0, 0);
+        const incentiveEnd = new Date(end);
+        incentiveEnd.setHours(23, 59, 59, 999);
+
+        const incentiveCredits = await FoodDailyIncentiveCredit.find({
+            deliveryPartnerId: { $in: settledPartnerIds },
+            incentiveDate: { $gte: incentiveStart, $lte: incentiveEnd },
+            status: { $in: ['pending', 'credited'] }
+        })
+            .select('_id deliveryPartnerId rewardAmount walletTransactionId')
+            .lean();
+
+        const bonusTransactionIds = incentiveCredits
+            .map((credit) => credit?.walletTransactionId)
+            .filter((id) => id && mongoose.Types.ObjectId.isValid(String(id)))
+            .map((id) => new mongoose.Types.ObjectId(String(id)));
+
+        if (incentiveCredits.length) {
+            await FoodDailyIncentiveCredit.updateMany(
+                {
+                    _id: { $in: incentiveCredits.map((credit) => credit._id) }
+                },
+                {
+                    $set: {
+                        status: 'paid',
+                        paidAt: now,
+                        paidByAdminId,
+                        settlementBatchId
+                    }
+                }
+            );
+        }
+
+        if (bonusTransactionIds.length) {
+            await DeliveryBonusTransaction.updateMany(
+                {
+                    _id: { $in: bonusTransactionIds },
+                    status: 'pending'
+                },
+                {
+                    $set: {
+                        status: 'paid'
+                    }
+                }
+            );
+        }
+    }
 
     return {
         updatedTransactions,

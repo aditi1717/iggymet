@@ -4,7 +4,10 @@ import { FoodTransaction } from '../../orders/models/foodTransaction.model.js';
 import { FoodDeliveryWithdrawal } from '../models/foodDeliveryWithdrawal.model.js';
 import { FoodDeliveryCashDeposit } from '../models/foodDeliveryCashDeposit.model.js';
 import { FoodDeliveryPartner } from '../models/deliveryPartner.model.js';
+import { FoodDeliveryWallet } from '../models/deliveryWallet.model.js';
 import { DeliveryBonusTransaction } from '../../admin/models/deliveryBonusTransaction.model.js';
+import { FoodDailyIncentiveCampaign } from '../../admin/models/dailyIncentiveCampaign.model.js';
+import { FoodDailyIncentiveCredit } from '../../admin/models/dailyIncentiveCredit.model.js';
 import { FoodPayoutSettlement } from '../../admin/models/foodPayoutSettlement.model.js';
 import { getDeliveryCashLimitSettings } from '../../admin/services/admin.service.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
@@ -12,6 +15,272 @@ import { createRazorpayOrder, getRazorpayKeyId, isRazorpayConfigured, verifyPaym
 
 const PAYABLE_DELIVERY_STATUSES = ['delivered', 'cancelled_by_user_unavailable'];
 const COD_CASH_METHODS = ['cash', 'cod', 'cash_on_delivery'];
+const DEFAULT_INCENTIVE_TIMEZONE = 'Asia/Kolkata';
+
+const getDayKeyInTimeZone = (date = new Date(), timeZone = DEFAULT_INCENTIVE_TIMEZONE) => {
+    try {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        }).formatToParts(date).reduce((acc, part) => {
+            if (part.type !== 'literal') acc[part.type] = String(part.value).padStart(2, '0');
+            return acc;
+        }, {});
+        return `${parts.year}-${parts.month}-${parts.day}`;
+    } catch {
+        return new Date(date).toISOString().slice(0, 10);
+    }
+};
+
+const getTimeZoneDayRange = (date = new Date(), timeZone = DEFAULT_INCENTIVE_TIMEZONE) => {
+    const dayKey = getDayKeyInTimeZone(date, timeZone);
+    const [year, month, day] = dayKey.split('-').map((part) => Number(part));
+    const utcNoon = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
+
+    let offsetMs = 0;
+    try {
+        const parts = new Intl.DateTimeFormat('en-US', {
+            timeZone,
+            hour12: false,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        }).formatToParts(utcNoon).reduce((acc, part) => {
+            if (part.type !== 'literal') acc[part.type] = Number(part.value);
+            return acc;
+        }, {});
+
+        const utcAsIfLocal = Date.UTC(
+            parts.year,
+            parts.month - 1,
+            parts.day,
+            parts.hour,
+            parts.minute,
+            parts.second
+        );
+        offsetMs = utcAsIfLocal - utcNoon.getTime();
+    } catch {
+        offsetMs = 0;
+    }
+
+    const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0) - offsetMs);
+    const end = new Date(start.getTime() + (24 * 60 * 60 * 1000) - 1);
+    return { dayKey, start, end };
+};
+
+const normalizeSlabs = (slabs = []) => (
+    Array.isArray(slabs)
+        ? slabs
+            .map((slab) => ({
+                trips: Math.max(1, Number(slab?.trips) || 0),
+                amount: Math.max(0, Number(slab?.amount) || 0),
+                label: String(slab?.label || '').trim()
+            }))
+            .filter((slab) => slab.trips > 0)
+            .sort((a, b) => a.trips - b.trips)
+        : []
+);
+
+const buildIncentiveTransactionId = ({ partnerId, dayKey, slabTrips }) => {
+    const suffix = String(partnerId || '').slice(-8).toUpperCase();
+    const safeDay = String(dayKey || '').replace(/[^0-9A-Z]/gi, '');
+    return `INC-${safeDay}-${suffix}-${String(slabTrips).padStart(3, '0')}`;
+};
+
+const findApplicableCampaign = async ({ zoneId = null } = {}) => {
+    const campaign = await FoodDailyIncentiveCampaign.findOne({
+        status: 'active',
+        resetType: 'daily'
+    })
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .lean();
+
+    if (!campaign) return null;
+
+    const campaignZoneIds = Array.isArray(campaign?.zoneIds)
+        ? campaign.zoneIds.map((z) => String(z))
+        : [];
+    const zoneMatches =
+        campaign?.isAllZones === true ||
+        (zoneId && campaignZoneIds.includes(String(zoneId)));
+    if (!zoneMatches) return null;
+    return Array.isArray(campaign?.slabs) && campaign.slabs.length > 0 ? campaign : null;
+};
+
+export const getDailyIncentiveSnapshot = async (deliveryPartnerId, atDate = new Date()) => {
+    if (!deliveryPartnerId || !mongoose.Types.ObjectId.isValid(deliveryPartnerId)) {
+        throw new ValidationError('Invalid delivery partner ID');
+    }
+
+    const partner = await FoodDeliveryPartner.findById(deliveryPartnerId).lean();
+    if (!partner) throw new ValidationError('Delivery partner not found');
+
+    const campaign = await findApplicableCampaign({
+        zoneId: partner?.zoneId || null,
+        atDate
+    });
+
+    if (!campaign) {
+        return {
+            campaign: null,
+            dayKey: getDayKeyInTimeZone(atDate),
+            incentiveDate: new Date(atDate),
+            completedTrips: 0,
+            eligibleSlabs: [],
+            creditedSlabs: [],
+            nextSlab: null,
+            totalReward: 0
+        };
+    }
+
+    const timeZone = campaign.timezone || DEFAULT_INCENTIVE_TIMEZONE;
+    const { dayKey, start, end } = getTimeZoneDayRange(atDate, timeZone);
+    const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
+    const completedTrips = await FoodOrder.countDocuments({
+        'dispatch.deliveryPartnerId': partnerId,
+        orderStatus: 'delivered',
+        'deliveryState.deliveredAt': { $gte: start, $lte: end }
+    });
+
+    const slabs = normalizeSlabs(campaign.slabs);
+    const eligibleSlabs = slabs.filter((slab) => completedTrips >= slab.trips);
+    const nextSlab = slabs.find((slab) => completedTrips < slab.trips) || null;
+    const incentiveDate = start;
+    const creditedSlabs = await FoodDailyIncentiveCredit.find({
+        deliveryPartnerId: partnerId,
+        campaignId: campaign._id,
+        incentiveDate,
+        status: { $in: ['credited', 'pending', 'paid'] }
+    })
+        .sort({ slabTrips: 1 })
+        .lean();
+
+    const creditedRewardTotal = creditedSlabs.reduce((sum, row) => sum + Number(row?.rewardAmount || 0), 0);
+    const paidRewardTotal = creditedSlabs.reduce((sum, row) => sum + (String(row?.status || '') === 'paid' ? Number(row?.rewardAmount || 0) : 0), 0);
+    const unpaidRewardTotal = Math.max(0, creditedRewardTotal - paidRewardTotal);
+
+    return {
+        campaign,
+        dayKey,
+        incentiveDate,
+        completedTrips,
+        eligibleSlabs,
+        creditedSlabs,
+        nextSlab,
+        totalReward: creditedRewardTotal,
+        paidReward: paidRewardTotal,
+        unpaidReward: unpaidRewardTotal,
+        timeZone
+    };
+};
+
+export const awardDailyIncentiveForDeliveryPartner = async (deliveryPartnerId, atDate = new Date(), adminUserId = null) => {
+    if (!deliveryPartnerId || !mongoose.Types.ObjectId.isValid(deliveryPartnerId)) {
+        return { awarded: [], snapshot: null };
+    }
+
+    const snapshot = await getDailyIncentiveSnapshot(deliveryPartnerId, atDate);
+    const campaign = snapshot?.campaign;
+    if (!campaign || !Array.isArray(snapshot?.eligibleSlabs) || snapshot.eligibleSlabs.length === 0) {
+        return { awarded: [], snapshot };
+    }
+
+    const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
+    const incentiveDate = snapshot.incentiveDate;
+    const existingRewardTotal = (snapshot.creditedSlabs || []).reduce((sum, row) => sum + Number(row?.rewardAmount || 0), 0);
+    const targetSlab = snapshot.eligibleSlabs[snapshot.eligibleSlabs.length - 1] || null;
+    const targetRewardTotal = Number(targetSlab?.amount || 0);
+    const deltaAmount = Math.max(0, targetRewardTotal - existingRewardTotal);
+    const awarded = [];
+    if (!targetSlab || deltaAmount <= 0) {
+        return { awarded, snapshot };
+    }
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const zoneId = campaign?.isAllZones
+            ? null
+            : (Array.isArray(campaign.zoneIds) && campaign.zoneIds.length ? campaign.zoneIds[0] : null);
+
+        const transactionId = buildIncentiveTransactionId({
+            partnerId,
+            dayKey: snapshot.dayKey,
+            slabTrips: targetSlab.trips
+        });
+
+        const reference = campaign?.title
+            ? `Daily incentive: ${campaign.title} (${targetSlab.trips} trips)`
+            : `Daily incentive (${targetSlab.trips} trips)`;
+
+        const createdTx = await DeliveryBonusTransaction.findOneAndUpdate(
+            { transactionId },
+            {
+                $setOnInsert: {
+                    deliveryPartnerId: partnerId,
+                    transactionId,
+                    kind: 'incentive',
+                    amount: deltaAmount,
+                    reference,
+                    status: 'pending',
+                    createdByAdminId: adminUserId || null
+                }
+            },
+            { upsert: true, new: true, session, setDefaultsOnInsert: true }
+        );
+
+        await FoodDailyIncentiveCredit.findOneAndUpdate(
+            {
+                deliveryPartnerId: partnerId,
+                campaignId: campaign._id,
+                incentiveDate,
+                slabTrips: targetSlab.trips
+            },
+            {
+                $set: {
+                    zoneId,
+                    rewardAmount: deltaAmount,
+                    completedTrips: snapshot.completedTrips,
+                    status: 'pending',
+                    walletTransactionId: createdTx?._id || null,
+                    walletTransactionType: 'incentive',
+                    creditedAt: new Date(),
+                    paidAt: null,
+                    paidByAdminId: null,
+                    settlementBatchId: null,
+                    createdByAdminId: adminUserId || null
+                },
+                $setOnInsert: {
+                    deliveryPartnerId: partnerId,
+                    campaignId: campaign._id,
+                    incentiveDate,
+                    slabTrips: targetSlab.trips
+                }
+            },
+            { upsert: true, new: true, session, setDefaultsOnInsert: true }
+        );
+
+        awarded.push({
+            slabTrips: targetSlab.trips,
+            amount: deltaAmount,
+            transactionId
+        });
+
+        await session.commitTransaction();
+        return { awarded, snapshot };
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
+};
 
 /**
  * Enhanced wallet fetch for delivery partners.
@@ -56,7 +325,7 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
         ]),
         // 3. Admin Bonuses
         DeliveryBonusTransaction.aggregate([
-            { $match: { deliveryPartnerId: partnerId } },
+            { $match: { deliveryPartnerId: partnerId, status: { $ne: 'pending' } } },
             { $group: { _id: null, total: { $sum: { $ifNull: ['$amount', 0] } } } }
         ]),
         // 4. Withdrawal Aggregates (Approved vs Pending)

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { Search, PiggyBank, Loader2, Package, RefreshCw, HandCoins, Download } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { adminAPI } from "@food/api"
@@ -45,6 +45,9 @@ const normalizeWalletRow = (row = {}) => {
     row.onlineCount,
     row.digitalOrdersCount,
   )
+  const incentiveTotal = toNumber(row.incentiveTotal, row.totalIncentive)
+  const incentivePaid = toNumber(row.incentivePaid)
+  const incentiveUnpaid = toNumber(row.incentiveUnpaid)
 
   return {
     ...row,
@@ -57,6 +60,9 @@ const normalizeWalletRow = (row = {}) => {
     cashSubmittedToAdmin: toNumber(row.cashSubmittedToAdmin, row.totalSubmittedToAdmin, row.collectedByAdmin),
     totalEarning,
     bonus: toNumber(row.bonus, row.joiningBonusAmount),
+    incentiveTotal,
+    incentivePaid,
+    incentiveUnpaid,
     paid: paidAmount,
     unpaid: directUnpaid > 0 ? directUnpaid : Math.max(0, totalEarning - paidAmount),
     totalCashOrders,
@@ -105,6 +111,9 @@ export default function DeliveryBoyWallet() {
     totalEarning: 0,
     totalPaid: 0,
     totalUnpaid: 0,
+    totalIncentive: 0,
+    totalIncentivePaid: 0,
+    totalIncentiveUnpaid: 0,
     totalCodOrders: 0,
     totalOnlineOrders: 0,
     loading: true,
@@ -466,6 +475,9 @@ export default function DeliveryBoyWallet() {
       const walletRows = (walletsRes?.data?.data?.wallets || []).map(normalizeWalletRow)
       const totalCashInHand = walletRows.reduce((sum, row) => sum + toNumber(row.cashInHand), 0)
       const totalPaid = walletRows.reduce((sum, row) => sum + getPaidAmount(row), 0)
+      const totalIncentive = walletRows.reduce((sum, row) => sum + toNumber(row.incentiveTotal), 0)
+      const totalIncentivePaid = walletRows.reduce((sum, row) => sum + toNumber(row.incentivePaid), 0)
+      const totalIncentiveUnpaid = walletRows.reduce((sum, row) => sum + toNumber(row.incentiveUnpaid), 0)
 
       const totalSubmittedToAdmin = walletRows.reduce(
         (sum, row) => sum + toNumber(row.cashSubmittedToAdmin, row.totalSubmittedToAdmin),
@@ -522,6 +534,9 @@ export default function DeliveryBoyWallet() {
         totalEarning,
         totalPaid,
         totalUnpaid,
+        totalIncentive,
+        totalIncentivePaid,
+        totalIncentiveUnpaid,
         totalCodOrders,
         totalOnlineOrders,
         loading: false,
@@ -604,6 +619,9 @@ export default function DeliveryBoyWallet() {
         acc.cashInHand += toNumber(wallet.cashInHand)
         acc.takenByAdmin += toNumber(wallet.cashSubmittedToAdmin)
         acc.totalEarning += toNumber(wallet.totalEarning)
+        acc.incentiveTotal += toNumber(wallet.incentiveTotal)
+        acc.incentivePaid += toNumber(wallet.incentivePaid)
+        acc.incentiveUnpaid += toNumber(wallet.incentiveUnpaid)
         acc.paid += getPaidAmount(wallet)
         acc.unpaid += getUnpaidAmount(wallet)
         return acc
@@ -615,6 +633,9 @@ export default function DeliveryBoyWallet() {
         cashInHand: 0,
         takenByAdmin: 0,
         totalEarning: 0,
+        incentiveTotal: 0,
+        incentivePaid: 0,
+        incentiveUnpaid: 0,
         paid: 0,
         unpaid: 0,
       },
@@ -635,6 +656,9 @@ export default function DeliveryBoyWallet() {
             <td class="num">${htmlEscape(toNumber(wallet.totalEarning).toFixed(2))}</td>
             <td class="num">${htmlEscape(getPaidAmount(wallet).toFixed(2))}</td>
             <td class="num">${htmlEscape(getUnpaidAmount(wallet).toFixed(2))}</td>
+            <td class="num">${htmlEscape(toNumber(wallet.incentiveTotal).toFixed(2))}</td>
+            <td class="num">${htmlEscape(toNumber(wallet.incentivePaid).toFixed(2))}</td>
+            <td class="num">${htmlEscape(toNumber(wallet.incentiveUnpaid).toFixed(2))}</td>
           </tr>
         `,
       )
@@ -665,8 +689,11 @@ export default function DeliveryBoyWallet() {
                 <th>Cash in hand</th>
                 <th>Taken by admin</th>
                 <th>Total earning</th>
-                <th>Paid</th>
-                <th>Unpaid</th>
+                <th>Total paid</th>
+                <th>Total unpaid</th>
+                <th>Incentive total</th>
+                <th>Incentive paid</th>
+                <th>Incentive unpaid</th>
               </tr>
             </thead>
             <tbody>
@@ -683,11 +710,9 @@ export default function DeliveryBoyWallet() {
                 <td class="num">${htmlEscape(totals.totalEarning.toFixed(2))}</td>
                 <td class="num">${htmlEscape(totals.paid.toFixed(2))}</td>
                 <td class="num">${htmlEscape(totals.unpaid.toFixed(2))}</td>
-              </tr>
-            </tbody>
-          </table>
-        </body>
-      </html>
+                <td class="num">${htmlEscape(totals.incentiveTotal.toFixed(2))}</td>
+                <td class="num">${htmlEscape(totals.incentivePaid.toFixed(2))}</td>
+                <td class="num">${htmlEscape(totals.incentiveUnpaid.toFixed(2))}</td>
     `
 
     const blob = new Blob([xlsHtml], { type: "application/vnd.ms-excel;charset=utf-8;" })
@@ -796,14 +821,38 @@ export default function DeliveryBoyWallet() {
             </div>
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <div className="flex items-center gap-2 text-amber-700">
+                <HandCoins className="w-4 h-4" />
+                <p className="text-sm font-medium">Incentive Total</p>
+              </div>
+              <p className="mt-2 text-2xl font-bold text-slate-900">{formatCurrency(summary.totalIncentive)}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <div className="flex items-center gap-2 text-emerald-700">
+                <HandCoins className="w-4 h-4" />
+                <p className="text-sm font-medium">Incentive Paid</p>
+              </div>
+              <p className="mt-2 text-2xl font-bold text-emerald-700">{formatCurrency(summary.totalIncentivePaid)}</p>
+            </div>
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+              <div className="flex items-center gap-2 text-rose-700">
+                <HandCoins className="w-4 h-4" />
+                <p className="text-sm font-medium">Incentive Unpaid</p>
+              </div>
+              <p className="mt-2 text-2xl font-bold text-rose-700">{formatCurrency(summary.totalIncentiveUnpaid)}</p>
+            </div>
+          </div>
+
           {loading ? (
             <div className="py-20 text-center">
               <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mx-auto mb-4" />
-              <p className="text-slate-600">Loading walletsâ€¦</p>
+              <p className="text-slate-600">Loading wallets…</p>
             </div>
           ) : (
             <div className="overflow-x-auto pb-2">
-              <table className="w-full min-w-[1450px]">
+              <table className="w-full min-w-[1750px]">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">#</th>
@@ -814,15 +863,18 @@ export default function DeliveryBoyWallet() {
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Total cash</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Cash in hand</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Taken by admin</th>
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Total earning</th>
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Paid</th>
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Unpaid</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-extrabold text-slate-900 uppercase tracking-wider bg-slate-100/50">Total Earning</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-extrabold text-emerald-900 uppercase tracking-wider bg-emerald-100/50">Total Paid</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-extrabold text-rose-900 uppercase tracking-wider bg-rose-100/50">Total Unpaid</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-extrabold text-amber-800 uppercase tracking-wider bg-amber-50/50">Incentive Total</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-extrabold text-emerald-800 uppercase tracking-wider bg-emerald-50/50">Incentive Paid</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-extrabold text-rose-800 uppercase tracking-wider bg-rose-50/50">Incentive Unpaid</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-100">
                   {wallets.length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="px-6 py-20 text-center">
+                      <td colSpan={14} className="px-6 py-20 text-center">
                         <div className="flex flex-col items-center justify-center">
                           <Package className="w-16 h-16 text-slate-400 mb-4" />
                           <p className="text-lg font-semibold text-slate-700">No wallets</p>
@@ -834,8 +886,8 @@ export default function DeliveryBoyWallet() {
                     wallets.map((w, i) => (
                       <tr key={w.walletId || w.deliveryId} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{(page - 1) * limit + i + 1}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{w.name || "â€”"}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{w.deliveryIdString || "â€”"}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{w.name || "—"}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{w.deliveryIdString || "—"}</td>
                         <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{Number(w.totalCashOrders || 0).toLocaleString("en-IN")}</td>
                         <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{Number(w.totalOnlineOrders || 0).toLocaleString("en-IN")}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(getTotalCashAmount(w))}</td>
@@ -859,9 +911,12 @@ export default function DeliveryBoyWallet() {
                             {formatCurrency(w.cashSubmittedToAdmin)}
                           </button>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(w.totalEarning)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(getPaidAmount(w))}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">{formatCurrency(getUnpaidAmount(w))}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 bg-slate-50/40">{formatCurrency(w.totalEarning)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-extrabold text-emerald-800 bg-emerald-100/30">{formatCurrency(getPaidAmount(w))}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-extrabold text-rose-800 bg-rose-100/30">{formatCurrency(getUnpaidAmount(w))}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-amber-900 bg-amber-50/30">{formatCurrency(w.incentiveTotal)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-emerald-700 bg-emerald-50/30">{formatCurrency(w.incentivePaid)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-rose-700 bg-rose-50/30">{formatCurrency(w.incentiveUnpaid)}</td>
                       </tr>
                     ))
                   )}
@@ -869,11 +924,10 @@ export default function DeliveryBoyWallet() {
               </table>
             </div>
           )}
-
           {pages > 1 && (
             <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200">
               <p className="text-sm text-slate-600">
-                Page {page} of {pages} Â· {total} total
+                Page {page} of {pages} · {total} total
               </p>
               <div className="flex gap-2">
                 <button
@@ -898,7 +952,3 @@ export default function DeliveryBoyWallet() {
     </div>
   )
 }
-
-
-
-

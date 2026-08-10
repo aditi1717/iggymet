@@ -3,7 +3,7 @@ import { upload } from '../../../../middleware/upload.js';
 import { authMiddleware } from '../../../../core/auth/auth.middleware.js';
 import { requireRoles } from '../../../../core/roles/role.middleware.js';
 import * as orderController from '../../orders/controllers/order.controller.js';
-import { registerDeliveryPartnerController, updateDeliveryPartnerProfileController, updateDeliveryPartnerBankDetailsController, listSupportTicketsController, createSupportTicketController, getSupportTicketByIdController, updateDeliveryPartnerDetailsController, updateDeliveryPartnerProfilePhotoBase64Controller, updateAvailabilityController, getWalletController, createWithdrawalRequestController, createCashDepositOrderController, verifyCashDepositPaymentController, getEarningsController, getTripHistoryController, getPocketDetailsController, getEmergencyHelpController, getCashLimitController, getDeliveryReferralStatsController, getActiveEarningAddonsController, getStoreProductsDelivery, getStoreProductByIdDelivery, createStoreOrderDelivery, createBulkStoreOrderDelivery, verifyStoreOrderDelivery, verifyBulkStoreOrderDelivery, getMyStoreOrders, getStoreOrderByIdDelivery, getOrderQueueController, getReviewsController } from '../controllers/delivery.controller.js';
+import { registerDeliveryPartnerController, updateDeliveryPartnerProfileController, updateDeliveryPartnerBankDetailsController, listSupportTicketsController, createSupportTicketController, getSupportTicketByIdController, updateDeliveryPartnerDetailsController, updateDeliveryPartnerProfilePhotoBase64Controller, updateAvailabilityController, getWalletController, createWithdrawalRequestController, createCashDepositOrderController, verifyCashDepositPaymentController, getEarningsController, getTripHistoryController, getPocketDetailsController, getEmergencyHelpController, getCashLimitController, getDeliveryReferralStatsController, getActiveEarningAddonsController, getDailyIncentiveController, getStoreProductsDelivery, getStoreProductByIdDelivery, createStoreOrderDelivery, createBulkStoreOrderDelivery, verifyStoreOrderDelivery, verifyBulkStoreOrderDelivery, getMyStoreOrders, getStoreOrderByIdDelivery, getOrderQueueController, getReviewsController } from '../controllers/delivery.controller.js';
 
 const router = express.Router();
 
@@ -52,6 +52,7 @@ router.get('/orders/:orderId/payment-status', authMiddleware, requireRoles('DELI
 
 // ----- Earnings / Settings -----
 router.get('/earning-addons/active', authMiddleware, requireRoles('DELIVERY_PARTNER'), getActiveEarningAddonsController);
+router.get('/daily-incentive', authMiddleware, requireRoles('DELIVERY_PARTNER'), getDailyIncentiveController);
 router.post('/reverify', authMiddleware, requireRoles('DELIVERY_PARTNER'), (req, res) => res.json({ success: true, message: 'Submitted' })); // Stub
 
 // Pocket / requests page – wallet, earnings, and admin-set delivery settings

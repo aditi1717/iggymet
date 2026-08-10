@@ -9,6 +9,18 @@ const deliveryBonusTransactionSchema = new mongoose.Schema(
             index: true
         },
         transactionId: { type: String, required: true, trim: true, unique: true, index: true },
+        kind: {
+            type: String,
+            enum: ['bonus', 'incentive'],
+            default: 'bonus',
+            index: true
+        },
+        status: {
+            type: String,
+            enum: ['paid', 'pending', 'void'],
+            default: 'paid',
+            index: true
+        },
         amount: { type: Number, required: true, min: 0 },
         reference: { type: String, trim: true, default: '' },
         createdByAdminId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }

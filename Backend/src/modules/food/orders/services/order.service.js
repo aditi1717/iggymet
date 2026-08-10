@@ -40,6 +40,7 @@ import { addOrderJob } from '../../../../queues/producers/order.producer.js';
 import { fetchPolyline, fetchRouteDistanceKm } from '../utils/googleMaps.js';
 import { getFirebaseDB } from '../../../../config/firebase.js';
 import * as foodTransactionService from './foodTransaction.service.js';
+import { awardDailyIncentiveForDeliveryPartner } from '../../delivery/services/deliveryFinance.service.js';
 import { deductWalletBalance, refundWalletBalance } from '../../user/services/userWallet.service.js';
 
 const ORDER_ID_PREFIX = "FOD-";
@@ -3062,6 +3063,15 @@ export async function updateOrderStatusAdmin(
       logger.warn(`updateOrderStatusAdmin delivery transaction sync failed: ${err?.message || err}`);
     }
 
+    try {
+      await awardDailyIncentiveForDeliveryPartner(
+        order.dispatch?.deliveryPartnerId?.toString?.() || null,
+        order.deliveryState?.deliveredAt || new Date()
+      );
+    } catch (incentiveErr) {
+      logger.warn(`updateOrderStatusAdmin incentive settlement failed: ${incentiveErr?.message || incentiveErr}`);
+    }
+
     enqueueOrderEvent("delivery_completed", {
       orderMongoId: order._id?.toString?.(),
       orderId: order.orderId,
@@ -3651,6 +3661,16 @@ export async function completeDelivery(orderId, deliveryPartnerId, body = {}) {
         `completeDelivery debt settlement failed for order ${order._id}: ${debtErr?.message || debtErr}`,
       );
     }
+  }
+  try {
+    await awardDailyIncentiveForDeliveryPartner(
+      deliveryPartnerId,
+      order.deliveryState?.deliveredAt || new Date()
+    );
+  } catch (incentiveErr) {
+    logger.warn(
+      `completeDelivery incentive settlement failed for order ${order._id}: ${incentiveErr?.message || incentiveErr}`,
+    );
   }
   emitOrderUpdate(order, deliveryPartnerId);
   const ledgerKind =

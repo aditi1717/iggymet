@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { registerDeliveryPartner, updateDeliveryPartnerProfile, updateDeliveryPartnerBankDetails, listSupportTicketsByPartner, createSupportTicket, getSupportTicketByIdAndPartner, updateDeliveryPartnerDetails, updateDeliveryPartnerProfilePhotoBase64, updateDeliveryAvailability, getDeliveryPartnerWallet, getDeliveryPartnerEarnings, getDeliveryPartnerTripHistory, getDeliveryPocketDetails, getActiveEarningAddonsForPartner, getDeliveryPartnerOrderQueue, getDeliveryPartnerReviews } from '../services/delivery.service.js';
-import { createDeliveryCashDepositOrder, getDeliveryPartnerWalletEnhanced, requestDeliveryWithdrawal, verifyDeliveryCashDepositPayment } from '../services/deliveryFinance.service.js';
+import { createDeliveryCashDepositOrder, getDailyIncentiveSnapshot, getDeliveryPartnerWalletEnhanced, requestDeliveryWithdrawal, verifyDeliveryCashDepositPayment } from '../services/deliveryFinance.service.js';
 import { getDeliveryCashLimitSettings, getDeliveryEmergencyHelp } from '../../admin/services/admin.service.js';
 import { DeliveryBonusTransaction } from '../../admin/models/deliveryBonusTransaction.model.js';
 import { validateDeliveryRegisterDto, validateDeliveryProfileUpdateDto, validateDeliveryBankDetailsDto } from '../validators/delivery.validator.js';
@@ -158,12 +158,12 @@ export const getWalletController = async (req, res, next) => {
                 wallet.transactions = (bonusList || []).map((b) => ({
                     id: b._id,
                     _id: b._id,
-                    type: 'bonus',
+                    type: b.kind === 'incentive' ? 'incentive' : 'bonus',
                     amount: b.amount || 0,
-                    status: 'Completed',
+                    status: String(b.status || '').toLowerCase() === 'pending' ? 'Pending' : 'Completed',
                     date: b.createdAt,
                     createdAt: b.createdAt,
-                    description: b.reference || 'Bonus',
+                    description: b.reference || (b.kind === 'incentive' ? 'Daily incentive' : 'Bonus'),
                     transactionId: b.transactionId
                 }));
             } else {
@@ -212,6 +212,16 @@ export const getActiveEarningAddonsController = async (req, res, next) => {
         const deliveryPartnerId = req.user?.userId;
         const data = await getActiveEarningAddonsForPartner(deliveryPartnerId);
         return sendResponse(res, 200, 'Active earning addons fetched successfully', data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getDailyIncentiveController = async (req, res, next) => {
+    try {
+        const deliveryPartnerId = req.user?.userId;
+        const data = await getDailyIncentiveSnapshot(deliveryPartnerId, new Date());
+        return sendResponse(res, 200, 'Daily incentive fetched successfully', data);
     } catch (error) {
         next(error);
     }

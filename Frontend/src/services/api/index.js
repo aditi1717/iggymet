@@ -714,6 +714,33 @@ export const adminAPI = {
       { contextModule: "admin" },
     ),
 
+  /** Daily Incentive Campaigns (admin) */
+  getDailyIncentiveCampaigns: (params = {}) =>
+    apiClient.get("/food/admin/delivery/daily-incentives", {
+      params,
+      contextModule: "admin",
+    }),
+  createDailyIncentiveCampaign: (body) =>
+    apiClient.post("/food/admin/delivery/daily-incentives", body ?? {}, {
+      contextModule: "admin",
+    }),
+  updateDailyIncentiveCampaign: (id, body) =>
+    apiClient.patch(
+      `/food/admin/delivery/daily-incentives/${String(id)}`,
+      body ?? {},
+      { contextModule: "admin" },
+    ),
+  deleteDailyIncentiveCampaign: (id) =>
+    apiClient.delete(`/food/admin/delivery/daily-incentives/${String(id)}`, {
+      contextModule: "admin",
+    }),
+  toggleDailyIncentiveCampaignStatus: (id, status) =>
+    apiClient.patch(
+      `/food/admin/delivery/daily-incentives/${String(id)}/status`,
+      { status: String(status) },
+      { contextModule: "admin" },
+    ),
+
   /** Earning Addon Offers (admin) */
   getEarningAddons: (params = {}) =>
     apiClient.get("/food/admin/delivery/earning-addons", {
@@ -2075,6 +2102,9 @@ export const deliveryAPI = {
   /** GET /food/delivery/wallet - wallet for Pocket/requests page (backend) */
   getWallet: () =>
     apiClient.get("/food/delivery/wallet", { contextModule: "delivery" }),
+  /** GET /food/delivery/daily-incentive - live trip ladder for today */
+  getDailyIncentive: () =>
+    apiClient.get("/food/delivery/daily-incentive", { contextModule: "delivery" }),
   /** GET /food/delivery/earnings - earnings summary for Pocket/requests page */
   getEarnings: (params) =>
     apiClient.get("/food/delivery/earnings", {

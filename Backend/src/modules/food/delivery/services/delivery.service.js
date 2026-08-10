@@ -518,7 +518,7 @@ export const getDeliveryPartnerWallet = async (deliveryPartnerId) => {
 
     // Admin-set delivery bonuses / earning addons
     const bonusAgg = await DeliveryBonusTransaction.aggregate([
-        { $match: { deliveryPartnerId: partnerId } },
+        { $match: { deliveryPartnerId: partnerId, status: { $ne: 'pending' } } },
         { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
     const totalBonus = bonusAgg?.[0] ? Number(bonusAgg[0].total) : 0;
@@ -561,7 +561,7 @@ export const getDeliveryPartnerWallet = async (deliveryPartnerId) => {
         _id: t._id,
         type: 'earning_addon',
         amount: Number(t.amount) || 0,
-        status: 'Completed',
+        status: String(t.status || '').toLowerCase() === 'pending' ? 'Pending' : 'Completed',
         date: t.createdAt,
         createdAt: t.createdAt,
         metadata: { reference: t.reference || '' },

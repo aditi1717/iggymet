@@ -24,6 +24,7 @@ import { ViewSupportTicketV2 } from './pages/help/ViewSupportTicketV2';
 import ShowIdCardV2 from './pages/help/ShowIdCardV2';
 import { PocketDetailsV2 } from './pages/pocket/PocketDetailsV2';
 import { PocketCashHistoryV2 } from './pages/pocket/PocketCashHistoryV2';
+import { DailyIncentiveDetailsV2 } from './pages/pocket/DailyIncentiveDetailsV2';
 import { EditDeliveryBoy } from './pages/profile/EditDeliveryBoy';
 import TermsAndConditionsV2 from './pages/TermsAndConditionsV2';
 import PrivacyPolicyV2 from './pages/PrivacyPolicyV2';
@@ -72,6 +73,7 @@ const DeliveryV2Router = () => {
         <Route path="/pocket/statement" element={<ProtectedRoute><PocketStatementV2 /></ProtectedRoute>} />
         <Route path="/pocket/details" element={<ProtectedRoute><PocketDetailsV2 /></ProtectedRoute>} />
         <Route path="/pocket/cash-history" element={<ProtectedRoute><PocketCashHistoryV2 /></ProtectedRoute>} />
+        <Route path="/pocket/incentives" element={<ProtectedRoute><DailyIncentiveDetailsV2 /></ProtectedRoute>} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/food/delivery" replace />} />

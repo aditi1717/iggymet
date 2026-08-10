@@ -142,6 +142,9 @@ export default function DeliverySettlementHistory() {
                   <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Partners</th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Orders</th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Total Paid</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Incentive Total</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Incentive Paid</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Incentive Unpaid</th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Paid By</th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Action</th>
                 </tr>
@@ -149,7 +152,7 @@ export default function DeliverySettlementHistory() {
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-14 text-center text-sm text-slate-500">
+                    <td colSpan={10} className="px-6 py-14 text-center text-sm text-slate-500">
                       <span className="inline-flex items-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Loading settlement history...
@@ -158,7 +161,7 @@ export default function DeliverySettlementHistory() {
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-14 text-center text-sm text-slate-500">
+                    <td colSpan={10} className="px-6 py-14 text-center text-sm text-slate-500">
                       No settlement history found.
                     </td>
                   </tr>
@@ -180,6 +183,9 @@ export default function DeliverySettlementHistory() {
                       </td>
                       <td className="px-5 py-4 text-sm text-slate-700">{Number(row.totalOrders || 0)}</td>
                       <td className="px-5 py-4 text-sm font-semibold text-emerald-700">{toCurrency(row.totalPaidAmount)}</td>
+                      <td className="px-5 py-4 text-sm font-semibold text-slate-900">{toCurrency(row.incentiveTotal)}</td>
+                      <td className="px-5 py-4 text-sm font-semibold text-emerald-700">{toCurrency(row.incentivePaid)}</td>
+                      <td className="px-5 py-4 text-sm font-semibold text-rose-700">{toCurrency(row.incentiveUnpaid)}</td>
                       <td className="px-5 py-4 text-sm text-slate-700">{row.paidByAdminName || "-"}</td>
                       <td className="px-5 py-4">
                         <button
@@ -216,6 +222,9 @@ export default function DeliverySettlementHistory() {
                     <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Delivery Partner</th>
                     <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Orders</th>
                     <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Gross</th>
+                    <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Incentive Total</th>
+                    <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Incentive Paid</th>
+                    <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Incentive Unpaid</th>
                     <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Paid</th>
                     <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Note</th>
                   </tr>
@@ -223,7 +232,7 @@ export default function DeliverySettlementHistory() {
                 <tbody className="divide-y divide-slate-100">
                   {detailsLoading ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-14 text-center text-sm text-slate-500">
+                      <td colSpan={8} className="px-6 py-14 text-center text-sm text-slate-500">
                         <span className="inline-flex items-center gap-2">
                           <Loader2 className="w-4 h-4 animate-spin" />
                           Loading batch details...
@@ -232,7 +241,7 @@ export default function DeliverySettlementHistory() {
                     </tr>
                   ) : !details?.rows?.length ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-14 text-center text-sm text-slate-500">
+                      <td colSpan={8} className="px-6 py-14 text-center text-sm text-slate-500">
                         No paid rows found for this batch.
                       </td>
                     </tr>
@@ -245,6 +254,9 @@ export default function DeliverySettlementHistory() {
                         </td>
                         <td className="px-5 py-4 text-sm text-slate-700">{Number(row.ordersCount || 0)}</td>
                         <td className="px-5 py-4 text-sm text-slate-700">{toCurrency(row.grossAmount)}</td>
+                        <td className="px-5 py-4 text-sm text-slate-900">{toCurrency(row.incentiveTotal)}</td>
+                        <td className="px-5 py-4 text-sm text-emerald-700">{toCurrency(row.incentivePaid)}</td>
+                        <td className="px-5 py-4 text-sm text-rose-700">{toCurrency(row.incentiveUnpaid)}</td>
                         <td className="px-5 py-4 text-sm font-semibold text-emerald-700">{toCurrency(row.paidAmount)}</td>
                         <td className="px-5 py-4 text-sm text-slate-700">{row.note || "-"}</td>
                       </tr>

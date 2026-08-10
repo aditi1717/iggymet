@@ -779,6 +779,74 @@ export async function getDeliveryEarnings(req, res, next) {
     }
 }
 
+// ----- Daily Incentive Campaign (admin) -----
+export async function getDailyIncentiveCampaigns(req, res, next) {
+    try {
+        const data = await adminService.getDailyIncentiveCampaigns();
+        res.status(200).json({ success: true, message: 'Daily incentive campaigns fetched successfully', data });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function createDailyIncentiveCampaign(req, res, next) {
+    try {
+        const created = await adminService.createDailyIncentiveCampaign(req.body || {}, req.user);
+        res.status(201).json({ success: true, message: 'Daily incentive campaign created successfully', data: { campaign: created } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function updateDailyIncentiveCampaign(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid campaign id' });
+        }
+        const updated = await adminService.updateDailyIncentiveCampaign(id, req.body || {}, req.user);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Daily incentive campaign not found' });
+        }
+        res.status(200).json({ success: true, message: 'Daily incentive campaign updated successfully', data: { campaign: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function deleteDailyIncentiveCampaign(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid campaign id' });
+        }
+        const result = await adminService.deleteDailyIncentiveCampaign(id);
+        if (!result) {
+            return res.status(404).json({ success: false, message: 'Daily incentive campaign not found' });
+        }
+        res.status(200).json({ success: true, message: 'Daily incentive campaign deleted successfully', data: result });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function toggleDailyIncentiveCampaignStatus(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid campaign id' });
+        }
+        const status = String(req.body?.status || '').toLowerCase();
+        const updated = await adminService.toggleDailyIncentiveCampaignStatus(id, status);
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Daily incentive campaign not found' });
+        }
+        res.status(200).json({ success: true, message: 'Daily incentive campaign status updated successfully', data: { campaign: updated } });
+    } catch (error) {
+        next(error);
+    }
+}
+
 // ----- Earning Addon (admin) -----
 export async function getEarningAddons(req, res, next) {
     try {

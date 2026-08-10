@@ -45,9 +45,12 @@ export default function DeliveryPayoutSettlement() {
         acc.totalEarning += Number(row.totalEarning || 0)
         acc.totalPaid += Number(row.alreadyPaid || 0)
         acc.totalPending += Number(row.payableNow || 0)
+        acc.incentiveTotal += Number(row.incentiveTotal || 0)
+        acc.incentivePaid += Number(row.incentivePaid || 0)
+        acc.incentiveUnpaid += Number(row.incentiveUnpaid || 0)
         return acc
       },
-      { totalEarning: 0, totalPaid: 0, totalPending: 0 },
+      { totalEarning: 0, totalPaid: 0, totalPending: 0, incentiveTotal: 0, incentivePaid: 0, incentiveUnpaid: 0 },
     )
   }, [rows])
 
@@ -167,6 +170,9 @@ export default function DeliveryPayoutSettlement() {
             <td class="num">${htmlEscape(Number(row.totalEarning || 0).toFixed(2))}</td>
             <td class="num">${htmlEscape(Number(row.alreadyPaid || 0).toFixed(2))}</td>
             <td class="num">${htmlEscape(Number(row.payableNow || 0).toFixed(2))}</td>
+            <td class="num">${htmlEscape(Number(row.incentiveTotal || 0).toFixed(2))}</td>
+            <td class="num">${htmlEscape(Number(row.incentivePaid || 0).toFixed(2))}</td>
+            <td class="num">${htmlEscape(Number(row.incentiveUnpaid || 0).toFixed(2))}</td>
             <td>${htmlEscape(toDisplayDate(row.lastSettledToDate))}</td>
           </tr>
         `,
@@ -193,8 +199,11 @@ export default function DeliveryPayoutSettlement() {
                 <th>Partner ID</th>
                 <th>Orders</th>
                 <th>Total Earning</th>
-                <th>Paid</th>
-                <th>Unpaid</th>
+                <th>Total Paid</th>
+                <th>Total Unpaid</th>
+                <th>Incentive Total</th>
+                <th>Incentive Paid</th>
+                <th>Incentive Unpaid</th>
                 <th>Last Settled</th>
               </tr>
             </thead>
@@ -207,12 +216,11 @@ export default function DeliveryPayoutSettlement() {
                 <td class="num">${htmlEscape(Number(summary.totalEarning || 0).toFixed(2))}</td>
                 <td class="num">${htmlEscape(Number(summary.totalPaid || 0).toFixed(2))}</td>
                 <td class="num">${htmlEscape(Number(summary.totalPending || 0).toFixed(2))}</td>
+                <td class="num">${htmlEscape(Number(summary.incentiveTotal || 0).toFixed(2))}</td>
+                <td class="num">${htmlEscape(Number(summary.incentivePaid || 0).toFixed(2))}</td>
+                <td class="num">${htmlEscape(Number(summary.incentiveUnpaid || 0).toFixed(2))}</td>
                 <td></td>
               </tr>
-            </tbody>
-          </table>
-        </body>
-      </html>
     `
 
     const blob = new Blob([xlsHtml], { type: "application/vnd.ms-excel;charset=utf-8;" })
@@ -301,6 +309,29 @@ export default function DeliveryPayoutSettlement() {
             <p className="mt-2 text-2xl font-bold text-amber-700">{toCurrency(summary.totalPending)}</p>
           </div>
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-white rounded-xl shadow-sm border border-amber-200 p-5">
+            <div className="flex items-center gap-2 text-amber-700">
+              <Receipt className="w-4 h-4" />
+              <p className="text-sm font-medium">Incentive Total</p>
+            </div>
+            <p className="mt-2 text-2xl font-bold text-slate-900">{toCurrency(summary.incentiveTotal)}</p>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-emerald-200 p-5">
+            <div className="flex items-center gap-2 text-emerald-700">
+              <CheckCircle2 className="w-4 h-4" />
+              <p className="text-sm font-medium">Incentive Paid</p>
+            </div>
+            <p className="mt-2 text-2xl font-bold text-emerald-700">{toCurrency(summary.incentivePaid)}</p>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-rose-200 p-5">
+            <div className="flex items-center gap-2 text-rose-700">
+              <CalendarRange className="w-4 h-4" />
+              <p className="text-sm font-medium">Incentive Unpaid</p>
+            </div>
+            <p className="mt-2 text-2xl font-bold text-rose-700">{toCurrency(summary.incentiveUnpaid)}</p>
+          </div>
+        </div>
         <div className="flex justify-end gap-2 mb-4">
           <button
             type="button"
@@ -329,16 +360,19 @@ export default function DeliveryPayoutSettlement() {
                 <tr>
                   <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Delivery Partner</th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Orders</th>
-                  <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Total Earning</th>
-                  <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Paid</th>
-                  <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Unpaid</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-extrabold text-slate-900 uppercase tracking-wider bg-slate-100/50">Total Earning</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-extrabold text-emerald-900 uppercase tracking-wider bg-emerald-100/50">Total Paid</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-extrabold text-rose-900 uppercase tracking-wider bg-rose-100/50">Total Unpaid</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-extrabold text-amber-800 uppercase tracking-wider bg-amber-50/50">Incentive Total</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-extrabold text-emerald-800 uppercase tracking-wider bg-emerald-50/50">Incentive Paid</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-extrabold text-rose-800 uppercase tracking-wider bg-rose-50/50">Incentive Unpaid</th>
                   <th className="px-5 py-3 text-left text-[11px] font-bold text-slate-700 uppercase tracking-wider">Last Settled</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-14 text-center text-sm text-slate-500">
+                    <td colSpan={9} className="px-6 py-14 text-center text-sm text-slate-500">
                       <span className="inline-flex items-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Loading settlement preview...
@@ -347,7 +381,7 @@ export default function DeliveryPayoutSettlement() {
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-14 text-center text-sm text-slate-500">
+                    <td colSpan={9} className="px-6 py-14 text-center text-sm text-slate-500">
                       No delivery partner found for current filters.
                     </td>
                   </tr>
@@ -359,9 +393,12 @@ export default function DeliveryPayoutSettlement() {
                         <p className="text-xs text-slate-500">{row.beneficiaryId}</p>
                       </td>
                       <td className="px-5 py-4 text-sm text-slate-700">{row.ordersCount}</td>
-                      <td className="px-5 py-4 text-sm font-semibold text-slate-900">{toCurrency(row.totalEarning)}</td>
-                      <td className="px-5 py-4 text-sm font-semibold text-emerald-700">{toCurrency(row.alreadyPaid)}</td>
-                      <td className="px-5 py-4 text-sm font-semibold text-amber-700">{toCurrency(row.payableNow)}</td>
+                      <td className="px-5 py-4 text-sm font-bold text-slate-900 bg-slate-50/40">{toCurrency(row.totalEarning)}</td>
+                      <td className="px-5 py-4 text-sm font-extrabold text-emerald-700 bg-emerald-100/30">{toCurrency(row.alreadyPaid)}</td>
+                      <td className="px-5 py-4 text-sm font-extrabold text-rose-700 bg-rose-100/30">{toCurrency(row.payableNow)}</td>
+                      <td className="px-5 py-4 text-sm font-semibold text-amber-900 bg-amber-50/30">{toCurrency(row.incentiveTotal)}</td>
+                      <td className="px-5 py-4 text-sm font-semibold text-emerald-700 bg-emerald-50/30">{toCurrency(row.incentivePaid)}</td>
+                      <td className="px-5 py-4 text-sm font-semibold text-rose-700 bg-rose-50/30">{toCurrency(row.incentiveUnpaid)}</td>
                       <td className="px-5 py-4 text-sm text-slate-700">{toDisplayDate(row.lastSettledToDate)}</td>
                     </tr>
                   ))

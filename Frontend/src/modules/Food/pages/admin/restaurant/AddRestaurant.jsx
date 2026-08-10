@@ -172,6 +172,8 @@ export default function AddRestaurant() {
   const [isSearchingNominatim, setIsSearchingNominatim] = useState(false)
   const [showNominatimDropdown, setShowNominatimDropdown] = useState(false)
   const [locationZoneError, setLocationZoneError] = useState("")
+  const zoneIdRef = useRef("")
+  const zonesRef = useRef([])
 
   // Step 1: Basic Info
   const [step1, setStep1] = useState({
@@ -236,6 +238,11 @@ export default function AddRestaurant() {
   ]
 
   const mainContentRef = useRef(null)
+  const resolveSelectedZone = () => {
+    const currentZoneId = String(zoneIdRef.current || "").trim()
+    if (!currentZoneId) return null
+    return (zonesRef.current || []).find((z) => String(z?._id || z?.id || "").trim() === currentZoneId) || null
+  }
 
   const clearPersistedFormData = async () => {
     try {
@@ -707,6 +714,14 @@ export default function AddRestaurant() {
   }, [step1.location?.formattedAddress, isHydrated])
 
   useEffect(() => {
+    zoneIdRef.current = String(step1.zoneId || "").trim()
+  }, [step1.zoneId])
+
+  useEffect(() => {
+    zonesRef.current = Array.isArray(zones) ? zones : []
+  }, [zones])
+
+  useEffect(() => {
     if (step !== 1) return
     let cancelled = false
     setZonesLoading(true)
@@ -818,7 +833,7 @@ export default function AddRestaurant() {
         const lat = place?.geometry?.location?.lat?.()
         const lng = place?.geometry?.location?.lng?.()
 
-        const selectedZone = zones.find((z) => String(z?._id || z?.id || "") === String(step1.zoneId))
+        const selectedZone = resolveSelectedZone()
         const validation = await validateLocationInZone(lat, lng, selectedZone)
         if (!validation.valid) {
           setLocationZoneError(validation.message)
@@ -998,7 +1013,7 @@ export default function AddRestaurant() {
 
   const handleSelectNominatimSuggestion = async (sug) => {
     setShowNominatimDropdown(false)
-    const selectedZone = zones.find((z) => String(z?._id || z?.id || "") === String(step1.zoneId))
+    const selectedZone = resolveSelectedZone()
 
     if (!step1.zoneId || !selectedZone) {
       const errMsg = "Please select a Service Zone first before choosing a location."
