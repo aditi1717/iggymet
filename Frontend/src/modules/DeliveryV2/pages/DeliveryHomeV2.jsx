@@ -2005,42 +2005,6 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                 <button onClick={() => setZoom(z => Math.max(8, z - 1))} className="p-3 hover:bg-gray-50 text-gray-900 active:scale-90 transition-all" aria-label="Zoom out"><Minus className="w-5 h-5 stroke-[2.75]" /></button>
               </div>
               <button
-                onClick={() => {
-                  if (!isSimMode) {
-                    setIsSimMode(true);
-                    setIsSimPlaying(true);
-                    setSimIndex(0);
-                    setSimProgress(0);
-                    toast.warning('Simulation Mode Active');
-                    // Initialize position if null
-                    if (!useDeliveryStore.getState().riderLocation && activeOrder) {
-                      const target = activeOrder.restaurantLocation || activeOrder.customerLocation;
-                      if (target) {
-                        setRiderLocation({
-                          lat: parseFloat(target.lat || target.latitude) + 0.001,
-                          lng: parseFloat(target.lng || target.longitude) + 0.001,
-                          heading: 0
-                        });
-                      }
-                    }
-                  } else {
-                    // Toggle play/pause
-                    const nextPlaying = !isSimPlaying;
-                    setIsSimPlaying(nextPlaying);
-                    toast.info(nextPlaying ? 'Simulation Resumed' : 'Simulation Paused');
-                  }
-                }}
-                className={`w-14 h-14 rounded-full shadow-2xl flex items-center justify-center border border-gray-100 transition-all ${isSimMode ? (isSimPlaying ? 'bg-orange-500 text-white' : 'bg-yellow-500 text-white') : 'bg-white text-green-500'}`}
-              >
-                <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${isSimMode ? 'border-white' : 'border-green-500'}`}>
-                  {isSimMode && isSimPlaying ? (
-                    <Pause className="w-4 h-4 fill-current" />
-                  ) : (
-                    <Play className={`w-4 h-4 fill-current ${!isSimMode ? 'ml-0.5' : 'ml-0.5 animate-pulse'}`} />
-                  )}
-                </div>
-              </button>
-              <button
                 onClick={() => mapRef.current?.setOptions({ gestureHandling: 'greedy' })}
                 className="w-14 h-14 bg-white rounded-full shadow-2xl flex items-center justify-center text-brand-600 border border-gray-100 active:scale-90 transition-all"
               >
