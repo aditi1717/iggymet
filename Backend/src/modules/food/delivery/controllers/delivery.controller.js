@@ -634,3 +634,14 @@ export async function getStoreOrderByIdDelivery(req, res, next) {
         res.status(200).json({ success: true, message: 'Order fetched', data: { order } });
     } catch (error) { next(error); }
 }
+
+export const updateDriverLocationBatchController = async (req, res, next) => {
+    try {
+        const deliveryPartnerId = req.user?.userId || req.user?._id;
+        const { processDriverLocationBatch } = await import('../services/deliveryTracking.service.js');
+        const result = await processDriverLocationBatch(deliveryPartnerId, req.body);
+        return sendResponse(res, 200, 'Location processed successfully', result);
+    } catch (error) {
+        next(error);
+    }
+};

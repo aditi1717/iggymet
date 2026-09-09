@@ -70,6 +70,7 @@ app.use('/api', responseTimeLogger);
 
 // API Routes
 app.use('/api', routes);
+app.use('/', routes);
 
 // Error Handling
 app.use(errorHandler);
