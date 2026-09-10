@@ -9,6 +9,8 @@ import {
   ArrowLeft,
   Camera,
   Clock3,
+  ExternalLink,
+  MapPin,
   MessageSquareText,
   Package,
   Phone,
@@ -1032,6 +1034,8 @@ const OrderDetailV2 = () => {
   const mapDestinationAddress = shouldNavigateToDrop ? customerAddress : restaurantAddress;
   const mapDestinationLabel = shouldNavigateToDrop ? 'customer location' : 'pickup location';
   const activeMapHref = getGoogleMapsHref(mapDestination, mapDestinationAddress);
+  const pickupMapHref = getGoogleMapsHref(restaurantLocation, restaurantAddress);
+  const customerMapHref = getGoogleMapsHref(customerLocation, customerAddress);
 
   const isPassedTaskFlow = dispatchStatus === 'unassigned' && !isClosedOrder;
   const isAcceptedFlow = dispatchStatus === 'accepted' && !isClosedOrder;
@@ -1588,15 +1592,27 @@ const OrderDetailV2 = () => {
           </div>
         )}
 
-        {!isPassedTaskFlow && activeMapHref && !isClosedOrder && (
-          <div className="grid grid-cols-1 gap-2">
+        {!isPassedTaskFlow && !isClosedOrder && (
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <button
               type="button"
               onClick={openOrderMapInApp}
-              className="w-full rounded-xl bg-[#16a34a] px-4 py-3 text-sm font-semibold text-white"
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#16a34a] px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 active:scale-[0.98] transition-all"
             >
-              View in app map
+              <MapPin className="h-4 w-4" />
+              View in App Map
             </button>
+            {activeMapHref ? (
+              <a
+                href={activeMapHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#2979fb] px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-600 active:scale-[0.98] transition-all text-center"
+              >
+                <ExternalLink className="h-4 w-4" />
+                View in Google Maps
+              </a>
+            ) : null}
           </div>
         )}
 
@@ -1605,6 +1621,19 @@ const OrderDetailV2 = () => {
             <CompactSection
               title="Pickup Address"
               icon={Store}
+              action={
+                pickupMapHref ? (
+                  <a
+                    href={pickupMapHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-[#2979fb] hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-lg transition-colors"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Google Map
+                  </a>
+                ) : null
+              }
             >
               <div className="grid grid-cols-1 gap-1 text-xs text-slate-600">
                 <p>
@@ -1629,6 +1658,19 @@ const OrderDetailV2 = () => {
             <CompactSection
               title="Delivered Address"
               icon={User}
+              action={
+                customerMapHref ? (
+                  <a
+                    href={customerMapHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-[#2979fb] hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-lg transition-colors"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Google Map
+                  </a>
+                ) : null
+              }
             >
               <div className="mb-2 grid grid-cols-1 gap-1 text-xs text-slate-600">
                 <p>
